@@ -4,22 +4,25 @@ import { randomUUID } from "node:crypto";
 
 const logLevel = process.env.LOG_LEVEL || "info";
 const isProduction = process.env.NODE_ENV === "production";
+const usePrettyLogs =
+  process.env.LOG_PRETTY === "true" || process.env.NODE_ENV === "development";
 
 // In production we keep JSON logs; in development we enable pretty output.
-const logger = isProduction
-  ? pino({ level: logLevel })
-  : pino({
-      level: logLevel,
-      transport: {
-        target: "pino-pretty",
-        options: {
-          colorize: true,
-          translateTime: "SYS:standard",
-          ignore: "pid,hostname",
-          singleLine: false,
+const logger =
+  isProduction || !usePrettyLogs
+    ? pino({ level: logLevel })
+    : pino({
+        level: logLevel,
+        transport: {
+          target: "pino-pretty",
+          options: {
+            colorize: true,
+            translateTime: "SYS:standard",
+            ignore: "pid,hostname",
+            singleLine: false,
+          },
         },
-      },
-    });
+      });
 
 // Middleware for HTTP logging with trace ID
 export function createHttpLogger() {

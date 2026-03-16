@@ -192,6 +192,7 @@ Variaveis de ambiente opcionais no backend:
 - `RATE_LIMIT_CHAT_MAX`: limite de requests de chat na janela (padrao: `80`)
 - `LOG_LEVEL`: nivel de log (`fatal`, `error`, `warn`, `info`, `debug`, `trace`) (padrao: `info`)
 - `NODE_ENV`: quando `production`, usa logs JSON em vez de formato colorido de desenvolvimento
+- `LOG_PRETTY`: quando `true`, habilita logs legiveis via `pino-pretty` (recomendado apenas para desenvolvimento local)
 
 ## Observabilidade e performance (Sprint 4 e 5)
 
