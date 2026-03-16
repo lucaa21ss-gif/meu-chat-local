@@ -1,10 +1,12 @@
 import express from "express";
 import cors from "cors";
+import compression from "compression";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import { client } from "./ollama.js";
+import logger, { createHttpLogger } from "./logger.js";
 import {
   initDb,
   listChats,
@@ -196,23 +198,58 @@ export function createApp(deps = {}) {
   );
   app.use(cors({ origin: allowedOrigin }));
   app.use(express.json({ limit: process.env.JSON_LIMIT || "8mb" }));
+
+  // Response compression for JSON and text
+  app.use(compression());
+
+  // HTTP logging with trace IDs
+  app.use(createHttpLogger());
+  app.use((req, res, next) => {
+    req.logger = logger.child({ traceId: req.id });
+    next();
+  });
+
+  // Cache headers for static assets
+  app.use(
+    express.static(webDir, {
+      maxAge: "1d",
+      etag: false,
+      dotfiles: "ignore",
+    }),
+  );
+
   app.use("/api", apiLimiter);
   app.use("/api/chat", chatLimiter);
   app.use("/api/chat-stream", chatLimiter);
 
-  app.get("/healthz", (_req, res) => {
+  app.get("/healthz", (req, res) => {
+    req.logger?.info({ uptime: process.uptime() }, "Liveness check");
     res.status(200).json({ status: "ok", service: "chat-server" });
   });
 
   app.get(
     "/readyz",
-    asyncHandler(async (_req, res) => {
-      await store.listChats();
-      res.status(200).json({ status: "ready" });
+    asyncHandler(async (req, res) => {
+      const startTime = Date.now();
+      try {
+        await store.listChats();
+        const duration = Date.now() - startTime;
+        req.logger?.info({ duration }, "Readiness check passed");
+        res.status(200).json({
+          status: "ready",
+          uptime: process.uptime(),
+          responseTime: duration,
+        });
+      } catch (err) {
+        const duration = Date.now() - startTime;
+        req.logger?.error(
+          { error: err.message, duration },
+          "Readiness check failed",
+        );
+        throw err;
+      }
     }),
   );
-
-  app.use(express.static(webDir));
 
   app.post(
     "/api/chat",
@@ -436,7 +473,14 @@ export function createApp(deps = {}) {
     const message =
       err instanceof HttpError ? err.message : "Erro interno do servidor";
 
-    console.error(err);
+    req.logger?.error(
+      {
+        error: err.message,
+        stack: err.stack,
+        traceId: req.id,
+      },
+      `${status} ${message}`,
+    );
 
     if (res.headersSent) {
       return;
@@ -457,7 +501,7 @@ export async function startServer(port = 3001) {
   await initDb();
   const app = createApp();
   const server = app.listen(port, () => {
-    console.log(`API rodando em http://localhost:${port}`);
+    logger.info(`API rodando em http://localhost:${port}`);
   });
   return server;
 }
@@ -466,7 +510,7 @@ const isMainModule =
   process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1];
 if (isMainModule) {
   startServer().catch((err) => {
-    console.error("Falha ao inicializar servidor", err);
+    logger.error(err, "Falha ao inicializar servidor");
     process.exit(1);
   });
 }
