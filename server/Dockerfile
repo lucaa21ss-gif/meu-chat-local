@@ -3,10 +3,10 @@ FROM node:20
 WORKDIR /app
 
 COPY server/package*.json ./server/
-RUN cd server && npm install
+RUN cd server && npm ci --omit=dev
 
 COPY web/package*.json ./web/
-RUN cd web && npm install
+RUN cd web && npm ci
 
 COPY server/ ./server/
 COPY web/ ./web/

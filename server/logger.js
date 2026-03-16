@@ -2,19 +2,24 @@ import pino from "pino";
 import pinoHttp from "pino-http";
 import { randomUUID } from "node:crypto";
 
-// Create base logger instance
-const logger = pino({
-  level: process.env.LOG_LEVEL || "info",
-  transport: {
-    target: "pino-pretty",
-    options: {
-      colorize: true,
-      translateTime: "SYS:standard",
-      ignore: "pid,hostname",
-      singleLine: false,
-    },
-  },
-});
+const logLevel = process.env.LOG_LEVEL || "info";
+const isProduction = process.env.NODE_ENV === "production";
+
+// In production we keep JSON logs; in development we enable pretty output.
+const logger = isProduction
+  ? pino({ level: logLevel })
+  : pino({
+      level: logLevel,
+      transport: {
+        target: "pino-pretty",
+        options: {
+          colorize: true,
+          translateTime: "SYS:standard",
+          ignore: "pid,hostname",
+          singleLine: false,
+        },
+      },
+    });
 
 // Middleware for HTTP logging with trace ID
 export function createHttpLogger() {
@@ -46,12 +51,6 @@ export function createHttpLogger() {
     },
     logger,
   );
-}
-
-// Attach logger to request for use in route handlers
-export function attachTraceId(req, res, next) {
-  req.logger = logger.child({ traceId: req.id });
-  next();
 }
 
 // Main logger for application

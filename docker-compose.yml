@@ -16,6 +16,8 @@ services:
     container_name: chat-server
     environment:
       - OLLAMA_HOST=http://ollama:11434
+      - NODE_ENV=production
+      - LOG_LEVEL=info
     ports:
       - "3001:3001"
     healthcheck:

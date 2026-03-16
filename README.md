@@ -190,6 +190,16 @@ Variaveis de ambiente opcionais no backend:
 - `RATE_LIMIT_WINDOW_MS`: janela do rate limit geral (padrao: `900000`)
 - `RATE_LIMIT_MAX`: limite geral de requests na janela (padrao: `400`)
 - `RATE_LIMIT_CHAT_MAX`: limite de requests de chat na janela (padrao: `80`)
+- `LOG_LEVEL`: nivel de log (`fatal`, `error`, `warn`, `info`, `debug`, `trace`) (padrao: `info`)
+- `NODE_ENV`: quando `production`, usa logs JSON em vez de formato colorido de desenvolvimento
+
+## Observabilidade e performance (Sprint 4 e 5)
+
+- Logging estruturado com `pino` + `pino-http`
+- `traceId` por request (header `x-trace-id`) para correlacao ponta a ponta
+- Compressao gzip de respostas HTTP via middleware `compression`
+- Cache de assets estaticos com `max-age=1d`
+- `/readyz` inclui tempo de resposta para diagnostico rapido
 
 ## Upgrades futuros sugeridos
 
