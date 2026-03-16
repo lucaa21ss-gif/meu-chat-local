@@ -6,6 +6,11 @@ on:
       - "v*.*.*"
       - "meu-chat-local-v*.*.*"
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Tag de release para publicar (ex.: meu-chat-local-v0.2.0 ou v0.2.0)"
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -34,7 +39,7 @@ jobs:
         id: version
         run: |
           set -e
-          TAG="${GITHUB_REF_NAME}"
+          TAG="${{ github.event.inputs.release_tag || github.ref_name }}"
 
           if [[ "$TAG" == meu-chat-local-v* ]]; then
             VERSION="${TAG#meu-chat-local-v}"
