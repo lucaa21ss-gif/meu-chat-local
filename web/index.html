@@ -1,179 +1,515 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="pt-BR">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Meu Chat Local</title>
-  <link rel="icon" type="image/svg+xml" href="assets/logo-chat-local.svg">
-  <link rel="stylesheet" href="output.css">
-</head>
-<body class="min-h-screen bg-gradient-to-br from-slate-50 to-slate-200 text-slate-900 transition-colors duration-300 dark:from-slate-900 dark:to-slate-950 dark:text-slate-100">
-  <div class="mx-auto flex min-h-screen w-full max-w-7xl gap-4 px-4 py-5 sm:px-6 lg:px-8">
-    <aside class="hidden w-72 shrink-0 rounded-3xl bg-white/70 p-4 shadow-2xl shadow-slate-200/50 ring-1 ring-white/50 backdrop-blur-xl md:flex md:flex-col dark:bg-slate-900/70 dark:shadow-black/50 dark:ring-slate-800/50">
-      <div class="flex items-start justify-between gap-3">
-        <div class="flex items-center gap-3">
-          <div class="brand-emblem w-12 shrink-0 overflow-hidden rounded-2xl">
-            <img src="assets/logo-chat-local.svg" alt="Logo Meu Chat Local" class="block h-full w-full" />
-          </div>
-          <div>
-            <p class="text-xs font-semibold uppercase tracking-[0.2em] text-teal-700 dark:text-teal-400">Meu Chat Local</p>
-            <h1 class="mt-1 text-xl font-bold">Conversas</h1>
-            <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">Privado, local e pronto para streaming</p>
-          </div>
-        </div>
-        <button id="darkModeBtn" type="button" class="rounded-full p-2 text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800" title="Alternar modo escuro">
-          <svg id="sunIcon" class="hidden h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m12.728 0l-.707-.707M6.343 6.343l-.707-.707M12 8a4 4 0 100 8 4 4 0 000-8z" /></svg>
-          <svg id="moonIcon" class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" /></svg>
-        </button>
-      </div>
-      <button id="newChatBtn" type="button" class="mt-4 rounded-xl bg-teal-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-teal-700">+ Nova aba</button>
-      <div id="chatTabs" class="mt-4 flex-1 space-y-2 overflow-y-auto"></div>
-      <button id="duplicateBtn" type="button" title="Duplica a aba atual e seu historico" class="mt-3 rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700">Duplicar aba</button>
-      <button id="renameBtn" type="button" class="mt-3 rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700">Renomear aba</button>
-      <button id="deleteBtn" type="button" class="mt-2 rounded-xl border border-rose-300 bg-white px-4 py-2 text-sm font-semibold text-rose-700 transition hover:bg-rose-50 dark:border-rose-900 dark:bg-slate-800 dark:text-rose-400 dark:hover:bg-rose-950/30">Excluir aba</button>
-      <button id="exportBtn" type="button" class="mt-3 rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700">Exportar Markdown</button>
-    </aside>
-
-    <main class="flex min-h-0 flex-1 flex-col rounded-3xl bg-white/80 shadow-2xl shadow-slate-200/50 ring-1 ring-white/50 backdrop-blur-xl dark:bg-slate-900/80 dark:shadow-black/50 dark:ring-slate-800/50">
-      <header class="border-b border-slate-200/50 bg-white/10 px-4 py-4 backdrop-blur-md sm:px-6 dark:border-slate-800/50 dark:bg-slate-950/10">
-        <div class="flex flex-wrap items-center justify-between gap-3">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Meu Chat Local</title>
+    <link rel="icon" type="image/svg+xml" href="assets/logo-chat-local.svg" />
+    <link rel="stylesheet" href="output.css" />
+  </head>
+  <body
+    class="min-h-screen bg-gradient-to-br from-slate-50 to-slate-200 text-slate-900 transition-colors duration-300 dark:from-slate-900 dark:to-slate-950 dark:text-slate-100"
+  >
+    <div
+      class="mx-auto flex min-h-screen w-full max-w-7xl gap-4 px-4 py-5 sm:px-6 lg:px-8"
+    >
+      <aside
+        class="hidden w-72 shrink-0 rounded-3xl bg-white/70 p-4 shadow-2xl shadow-slate-200/50 ring-1 ring-white/50 backdrop-blur-xl md:flex md:flex-col dark:bg-slate-900/70 dark:shadow-black/50 dark:ring-slate-800/50"
+      >
+        <div class="flex items-start justify-between gap-3">
           <div class="flex items-center gap-3">
-            <div class="brand-emblem hidden w-11 shrink-0 overflow-hidden rounded-2xl sm:block">
-              <img src="assets/logo-chat-local.svg" alt="Logo Meu Chat Local" class="block h-full w-full" />
+            <div class="brand-emblem w-12 shrink-0 overflow-hidden rounded-2xl">
+              <img
+                src="assets/logo-chat-local.svg"
+                alt="Logo Meu Chat Local"
+                class="block h-full w-full"
+              />
             </div>
             <div>
-              <p class="text-xs font-semibold uppercase tracking-[0.2em] text-teal-700 dark:text-teal-400">Meu Chat Local</p>
-              <h2 class="mt-1 text-xl font-bold sm:text-2xl dark:text-slate-100">Assistente Inteligente</h2>
-              <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">Privacidade local com a leveza da nuvem.</p>
+              <p
+                class="text-xs font-semibold uppercase tracking-[0.2em] text-teal-700 dark:text-teal-400"
+              >
+                Meu Chat Local
+              </p>
+              <h1 class="mt-1 text-xl font-bold">Conversas</h1>
+              <p class="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                Privado, local e pronto para streaming
+              </p>
             </div>
           </div>
-          <span class="rounded-full bg-teal-50 px-3 py-1 text-xs font-semibold text-teal-700 ring-1 ring-teal-200 dark:bg-teal-900/30 dark:text-teal-400 dark:ring-teal-800">Híbrido Ativo</span>
+          <button
+            id="darkModeBtn"
+            type="button"
+            class="rounded-full p-2 text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+            title="Alternar modo escuro"
+          >
+            <svg
+              id="sunIcon"
+              class="hidden h-5 w-5"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m12.728 0l-.707-.707M6.343 6.343l-.707-.707M12 8a4 4 0 100 8 4 4 0 000-8z"
+              />
+            </svg>
+            <svg
+              id="moonIcon"
+              class="h-5 w-5"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"
+              />
+            </svg>
+          </button>
         </div>
-      </header>
+        <button
+          id="newChatBtn"
+          type="button"
+          class="mt-4 rounded-xl bg-teal-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-teal-700"
+        >
+          + Nova aba
+        </button>
+        <div id="chatTabs" class="mt-4 flex-1 space-y-2 overflow-y-auto"></div>
+        <button
+          id="duplicateBtn"
+          type="button"
+          title="Duplica a aba atual e seu historico"
+          class="mt-3 rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+        >
+          Duplicar aba
+        </button>
+        <button
+          id="renameBtn"
+          type="button"
+          class="mt-3 rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+        >
+          Renomear aba
+        </button>
+        <button
+          id="deleteBtn"
+          type="button"
+          class="mt-2 rounded-xl border border-rose-300 bg-white px-4 py-2 text-sm font-semibold text-rose-700 transition hover:bg-rose-50 dark:border-rose-900 dark:bg-slate-800 dark:text-rose-400 dark:hover:bg-rose-950/30"
+        >
+          Excluir aba
+        </button>
+        <button
+          id="exportBtn"
+          type="button"
+          class="mt-3 rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+        >
+          Exportar Markdown
+        </button>
+      </aside>
 
-      <section class="border-b border-slate-200/50 bg-white/5 px-4 py-3 backdrop-blur-sm md:hidden dark:border-slate-800/50 dark:bg-slate-950/5">
-        <div class="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
-          <button id="newChatBtnMobile" type="button" class="shrink-0 rounded-xl bg-teal-600 px-4 py-2 text-xs font-semibold text-white shadow-sm">+ Novo</button>
-          <button id="duplicateBtnMobile" type="button" class="shrink-0 rounded-xl border border-white/40 bg-white/30 px-4 py-2 text-xs font-semibold text-slate-700 shadow-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">Duplicar</button>
-          <button id="renameBtnMobile" type="button" class="shrink-0 rounded-xl border border-white/40 bg-white/30 px-4 py-2 text-xs font-semibold text-slate-700 shadow-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">Renomear</button>
-          <button id="deleteBtnMobile" type="button" class="shrink-0 rounded-xl border border-rose-200 bg-rose-50/50 px-4 py-2 text-xs font-semibold text-rose-700 shadow-sm dark:border-rose-900 dark:bg-rose-950/20 dark:text-rose-400">Excluir</button>
-          <button id="exportBtnMobile" type="button" class="shrink-0 rounded-xl border border-white/40 bg-white/30 px-4 py-2 text-xs font-semibold text-slate-700 shadow-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">Exportar</button>
-        </div>
-        <div id="chatTabsMobile" class="mt-2 flex gap-2 overflow-x-auto pb-1 scrollbar-hide"></div>
-      </section>
+      <main
+        class="flex min-h-0 flex-1 flex-col rounded-3xl bg-white/80 shadow-2xl shadow-slate-200/50 ring-1 ring-white/50 backdrop-blur-xl dark:bg-slate-900/80 dark:shadow-black/50 dark:ring-slate-800/50"
+      >
+        <header
+          class="border-b border-slate-200/50 bg-white/10 px-4 py-4 backdrop-blur-md sm:px-6 dark:border-slate-800/50 dark:bg-slate-950/10"
+        >
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div class="flex items-center gap-3">
+              <div
+                class="brand-emblem hidden w-11 shrink-0 overflow-hidden rounded-2xl sm:block"
+              >
+                <img
+                  src="assets/logo-chat-local.svg"
+                  alt="Logo Meu Chat Local"
+                  class="block h-full w-full"
+                />
+              </div>
+              <div>
+                <p
+                  class="text-xs font-semibold uppercase tracking-[0.2em] text-teal-700 dark:text-teal-400"
+                >
+                  Meu Chat Local
+                </p>
+                <h2
+                  class="mt-1 text-xl font-bold sm:text-2xl dark:text-slate-100"
+                >
+                  Assistente Inteligente
+                </h2>
+                <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">
+                  Privacidade local com a leveza da nuvem.
+                </p>
+              </div>
+            </div>
+            <span
+              class="rounded-full bg-teal-50 px-3 py-1 text-xs font-semibold text-teal-700 ring-1 ring-teal-200 dark:bg-teal-900/30 dark:text-teal-400 dark:ring-teal-800"
+              >Híbrido Ativo</span
+            >
+          </div>
+        </header>
 
-      <section class="grid gap-3 border-b border-slate-200 px-4 py-4 sm:grid-cols-2 lg:grid-cols-5 sm:px-6 dark:border-slate-800">
-        <label class="flex flex-col gap-2">
-          <span class="text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-400">Temperatura</span>
-          <input id="temp" type="number" min="0" max="2" step="0.1" value="0.7" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:focus:border-teal-600">
-        </label>
-        <label class="flex flex-col gap-2">
-          <span class="text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-400">Modelo</span>
-          <select id="modelo" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:focus:border-teal-600">
-            <option value="meu-llama3">meu-llama3</option>
-            <option value="llama3">llama3</option>
-            <option value="mistral">mistral</option>
-            <option value="llava">llava</option>
-          </select>
-        </label>
-        <label class="flex flex-col gap-2">
-          <span class="text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-400">Contexto</span>
-          <input id="ctx" type="number" min="256" step="128" value="2048" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:focus:border-teal-600">
-        </label>
-        <label class="flex flex-col gap-2">
-          <span class="text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-400">Imagem (opcional)</span>
-          <input id="imageInput" type="file" accept="image/*" class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs text-slate-600 outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400 dark:focus:border-teal-600">
-        </label>
-        <div class="flex flex-col gap-2">
-          <span class="text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-400">Entrada de voz</span>
-          <div class="flex gap-2">
-            <button id="voiceBtn" type="button" class="flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700">Iniciar ditado</button>
-            <button id="voiceHistoryBtn" type="button" class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700" title="Ver historico de voz">
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8v4l3 3"/><circle cx="12" cy="12" r="10"/></svg>
+        <section
+          class="border-b border-slate-200/50 bg-white/5 px-4 py-3 backdrop-blur-sm md:hidden dark:border-slate-800/50 dark:bg-slate-950/5"
+        >
+          <div class="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+            <button
+              id="newChatBtnMobile"
+              type="button"
+              class="shrink-0 rounded-xl bg-teal-600 px-4 py-2 text-xs font-semibold text-white shadow-sm"
+            >
+              + Novo
+            </button>
+            <button
+              id="duplicateBtnMobile"
+              type="button"
+              class="shrink-0 rounded-xl border border-white/40 bg-white/30 px-4 py-2 text-xs font-semibold text-slate-700 shadow-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+            >
+              Duplicar
+            </button>
+            <button
+              id="renameBtnMobile"
+              type="button"
+              class="shrink-0 rounded-xl border border-white/40 bg-white/30 px-4 py-2 text-xs font-semibold text-slate-700 shadow-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+            >
+              Renomear
+            </button>
+            <button
+              id="deleteBtnMobile"
+              type="button"
+              class="shrink-0 rounded-xl border border-rose-200 bg-rose-50/50 px-4 py-2 text-xs font-semibold text-rose-700 shadow-sm dark:border-rose-900 dark:bg-rose-950/20 dark:text-rose-400"
+            >
+              Excluir
+            </button>
+            <button
+              id="exportBtnMobile"
+              type="button"
+              class="shrink-0 rounded-xl border border-white/40 bg-white/30 px-4 py-2 text-xs font-semibold text-slate-700 shadow-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+            >
+              Exportar
             </button>
           </div>
-        </div>
-      </section>
+          <div
+            id="chatTabsMobile"
+            class="mt-2 flex gap-2 overflow-x-auto pb-1 scrollbar-hide"
+          ></div>
+        </section>
 
-      <div id="chat" class="flex-1 space-y-3 overflow-y-auto p-4 sm:p-6"></div>
-
-      <div id="typing" class="typing hidden items-center gap-2 px-6 pb-2 text-sm text-slate-500">
-        <span>IA esta digitando</span>
-        <span class="dot"></span>
-        <span class="dot"></span>
-        <span class="dot"></span>
-      </div>
-
-      <footer class="border-t border-slate-200/50 bg-white/10 p-4 backdrop-blur-md sm:p-6 dark:border-slate-800/50 dark:bg-slate-950/10">
-        <div class="grid gap-3 sm:grid-cols-[1fr_auto]">
-          <textarea id="msg" rows="2" placeholder="Digite sua mensagem..." class="w-full resize-none rounded-xl border border-white/30 bg-white/50 px-4 py-3 text-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-200 backdrop-blur-sm dark:border-slate-700/30 dark:bg-slate-800/50 dark:text-slate-200 dark:placeholder-slate-500"></textarea>
-          <div class="flex flex-wrap gap-2">
-            <button id="sendBtn" type="button" onclick="enviar()" class="rounded-xl bg-gradient-to-r from-teal-600 to-teal-700 px-5 py-3 text-sm font-semibold text-white shadow-md shadow-teal-900/20 transition hover:scale-[1.02] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60">Enviar</button>
-            <button id="resetBtn" type="button" onclick="resetar()" class="rounded-xl border border-white/40 bg-white/30 px-5 py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-white/50 active:scale-[0.98] dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700">Limpar</button>
+        <section
+          class="grid gap-3 border-b border-slate-200 px-4 py-4 sm:grid-cols-2 lg:grid-cols-5 sm:px-6 dark:border-slate-800"
+        >
+          <label class="flex flex-col gap-2">
+            <span
+              class="text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-400"
+              >Temperatura</span
+            >
+            <input
+              id="temp"
+              type="number"
+              min="0"
+              max="2"
+              step="0.1"
+              value="0.7"
+              class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:focus:border-teal-600"
+            />
+          </label>
+          <label class="flex flex-col gap-2">
+            <span
+              class="text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-400"
+              >Modelo</span
+            >
+            <select
+              id="modelo"
+              class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:focus:border-teal-600"
+            >
+              <option value="meu-llama3">meu-llama3</option>
+              <option value="llama3">llama3</option>
+              <option value="mistral">mistral</option>
+              <option value="llava">llava</option>
+            </select>
+          </label>
+          <label class="flex flex-col gap-2">
+            <span
+              class="text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-400"
+              >Contexto</span
+            >
+            <input
+              id="ctx"
+              type="number"
+              min="256"
+              step="128"
+              value="2048"
+              class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:focus:border-teal-600"
+            />
+          </label>
+          <label class="flex flex-col gap-2">
+            <span
+              class="text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-400"
+              >Imagem (opcional)</span
+            >
+            <input
+              id="imageInput"
+              type="file"
+              accept="image/*"
+              class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs text-slate-600 outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400 dark:focus:border-teal-600"
+            />
+          </label>
+          <div class="flex flex-col gap-2">
+            <span
+              class="text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-400"
+              >Entrada de voz</span
+            >
+            <div class="flex gap-2">
+              <button
+                id="voiceBtn"
+                type="button"
+                class="flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+              >
+                Iniciar ditado
+              </button>
+              <button
+                id="voiceHistoryBtn"
+                type="button"
+                class="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                title="Ver historico de voz"
+              >
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M12 8v4l3 3" />
+                  <circle cx="12" cy="12" r="10" />
+                </svg>
+              </button>
+            </div>
           </div>
+        </section>
+
+        <div
+          id="chat"
+          class="flex-1 space-y-3 overflow-y-auto p-4 sm:p-6"
+        ></div>
+
+        <div
+          id="typing"
+          class="typing hidden items-center gap-2 px-6 pb-2 text-sm text-slate-500"
+        >
+          <span>IA esta digitando</span>
+          <span class="dot"></span>
+          <span class="dot"></span>
+          <span class="dot"></span>
         </div>
-      </footer>
-    </main>
-  </div>
 
-  <div id="duplicateModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-900/50 p-4" role="dialog" aria-modal="true" aria-labelledby="duplicateModalTitle">
-    <div class="w-full max-w-md rounded-2xl bg-white p-5 shadow-xl ring-1 ring-slate-200 sm:p-6" role="document">
-      <h3 id="duplicateModalTitle" class="text-lg font-bold text-slate-900">Duplicar aba</h3>
-      <p class="mt-2 text-sm text-slate-600">Escolha o nome da nova aba e o tipo de historico que deseja copiar.</p>
+        <footer
+          class="border-t border-slate-200/50 bg-white/10 p-4 backdrop-blur-md sm:p-6 dark:border-slate-800/50 dark:bg-slate-950/10"
+        >
+          <div class="grid gap-3 sm:grid-cols-[1fr_auto]">
+            <textarea
+              id="msg"
+              rows="2"
+              placeholder="Digite sua mensagem..."
+              class="w-full resize-none rounded-xl border border-white/30 bg-white/50 px-4 py-3 text-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-200 backdrop-blur-sm dark:border-slate-700/30 dark:bg-slate-800/50 dark:text-slate-200 dark:placeholder-slate-500"
+            ></textarea>
+            <div class="flex flex-wrap gap-2">
+              <button
+                id="sendBtn"
+                type="button"
+                onclick="enviar()"
+                class="rounded-xl bg-gradient-to-r from-teal-600 to-teal-700 px-5 py-3 text-sm font-semibold text-white shadow-md shadow-teal-900/20 transition hover:scale-[1.02] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Enviar
+              </button>
+              <button
+                id="resetBtn"
+                type="button"
+                onclick="resetar()"
+                class="rounded-xl border border-white/40 bg-white/30 px-5 py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-white/50 active:scale-[0.98] dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+              >
+                Limpar
+              </button>
+            </div>
+          </div>
+        </footer>
+      </main>
+    </div>
 
-      <label class="mt-4 block">
-        <span class="text-xs font-semibold uppercase tracking-wide text-slate-600">Nome da nova aba</span>
-        <input id="duplicateTitleInput" type="text" class="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-200" />
-      </label>
+    <div
+      id="duplicateModal"
+      class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-900/50 p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="duplicateModalTitle"
+    >
+      <div
+        class="w-full max-w-md rounded-2xl bg-white p-5 shadow-xl ring-1 ring-slate-200 sm:p-6"
+        role="document"
+      >
+        <h3 id="duplicateModalTitle" class="text-lg font-bold text-slate-900">
+          Duplicar aba
+        </h3>
+        <p class="mt-2 text-sm text-slate-600">
+          Escolha o nome da nova aba e o tipo de historico que deseja copiar.
+        </p>
 
-      <fieldset class="mt-4">
-        <legend class="text-xs font-semibold uppercase tracking-wide text-slate-600">Tipo de duplicacao</legend>
-        <label class="mt-2 flex items-center gap-2 rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-700">
-          <input id="duplicateModeFull" type="radio" name="duplicateMode" value="full" checked />
-          <span>Conversa completa</span>
+        <label class="mt-4 block">
+          <span
+            class="text-xs font-semibold uppercase tracking-wide text-slate-600"
+            >Nome da nova aba</span
+          >
+          <input
+            id="duplicateTitleInput"
+            type="text"
+            class="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-200"
+          />
         </label>
-        <label class="mt-2 flex items-center gap-2 rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-700">
-          <input id="duplicateModeUser" type="radio" name="duplicateMode" value="user" />
-          <span>Apenas mensagens do usuario</span>
-        </label>
-      </fieldset>
 
-      <div class="mt-6 flex justify-end gap-2">
-        <button id="duplicateCancelBtn" type="button" class="rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100">Cancelar</button>
-        <button id="duplicateConfirmBtn" type="button" class="rounded-xl bg-teal-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-teal-700">Duplicar</button>
+        <fieldset class="mt-4">
+          <legend
+            class="text-xs font-semibold uppercase tracking-wide text-slate-600"
+          >
+            Tipo de duplicacao
+          </legend>
+          <label
+            class="mt-2 flex items-center gap-2 rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-700"
+          >
+            <input
+              id="duplicateModeFull"
+              type="radio"
+              name="duplicateMode"
+              value="full"
+              checked
+            />
+            <span>Conversa completa</span>
+          </label>
+          <label
+            class="mt-2 flex items-center gap-2 rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-700"
+          >
+            <input
+              id="duplicateModeUser"
+              type="radio"
+              name="duplicateMode"
+              value="user"
+            />
+            <span>Apenas mensagens do usuario</span>
+          </label>
+        </fieldset>
+
+        <div class="mt-6 flex justify-end gap-2">
+          <button
+            id="duplicateCancelBtn"
+            type="button"
+            class="rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+          >
+            Cancelar
+          </button>
+          <button
+            id="duplicateConfirmBtn"
+            type="button"
+            class="rounded-xl bg-teal-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-teal-700"
+          >
+            Duplicar
+          </button>
+        </div>
       </div>
     </div>
-  </div>
 
-  <div id="voiceHistoryModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-900/50 p-4" role="dialog" aria-modal="true" aria-labelledby="voiceHistoryModalTitle">
-    <div class="w-full max-w-lg rounded-2xl bg-white p-5 shadow-xl ring-1 ring-slate-200 sm:p-6" role="document">
-      <div class="flex items-center justify-between">
-        <h3 id="voiceHistoryModalTitle" class="text-lg font-bold text-slate-900">Historico de Voz</h3>
-        <button id="clearVoiceHistoryBtn" type="button" class="text-xs font-semibold text-rose-600 hover:underline">Limpar tudo</button>
-      </div>
-      <p class="mt-1 text-sm text-slate-600">Clique em uma transcricao para usa-la no chat.</p>
+    <div
+      id="voiceHistoryModal"
+      class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-900/50 p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="voiceHistoryModalTitle"
+    >
+      <div
+        class="w-full max-w-lg rounded-2xl bg-white p-5 shadow-xl ring-1 ring-slate-200 sm:p-6"
+        role="document"
+      >
+        <div class="flex items-center justify-between">
+          <h3
+            id="voiceHistoryModalTitle"
+            class="text-lg font-bold text-slate-900"
+          >
+            Historico de Voz
+          </h3>
+          <button
+            id="clearVoiceHistoryBtn"
+            type="button"
+            class="text-xs font-semibold text-rose-600 hover:underline"
+          >
+            Limpar tudo
+          </button>
+        </div>
+        <p class="mt-1 text-sm text-slate-600">
+          Clique em uma transcricao para usa-la no chat.
+        </p>
 
-      <div id="voiceHistoryList" class="mt-4 max-h-64 space-y-2 overflow-y-auto pr-1 scrollbar-hide">
-        <!-- Itens do historico serao inseridos aqui -->
-      </div>
+        <div
+          id="voiceHistoryList"
+          class="mt-4 max-h-64 space-y-2 overflow-y-auto pr-1 scrollbar-hide"
+        >
+          <!-- Itens do historico serao inseridos aqui -->
+        </div>
 
-      <div class="mt-6 flex justify-end">
-        <button id="voiceHistoryCloseBtn" type="button" class="rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100">Fechar</button>
+        <div class="mt-6 flex justify-end">
+          <button
+            id="voiceHistoryCloseBtn"
+            type="button"
+            class="rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+          >
+            Fechar
+          </button>
+        </div>
       </div>
     </div>
-  </div>
 
-  <div id="confirmModal" class="fixed inset-0 z-[60] hidden items-center justify-center bg-slate-900/50 p-4" role="dialog" aria-modal="true" aria-labelledby="confirmModalTitle">
-    <div class="w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl ring-1 ring-slate-200 sm:p-6" role="document">
-      <h3 id="confirmModalTitle" class="text-lg font-bold text-slate-900">Confirmar acao</h3>
-      <p id="confirmModalText" class="mt-2 text-sm text-slate-600">Tem certeza que deseja realizar esta acao?</p>
-      <div class="mt-6 flex justify-end gap-2">
-        <button id="confirmCancelBtn" type="button" class="rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100">Cancelar</button>
-        <button id="confirmOkBtn" type="button" class="rounded-xl bg-rose-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-rose-700">Confirmar</button>
+    <div
+      id="confirmModal"
+      class="fixed inset-0 z-[60] hidden items-center justify-center bg-slate-900/50 p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="confirmModalTitle"
+    >
+      <div
+        class="w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl ring-1 ring-slate-200 sm:p-6"
+        role="document"
+      >
+        <h3 id="confirmModalTitle" class="text-lg font-bold text-slate-900">
+          Confirmar acao
+        </h3>
+        <p id="confirmModalText" class="mt-2 text-sm text-slate-600">
+          Tem certeza que deseja realizar esta acao?
+        </p>
+        <div class="mt-6 flex justify-end gap-2">
+          <button
+            id="confirmCancelBtn"
+            type="button"
+            class="rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+          >
+            Cancelar
+          </button>
+          <button
+            id="confirmOkBtn"
+            type="button"
+            class="rounded-xl bg-rose-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-rose-700"
+          >
+            Confirmar
+          </button>
+        </div>
       </div>
     </div>
-  </div>
 
-  <script src="script.js"></script>
-</body>
+    <script src="script.js"></script>
+  </body>
 </html>

@@ -1,0 +1,16 @@
+{
+  "name": "meu-chat-local",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "lint": "eslint \"server/*.js\" web/script.js",
+    "format": "prettier --write \"**/*.{js,mjs,json,md,yml,yaml,html,css}\"",
+    "format:check": "prettier --check \"**/*.{js,mjs,json,md,yml,yaml,html,css}\""
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.22.0",
+    "eslint": "^9.22.0",
+    "globals": "^15.15.0",
+    "prettier": "^3.5.3"
+  }
+}

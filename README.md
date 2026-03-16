@@ -1,6 +1,7 @@
 # Chat Local com Ollama + Streaming
 
 ![CI](https://github.com/lucaa21ss-gif/meu-chat-local/actions/workflows/ci.yml/badge.svg)
+![Release Please](https://github.com/lucaa21ss-gif/meu-chat-local/actions/workflows/release-please.yml/badge.svg)
 
 Projeto de chat local com frontend moderno, streaming em tempo real, persistencia de conversas em SQLite e controle avancado de inferencia (modelo, temperatura e contexto).
 
@@ -94,12 +95,16 @@ mas o fluxo recomendado e usar `http://localhost:3001` para manter API e UI na m
 1. Crie uma nova aba em `+ Nova aba`
 2. Opcional: duplique uma aba existente por `Duplicar aba` usando o modal visual para escolher entre conversa completa ou apenas mensagens do usuario
 3. Ajuste:
+
 - temperatura
 - modelo
 - contexto
+
 4. Opcional:
+
 - anexe imagem para modelos multimodais (ex.: `llava`)
 - use `Iniciar ditado` para preencher a mensagem por voz
+
 5. Envie a mensagem e acompanhe o streaming
 6. Copie respostas pelo botao `Copiar resposta`
 7. Exporte a conversa por `Exportar Markdown`
@@ -125,10 +130,25 @@ Cobertura atual da suite:
 
 Pipeline automatizado em [ .github/workflows/ci.yml ](.github/workflows/ci.yml):
 
+- executa quality gate com lint e format check
 - executa testes do backend com Node 20
 - valida build do frontend (`npm run build:css`)
 - valida `docker compose config`
 - builda a imagem Docker do servidor sem publicar
+
+## Release e versao
+
+Automacao de release semantico:
+
+- [ .github/workflows/release-please.yml ](.github/workflows/release-please.yml) cria PRs/releases com versionamento semantico
+- [ .release-please-manifest.json ](.release-please-manifest.json) define a versao base do repositorio
+- commits no padrao convencional (`feat`, `fix`, `chore`, `ci`) alimentam o bump de versao
+
+Publicacao de imagem Docker:
+
+- [ .github/workflows/docker-publish.yml ](.github/workflows/docker-publish.yml) publica a imagem no GitHub Container Registry
+- imagem alvo: `ghcr.io/lucaa21ss-gif/meu-chat-local-server`
+- publicacao acontece quando uma tag semantica `v*.*.*` e criada
 
 ## Personalizacao de modelos
 

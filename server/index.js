@@ -1,10 +1,10 @@
-import express from 'express';
-import cors from 'cors';
-import { fileURLToPath } from 'node:url';
-import path from 'node:path';
-import helmet from 'helmet';
-import rateLimit from 'express-rate-limit';
-import { client } from './ollama.js';
+import express from "express";
+import cors from "cors";
+import { fileURLToPath } from "node:url";
+import path from "node:path";
+import helmet from "helmet";
+import rateLimit from "express-rate-limit";
+import { client } from "./ollama.js";
 import {
   initDb,
   listChats,
@@ -17,8 +17,8 @@ import {
   appendMessage,
   resetChat,
   exportChatMarkdown,
-  renameChatFromFirstMessage
-} from './db.js';
+  renameChatFromFirstMessage,
+} from "./db.js";
 
 const CHAT_ID_REGEX = /^[a-zA-Z0-9:_-]{1,80}$/;
 const MAX_TITLE_LENGTH = 120;
@@ -40,12 +40,12 @@ function asyncHandler(fn) {
 }
 
 function isPlainObject(value) {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function assertBodyObject(body) {
   if (!isPlainObject(body)) {
-    throw new HttpError(400, 'Body invalido: esperado JSON objeto');
+    throw new HttpError(400, "Body invalido: esperado JSON objeto");
   }
 }
 
@@ -53,8 +53,8 @@ function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
 }
 
-function parseChatId(raw, fieldName = 'chatId') {
-  const value = String(raw || '').trim();
+function parseChatId(raw, fieldName = "chatId") {
+  const value = String(raw || "").trim();
   if (!value) {
     throw new HttpError(400, `${fieldName} obrigatorio`);
   }
@@ -65,14 +65,14 @@ function parseChatId(raw, fieldName = 'chatId') {
 }
 
 function getChatId(body = {}) {
-  const raw = body.chatId ?? 'default';
-  return parseChatId(raw, 'chatId');
+  const raw = body.chatId ?? "default";
+  return parseChatId(raw, "chatId");
 }
 
-function parseTitle(raw, fallback = 'Nova conversa') {
+function parseTitle(raw, fallback = "Nova conversa") {
   const title = String(raw ?? fallback).trim();
   if (!title) {
-    throw new HttpError(400, 'Titulo obrigatorio');
+    throw new HttpError(400, "Titulo obrigatorio");
   }
   if (title.length > MAX_TITLE_LENGTH) {
     throw new HttpError(400, `Titulo muito longo (max ${MAX_TITLE_LENGTH})`);
@@ -81,12 +81,15 @@ function parseTitle(raw, fallback = 'Nova conversa') {
 }
 
 function parseMessage(body = {}) {
-  const message = String(body.message ?? '').trim();
+  const message = String(body.message ?? "").trim();
   if (!message) {
-    throw new HttpError(400, 'Mensagem obrigatoria');
+    throw new HttpError(400, "Mensagem obrigatoria");
   }
   if (message.length > MAX_MESSAGE_LENGTH) {
-    throw new HttpError(400, `Mensagem muito longa (max ${MAX_MESSAGE_LENGTH})`);
+    throw new HttpError(
+      400,
+      `Mensagem muito longa (max ${MAX_MESSAGE_LENGTH})`,
+    );
   }
   return message;
 }
@@ -94,17 +97,17 @@ function parseMessage(body = {}) {
 function getMessageImages(body = {}) {
   if (body.images === undefined) return [];
   if (!Array.isArray(body.images)) {
-    throw new HttpError(400, 'images deve ser uma lista');
+    throw new HttpError(400, "images deve ser uma lista");
   }
 
   const images = body.images
-    .map((entry) => String(entry || '').trim())
+    .map((entry) => String(entry || "").trim())
     .filter(Boolean)
     .slice(0, MAX_IMAGES);
 
   for (const image of images) {
     if (image.length > MAX_IMAGE_BASE64_LENGTH) {
-      throw new HttpError(400, 'Imagem muito grande');
+      throw new HttpError(400, "Imagem muito grande");
     }
   }
 
@@ -112,20 +115,24 @@ function getMessageImages(body = {}) {
 }
 
 function parseUserOnly(raw) {
-  return raw === true || raw === 'true';
+  return raw === true || raw === "true";
 }
 
 function parseOptions(body = {}) {
   const temperature = Number.parseFloat(body.temperature);
   const context = Number.parseInt(body.context, 10);
-  const safeTemperature = Number.isFinite(temperature) ? clamp(temperature, 0, 2) : 0.7;
-  const safeContext = Number.isFinite(context) ? clamp(context, 256, 8192) : 2048;
-  const model = String(body.model || 'meu-llama3').trim() || 'meu-llama3';
+  const safeTemperature = Number.isFinite(temperature)
+    ? clamp(temperature, 0, 2)
+    : 0.7;
+  const safeContext = Number.isFinite(context)
+    ? clamp(context, 256, 8192)
+    : 2048;
+  const model = String(body.model || "meu-llama3").trim() || "meu-llama3";
 
   return {
     model,
     temperature: safeTemperature,
-    num_ctx: safeContext
+    num_ctx: safeContext,
   };
 }
 
@@ -143,23 +150,33 @@ export function createApp(deps = {}) {
     appendMessage: deps.appendMessage || appendMessage,
     resetChat: deps.resetChat || resetChat,
     exportChatMarkdown: deps.exportChatMarkdown || exportChatMarkdown,
-    renameChatFromFirstMessage: deps.renameChatFromFirstMessage || renameChatFromFirstMessage
+    renameChatFromFirstMessage:
+      deps.renameChatFromFirstMessage || renameChatFromFirstMessage,
   };
 
   const app = express();
   const serverDir = path.dirname(fileURLToPath(import.meta.url));
-  const webDir = deps.webDir || path.resolve(serverDir, '../web');
-  const allowedOrigin = deps.allowedOrigin || process.env.FRONTEND_ORIGIN || true;
-  const requestWindowMs = Number.parseInt(process.env.RATE_LIMIT_WINDOW_MS || `${15 * 60 * 1000}`, 10);
-  const requestLimit = Number.parseInt(process.env.RATE_LIMIT_MAX || '400', 10);
-  const chatRequestLimit = Number.parseInt(process.env.RATE_LIMIT_CHAT_MAX || '80', 10);
+  const webDir = deps.webDir || path.resolve(serverDir, "../web");
+  const allowedOrigin =
+    deps.allowedOrigin || process.env.FRONTEND_ORIGIN || true;
+  const requestWindowMs = Number.parseInt(
+    process.env.RATE_LIMIT_WINDOW_MS || `${15 * 60 * 1000}`,
+    10,
+  );
+  const requestLimit = Number.parseInt(process.env.RATE_LIMIT_MAX || "400", 10);
+  const chatRequestLimit = Number.parseInt(
+    process.env.RATE_LIMIT_CHAT_MAX || "80",
+    10,
+  );
 
   const apiLimiter = rateLimit({
-    windowMs: Number.isFinite(requestWindowMs) ? requestWindowMs : 15 * 60 * 1000,
+    windowMs: Number.isFinite(requestWindowMs)
+      ? requestWindowMs
+      : 15 * 60 * 1000,
     max: Number.isFinite(requestLimit) ? requestLimit : 400,
     standardHeaders: true,
     legacyHeaders: false,
-    message: { error: 'Muitas requisicoes, tente novamente em alguns minutos' }
+    message: { error: "Muitas requisicoes, tente novamente em alguns minutos" },
   });
 
   const chatLimiter = rateLimit({
@@ -167,151 +184,189 @@ export function createApp(deps = {}) {
     max: Number.isFinite(chatRequestLimit) ? chatRequestLimit : 80,
     standardHeaders: true,
     legacyHeaders: false,
-    message: { error: 'Limite de chat excedido temporariamente' }
+    message: { error: "Limite de chat excedido temporariamente" },
   });
 
-  app.disable('x-powered-by');
-  app.use(helmet({
-    contentSecurityPolicy: false,
-    crossOriginEmbedderPolicy: false
-  }));
+  app.disable("x-powered-by");
+  app.use(
+    helmet({
+      contentSecurityPolicy: false,
+      crossOriginEmbedderPolicy: false,
+    }),
+  );
   app.use(cors({ origin: allowedOrigin }));
-  app.use(express.json({ limit: process.env.JSON_LIMIT || '8mb' }));
-  app.use('/api', apiLimiter);
-  app.use('/api/chat', chatLimiter);
-  app.use('/api/chat-stream', chatLimiter);
+  app.use(express.json({ limit: process.env.JSON_LIMIT || "8mb" }));
+  app.use("/api", apiLimiter);
+  app.use("/api/chat", chatLimiter);
+  app.use("/api/chat-stream", chatLimiter);
 
-  app.get('/healthz', (_req, res) => {
-    res.status(200).json({ status: 'ok', service: 'chat-server' });
+  app.get("/healthz", (_req, res) => {
+    res.status(200).json({ status: "ok", service: "chat-server" });
   });
 
-  app.get('/readyz', asyncHandler(async (_req, res) => {
-    await store.listChats();
-    res.status(200).json({ status: 'ready' });
-  }));
+  app.get(
+    "/readyz",
+    asyncHandler(async (_req, res) => {
+      await store.listChats();
+      res.status(200).json({ status: "ready" });
+    }),
+  );
 
   app.use(express.static(webDir));
 
-  app.post('/api/chat', asyncHandler(async (req, res) => {
-    assertBodyObject(req.body);
-    const message = parseMessage(req.body);
-    const chatId = getChatId(req.body);
-    const options = parseOptions(req.body);
-    const images = getMessageImages(req.body);
+  app.post(
+    "/api/chat",
+    asyncHandler(async (req, res) => {
+      assertBodyObject(req.body);
+      const message = parseMessage(req.body);
+      const chatId = getChatId(req.body);
+      const options = parseOptions(req.body);
+      const images = getMessageImages(req.body);
 
-    await store.ensureChat(chatId);
-    await store.appendMessage(chatId, 'user', message, images);
-    await store.renameChatFromFirstMessage(chatId, message);
+      await store.ensureChat(chatId);
+      await store.appendMessage(chatId, "user", message, images);
+      await store.renameChatFromFirstMessage(chatId, message);
 
-    const history = await store.getMessages(chatId);
-    const response = await chatClient.chat({
-      model: options.model,
-      messages: history.map((item) => ({
-        role: item.role,
-        content: item.content,
-        ...(item.images?.length ? { images: item.images } : {})
-      })),
-      options: {
-        temperature: options.temperature,
-        num_ctx: options.num_ctx
+      const history = await store.getMessages(chatId);
+      const response = await chatClient.chat({
+        model: options.model,
+        messages: history.map((item) => ({
+          role: item.role,
+          content: item.content,
+          ...(item.images?.length ? { images: item.images } : {}),
+        })),
+        options: {
+          temperature: options.temperature,
+          num_ctx: options.num_ctx,
+        },
+      });
+
+      const reply = String(response.message?.content || "");
+      await store.appendMessage(chatId, "assistant", reply);
+
+      res.json({ reply, chatId });
+    }),
+  );
+
+  app.post(
+    "/api/reset",
+    asyncHandler(async (_req, res) => {
+      await store.resetChat("default");
+      res.json({ ok: true });
+    }),
+  );
+
+  app.get(
+    "/api/chats",
+    asyncHandler(async (_req, res) => {
+      const chats = await store.listChats();
+      res.json({ chats });
+    }),
+  );
+
+  app.post(
+    "/api/chats",
+    asyncHandler(async (req, res) => {
+      assertBodyObject(req.body);
+      const generatedId = `chat-${Date.now()}`;
+      const id = parseChatId(req.body.id || generatedId, "id");
+      const title = parseTitle(req.body.title, "Nova conversa");
+      const created = await store.createChat(id, title);
+      res.status(201).json({ chat: created });
+    }),
+  );
+
+  app.post(
+    "/api/chats/:chatId/duplicate",
+    asyncHandler(async (req, res) => {
+      assertBodyObject(req.body);
+
+      const sourceId = parseChatId(req.params.chatId, "chatId");
+      const generatedId = `chat-${Date.now()}`;
+      const targetId = parseChatId(req.body.id || generatedId, "id");
+      const title =
+        req.body.title === undefined
+          ? undefined
+          : parseTitle(req.body.title, "Nova conversa");
+      const userOnly = parseUserOnly(req.body.userOnly);
+
+      const cloned = await store.duplicateChat(sourceId, targetId, title, {
+        userOnly,
+      });
+      if (!cloned) {
+        throw new HttpError(404, "Chat de origem nao encontrado");
       }
-    });
 
-    const reply = String(response.message?.content || '');
-    await store.appendMessage(chatId, 'assistant', reply);
+      return res.status(201).json({ chat: cloned });
+    }),
+  );
 
-    res.json({ reply, chatId });
-  }));
+  app.patch(
+    "/api/chats/:chatId",
+    asyncHandler(async (req, res) => {
+      assertBodyObject(req.body);
+      const chatId = parseChatId(req.params.chatId, "chatId");
+      const title = parseTitle(req.body.title, "Nova conversa");
 
-  app.post('/api/reset', asyncHandler(async (_req, res) => {
-    await store.resetChat('default');
-    res.json({ ok: true });
-  }));
+      const updated = await store.renameChat(chatId, title);
+      if (!updated) {
+        throw new HttpError(404, "Chat nao encontrado");
+      }
 
-  app.get('/api/chats', asyncHandler(async (_req, res) => {
-    const chats = await store.listChats();
-    res.json({ chats });
-  }));
+      return res.json({ chat: updated });
+    }),
+  );
 
-  app.post('/api/chats', asyncHandler(async (req, res) => {
-    assertBodyObject(req.body);
-    const generatedId = `chat-${Date.now()}`;
-    const id = parseChatId(req.body.id || generatedId, 'id');
-    const title = parseTitle(req.body.title, 'Nova conversa');
-    const created = await store.createChat(id, title);
-    res.status(201).json({ chat: created });
-  }));
+  app.delete(
+    "/api/chats/:chatId",
+    asyncHandler(async (req, res) => {
+      const chatId = parseChatId(req.params.chatId, "chatId");
+      const deleted = await store.deleteChat(chatId);
+      if (!deleted) {
+        throw new HttpError(404, "Chat nao encontrado");
+      }
 
-  app.post('/api/chats/:chatId/duplicate', asyncHandler(async (req, res) => {
-    assertBodyObject(req.body);
+      return res.json({ ok: true });
+    }),
+  );
 
-    const sourceId = parseChatId(req.params.chatId, 'chatId');
-    const generatedId = `chat-${Date.now()}`;
-    const targetId = parseChatId(req.body.id || generatedId, 'id');
-    const title = req.body.title === undefined
-      ? undefined
-      : parseTitle(req.body.title, 'Nova conversa');
-    const userOnly = parseUserOnly(req.body.userOnly);
+  app.get(
+    "/api/chats/:chatId/messages",
+    asyncHandler(async (req, res) => {
+      const chatId = parseChatId(req.params.chatId, "chatId");
+      const messages = await store.getMessages(chatId);
+      res.json({ messages });
+    }),
+  );
 
-    const cloned = await store.duplicateChat(sourceId, targetId, title, { userOnly });
-    if (!cloned) {
-      throw new HttpError(404, 'Chat de origem nao encontrado');
-    }
+  app.post(
+    "/api/chats/:chatId/reset",
+    asyncHandler(async (req, res) => {
+      const chatId = parseChatId(req.params.chatId, "chatId");
+      await store.resetChat(chatId);
+      res.json({ ok: true });
+    }),
+  );
 
-    return res.status(201).json({ chat: cloned });
-  }));
+  app.get(
+    "/api/chats/:chatId/export",
+    asyncHandler(async (req, res) => {
+      const chatId = parseChatId(req.params.chatId, "chatId");
+      const markdown = await store.exportChatMarkdown(chatId);
+      if (!markdown) {
+        throw new HttpError(404, "Chat nao encontrado");
+      }
 
-  app.patch('/api/chats/:chatId', asyncHandler(async (req, res) => {
-    assertBodyObject(req.body);
-    const chatId = parseChatId(req.params.chatId, 'chatId');
-    const title = parseTitle(req.body.title, 'Nova conversa');
+      res.setHeader("Content-Type", "text/markdown; charset=utf-8");
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename="chat-${chatId}.md"`,
+      );
+      return res.send(markdown);
+    }),
+  );
 
-    const updated = await store.renameChat(chatId, title);
-    if (!updated) {
-      throw new HttpError(404, 'Chat nao encontrado');
-    }
-
-    return res.json({ chat: updated });
-  }));
-
-  app.delete('/api/chats/:chatId', asyncHandler(async (req, res) => {
-    const chatId = parseChatId(req.params.chatId, 'chatId');
-    const deleted = await store.deleteChat(chatId);
-    if (!deleted) {
-      throw new HttpError(404, 'Chat nao encontrado');
-    }
-
-    return res.json({ ok: true });
-  }));
-
-  app.get('/api/chats/:chatId/messages', asyncHandler(async (req, res) => {
-    const chatId = parseChatId(req.params.chatId, 'chatId');
-    const messages = await store.getMessages(chatId);
-    res.json({ messages });
-  }));
-
-  app.post('/api/chats/:chatId/reset', asyncHandler(async (req, res) => {
-    const chatId = parseChatId(req.params.chatId, 'chatId');
-    await store.resetChat(chatId);
-    res.json({ ok: true });
-  }));
-
-  app.get('/api/chats/:chatId/export', asyncHandler(async (req, res) => {
-    const chatId = parseChatId(req.params.chatId, 'chatId');
-    const markdown = await store.exportChatMarkdown(chatId);
-    if (!markdown) {
-      throw new HttpError(404, 'Chat nao encontrado');
-    }
-
-    res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
-    res.setHeader(
-      'Content-Disposition',
-      `attachment; filename="chat-${chatId}.md"`
-    );
-    return res.send(markdown);
-  }));
-
-  app.post('/api/chat-stream', async (req, res) => {
+  app.post("/api/chat-stream", async (req, res) => {
     try {
       assertBodyObject(req.body);
 
@@ -321,35 +376,32 @@ export function createApp(deps = {}) {
       const images = getMessageImages(req.body);
 
       await store.ensureChat(chatId);
-      await store.appendMessage(chatId, 'user', message, images);
+      await store.appendMessage(chatId, "user", message, images);
       await store.renameChatFromFirstMessage(chatId, message);
 
       const history = await store.getMessages(chatId);
 
-      res.setHeader('Content-Type', 'text/plain; charset=utf-8');
-      res.setHeader('Transfer-Encoding', 'chunked');
+      res.setHeader("Content-Type", "text/plain; charset=utf-8");
+      res.setHeader("Transfer-Encoding", "chunked");
 
-      let fullReply = '';
+      let fullReply = "";
 
       const stream = await chatClient.chat({
         model: options.model,
         messages: history.map((item) => ({
           role: item.role,
           content: item.content,
-          ...(item.images?.length ? { images: item.images } : {})
+          ...(item.images?.length ? { images: item.images } : {}),
         })),
         stream: true,
         options: {
           temperature: options.temperature,
-          num_ctx: options.num_ctx
-        }
+          num_ctx: options.num_ctx,
+        },
       });
 
       for await (const part of stream) {
-        const chunk =
-          part.message?.content ??
-          part.delta?.content ??
-          '';
+        const chunk = part.message?.content ?? part.delta?.content ?? "";
 
         if (!chunk) continue;
 
@@ -357,12 +409,13 @@ export function createApp(deps = {}) {
         res.write(chunk);
       }
 
-      await store.appendMessage(chatId, 'assistant', fullReply);
+      await store.appendMessage(chatId, "assistant", fullReply);
       res.end();
     } catch (err) {
       if (!res.headersSent) {
         const status = err instanceof HttpError ? err.status : 500;
-        const message = err instanceof HttpError ? err.message : 'Erro no streaming';
+        const message =
+          err instanceof HttpError ? err.message : "Erro no streaming";
         res.status(status).json({ error: message });
         return;
       }
@@ -370,19 +423,18 @@ export function createApp(deps = {}) {
     }
   });
 
-  app.use('/api', (_req, res) => {
-    res.status(404).json({ error: 'Endpoint nao encontrado' });
+  app.use("/api", (_req, res) => {
+    res.status(404).json({ error: "Endpoint nao encontrado" });
   });
 
-  app.get('/', (_req, res) => {
-    res.sendFile(path.join(webDir, 'index.html'));
+  app.get("/", (_req, res) => {
+    res.sendFile(path.join(webDir, "index.html"));
   });
 
-  app.use((err, req, res, _next) => {
+  app.use((err, req, res) => {
     const status = err instanceof HttpError ? err.status : 500;
-    const message = err instanceof HttpError
-      ? err.message
-      : 'Erro interno do servidor';
+    const message =
+      err instanceof HttpError ? err.message : "Erro interno do servidor";
 
     console.error(err);
 
@@ -390,7 +442,7 @@ export function createApp(deps = {}) {
       return;
     }
 
-    if (req.path.startsWith('/api')) {
+    if (req.path.startsWith("/api")) {
       res.status(status).json({ error: message });
       return;
     }
@@ -410,10 +462,11 @@ export async function startServer(port = 3001) {
   return server;
 }
 
-const isMainModule = process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1];
+const isMainModule =
+  process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1];
 if (isMainModule) {
   startServer().catch((err) => {
-    console.error('Falha ao inicializar servidor', err);
+    console.error("Falha ao inicializar servidor", err);
     process.exit(1);
   });
 }

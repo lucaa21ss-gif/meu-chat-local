@@ -1,0 +1,9 @@
+node_modules
+.git
+coverage
+.nyc_output
+web/output.css
+server/chat.db
+server/chat.db-shm
+server/chat.db-wal
+**/package-lock.json
