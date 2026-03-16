@@ -7,3 +7,4 @@ server/chat.db
 server/chat.db-shm
 server/chat.db-wal
 **/package-lock.json
+CHANGELOG.md
