@@ -27,6 +27,17 @@
 }
 
 @layer components {
+	.brand-emblem {
+		filter: drop-shadow(0 12px 24px rgba(15, 118, 110, 0.18));
+	}
+
+	.brand-emblem img,
+	.brand-emblem svg {
+		display: block;
+		width: 100%;
+		height: auto;
+	}
+
 	.typing .dot {
 		width: 0.35rem;
 		height: 0.35rem;
@@ -70,6 +81,10 @@
 	@media (prefers-color-scheme: dark) {
 		#chat::-webkit-scrollbar-thumb {
 			background: rgba(148, 163, 184, 0.45);
+		}
+
+		.brand-emblem {
+			filter: drop-shadow(0 14px 28px rgba(37, 99, 235, 0.2));
 		}
 
 		body .bg-white,
