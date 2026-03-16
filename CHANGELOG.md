@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.1](https://github.com/lucaa21ss-gif/meu-chat-local/compare/meu-chat-local-v0.2.0...meu-chat-local-v0.2.1) (2026-03-16)
+
+
+### Bug Fixes
+
+* **ci,publish:** corrigir changelog e dispatch por tag ([76a5d3c](https://github.com/lucaa21ss-gif/meu-chat-local/commit/76a5d3c67b098d52d55deae6f5fc1bda1c266def))
+
 ## [0.2.0](https://github.com/lucaa21ss-gif/meu-chat-local/compare/meu-chat-local-v0.1.0...meu-chat-local-v0.2.0) (2026-03-16)
 
 ### Features
