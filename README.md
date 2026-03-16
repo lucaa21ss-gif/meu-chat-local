@@ -1,5 +1,7 @@
 # Chat Local com Ollama + Streaming
 
+![CI](https://github.com/lucaa21ss-gif/meu-chat-local/actions/workflows/ci.yml/badge.svg)
+
 Projeto de chat local com frontend moderno, streaming em tempo real, persistencia de conversas em SQLite e controle avancado de inferencia (modelo, temperatura e contexto).
 
 ## Visao geral
@@ -118,6 +120,15 @@ Cobertura atual da suite:
 - duplicacao completa e duplicacao apenas de mensagens do usuario
 - renomeacao/exclusao de abas
 - streaming e exportacao de conversa
+
+## CI
+
+Pipeline automatizado em [ .github/workflows/ci.yml ](.github/workflows/ci.yml):
+
+- executa testes do backend com Node 20
+- valida build do frontend (`npm run build:css`)
+- valida `docker compose config`
+- builda a imagem Docker do servidor sem publicar
 
 ## Personalizacao de modelos
 
