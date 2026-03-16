@@ -1,0 +1,19 @@
+{
+  "name": "chat-server",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "sqlite": "^5.1.1",
+    "sqlite3": "^5.1.7",
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "ollama": "latest"
+  },
+  "devDependencies": {
+    "supertest": "^7.1.1"
+  }
+}
