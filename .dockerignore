@@ -1,0 +1,26 @@
+# Git
+.git
+.gitignore
+
+# Node modules
+**/node_modules
+
+# Runtime artifacts
+server/chat.db
+server/chat.db-shm
+server/chat.db-wal
+
+# Logs
+**/npm-debug.log*
+**/yarn-debug.log*
+**/yarn-error.log*
+
+# Editor/OS
+.vscode
+.idea
+.DS_Store
+Thumbs.db
+
+# Coverage/build extras
+coverage
+.nyc_output

@@ -1,6 +1,9 @@
 import express from 'express';
 import cors from 'cors';
 import { fileURLToPath } from 'node:url';
+import path from 'node:path';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
 import { client } from './ollama.js';
 import {
   initDb,
@@ -17,27 +20,112 @@ import {
   renameChatFromFirstMessage
 } from './db.js';
 
+const CHAT_ID_REGEX = /^[a-zA-Z0-9:_-]{1,80}$/;
+const MAX_TITLE_LENGTH = 120;
+const MAX_MESSAGE_LENGTH = 4000;
+const MAX_IMAGES = 4;
+const MAX_IMAGE_BASE64_LENGTH = 2_500_000;
+
+class HttpError extends Error {
+  constructor(status, message) {
+    super(message);
+    this.status = status;
+  }
+}
+
+function asyncHandler(fn) {
+  return (req, res, next) => {
+    Promise.resolve(fn(req, res, next)).catch(next);
+  };
+}
+
+function isPlainObject(value) {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+function assertBodyObject(body) {
+  if (!isPlainObject(body)) {
+    throw new HttpError(400, 'Body invalido: esperado JSON objeto');
+  }
+}
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function parseChatId(raw, fieldName = 'chatId') {
+  const value = String(raw || '').trim();
+  if (!value) {
+    throw new HttpError(400, `${fieldName} obrigatorio`);
+  }
+  if (!CHAT_ID_REGEX.test(value)) {
+    throw new HttpError(400, `${fieldName} invalido`);
+  }
+  return value;
+}
+
 function getChatId(body = {}) {
-  const value = String(body.chatId || 'default').trim();
-  return value || 'default';
+  const raw = body.chatId ?? 'default';
+  return parseChatId(raw, 'chatId');
+}
+
+function parseTitle(raw, fallback = 'Nova conversa') {
+  const title = String(raw ?? fallback).trim();
+  if (!title) {
+    throw new HttpError(400, 'Titulo obrigatorio');
+  }
+  if (title.length > MAX_TITLE_LENGTH) {
+    throw new HttpError(400, `Titulo muito longo (max ${MAX_TITLE_LENGTH})`);
+  }
+  return title;
+}
+
+function parseMessage(body = {}) {
+  const message = String(body.message ?? '').trim();
+  if (!message) {
+    throw new HttpError(400, 'Mensagem obrigatoria');
+  }
+  if (message.length > MAX_MESSAGE_LENGTH) {
+    throw new HttpError(400, `Mensagem muito longa (max ${MAX_MESSAGE_LENGTH})`);
+  }
+  return message;
 }
 
 function getMessageImages(body = {}) {
-  if (!Array.isArray(body.images)) return [];
-  return body.images
+  if (body.images === undefined) return [];
+  if (!Array.isArray(body.images)) {
+    throw new HttpError(400, 'images deve ser uma lista');
+  }
+
+  const images = body.images
     .map((entry) => String(entry || '').trim())
     .filter(Boolean)
-    .slice(0, 4);
+    .slice(0, MAX_IMAGES);
+
+  for (const image of images) {
+    if (image.length > MAX_IMAGE_BASE64_LENGTH) {
+      throw new HttpError(400, 'Imagem muito grande');
+    }
+  }
+
+  return images;
+}
+
+function parseUserOnly(raw) {
+  return raw === true || raw === 'true';
 }
 
 function parseOptions(body = {}) {
   const temperature = Number.parseFloat(body.temperature);
   const context = Number.parseInt(body.context, 10);
+  const safeTemperature = Number.isFinite(temperature) ? clamp(temperature, 0, 2) : 0.7;
+  const safeContext = Number.isFinite(context) ? clamp(context, 256, 8192) : 2048;
+  const model = String(body.model || 'meu-llama3').trim() || 'meu-llama3';
 
   return {
-    model: body.model || 'meu-llama3',
-    temperature: Number.isFinite(temperature) ? temperature : 0.7,
-    num_ctx: Number.isFinite(context) ? context : 2048
+    model,
+    temperature: safeTemperature,
+    num_ctx: safeContext
   };
 }
 
@@ -59,169 +147,175 @@ export function createApp(deps = {}) {
   };
 
   const app = express();
-  app.use(cors());
-  app.use(express.json());
+  const serverDir = path.dirname(fileURLToPath(import.meta.url));
+  const webDir = deps.webDir || path.resolve(serverDir, '../web');
+  const allowedOrigin = deps.allowedOrigin || process.env.FRONTEND_ORIGIN || true;
+  const requestWindowMs = Number.parseInt(process.env.RATE_LIMIT_WINDOW_MS || `${15 * 60 * 1000}`, 10);
+  const requestLimit = Number.parseInt(process.env.RATE_LIMIT_MAX || '400', 10);
+  const chatRequestLimit = Number.parseInt(process.env.RATE_LIMIT_CHAT_MAX || '80', 10);
 
-  app.post('/api/chat', async (req, res) => {
-    try {
-      const { message } = req.body;
-      const chatId = getChatId(req.body);
-      const options = parseOptions(req.body);
-      const images = getMessageImages(req.body);
-
-      await store.ensureChat(chatId);
-      await store.appendMessage(chatId, 'user', message, images);
-      await store.renameChatFromFirstMessage(chatId, message);
-
-      const history = await store.getMessages(chatId);
-      const response = await chatClient.chat({
-        model: options.model,
-        messages: history.map((item) => ({
-          role: item.role,
-          content: item.content,
-          ...(item.images?.length ? { images: item.images } : {})
-        })),
-        options: {
-          temperature: options.temperature,
-          num_ctx: options.num_ctx
-        }
-      });
-
-      const reply = response.message.content;
-      await store.appendMessage(chatId, 'assistant', reply);
-
-      res.json({ reply, chatId });
-    } catch (err) {
-      console.error(err);
-      res.status(500).json({ error: 'Falha ao processar chat' });
-    }
+  const apiLimiter = rateLimit({
+    windowMs: Number.isFinite(requestWindowMs) ? requestWindowMs : 15 * 60 * 1000,
+    max: Number.isFinite(requestLimit) ? requestLimit : 400,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Muitas requisicoes, tente novamente em alguns minutos' }
   });
 
-  app.post('/api/reset', (req, res) => {
-    store.resetChat('default')
-      .then(() => res.json({ ok: true }))
-      .catch((err) => {
-        console.error(err);
-        res.status(500).json({ error: 'Falha ao limpar historico' });
-      });
+  const chatLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: Number.isFinite(chatRequestLimit) ? chatRequestLimit : 80,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { error: 'Limite de chat excedido temporariamente' }
   });
 
-  app.get('/api/chats', async (_req, res) => {
-    try {
-      const chats = await store.listChats();
-      res.json({ chats });
-    } catch (err) {
-      console.error(err);
-      res.status(500).json({ error: 'Falha ao listar chats' });
-    }
+  app.disable('x-powered-by');
+  app.use(helmet({
+    contentSecurityPolicy: false,
+    crossOriginEmbedderPolicy: false
+  }));
+  app.use(cors({ origin: allowedOrigin }));
+  app.use(express.json({ limit: process.env.JSON_LIMIT || '8mb' }));
+  app.use('/api', apiLimiter);
+  app.use('/api/chat', chatLimiter);
+  app.use('/api/chat-stream', chatLimiter);
+
+  app.get('/healthz', (_req, res) => {
+    res.status(200).json({ status: 'ok', service: 'chat-server' });
   });
 
-  app.post('/api/chats', async (req, res) => {
-    try {
-      const id = String(req.body.id || `chat-${Date.now()}`).trim();
-      const title = req.body.title || 'Nova conversa';
-      const created = await store.createChat(id, title);
-      res.status(201).json({ chat: created });
-    } catch (err) {
-      console.error(err);
-      res.status(500).json({ error: 'Falha ao criar chat' });
-    }
-  });
+  app.get('/readyz', asyncHandler(async (_req, res) => {
+    await store.listChats();
+    res.status(200).json({ status: 'ready' });
+  }));
 
-  app.post('/api/chats/:chatId/duplicate', async (req, res) => {
-    try {
-      const sourceId = req.params.chatId;
-      const targetId = String(req.body.id || `chat-${Date.now()}`).trim();
-      const title = req.body.title;
-      const userOnly = Boolean(req.body.userOnly);
+  app.use(express.static(webDir));
 
-      const cloned = await store.duplicateChat(sourceId, targetId, title, { userOnly });
-      if (!cloned) {
-        return res.status(404).json({ error: 'Chat de origem nao encontrado' });
+  app.post('/api/chat', asyncHandler(async (req, res) => {
+    assertBodyObject(req.body);
+    const message = parseMessage(req.body);
+    const chatId = getChatId(req.body);
+    const options = parseOptions(req.body);
+    const images = getMessageImages(req.body);
+
+    await store.ensureChat(chatId);
+    await store.appendMessage(chatId, 'user', message, images);
+    await store.renameChatFromFirstMessage(chatId, message);
+
+    const history = await store.getMessages(chatId);
+    const response = await chatClient.chat({
+      model: options.model,
+      messages: history.map((item) => ({
+        role: item.role,
+        content: item.content,
+        ...(item.images?.length ? { images: item.images } : {})
+      })),
+      options: {
+        temperature: options.temperature,
+        num_ctx: options.num_ctx
       }
+    });
 
-      return res.status(201).json({ chat: cloned });
-    } catch (err) {
-      console.error(err);
-      return res.status(500).json({ error: 'Falha ao duplicar chat' });
+    const reply = String(response.message?.content || '');
+    await store.appendMessage(chatId, 'assistant', reply);
+
+    res.json({ reply, chatId });
+  }));
+
+  app.post('/api/reset', asyncHandler(async (_req, res) => {
+    await store.resetChat('default');
+    res.json({ ok: true });
+  }));
+
+  app.get('/api/chats', asyncHandler(async (_req, res) => {
+    const chats = await store.listChats();
+    res.json({ chats });
+  }));
+
+  app.post('/api/chats', asyncHandler(async (req, res) => {
+    assertBodyObject(req.body);
+    const generatedId = `chat-${Date.now()}`;
+    const id = parseChatId(req.body.id || generatedId, 'id');
+    const title = parseTitle(req.body.title, 'Nova conversa');
+    const created = await store.createChat(id, title);
+    res.status(201).json({ chat: created });
+  }));
+
+  app.post('/api/chats/:chatId/duplicate', asyncHandler(async (req, res) => {
+    assertBodyObject(req.body);
+
+    const sourceId = parseChatId(req.params.chatId, 'chatId');
+    const generatedId = `chat-${Date.now()}`;
+    const targetId = parseChatId(req.body.id || generatedId, 'id');
+    const title = req.body.title === undefined
+      ? undefined
+      : parseTitle(req.body.title, 'Nova conversa');
+    const userOnly = parseUserOnly(req.body.userOnly);
+
+    const cloned = await store.duplicateChat(sourceId, targetId, title, { userOnly });
+    if (!cloned) {
+      throw new HttpError(404, 'Chat de origem nao encontrado');
     }
-  });
 
-  app.patch('/api/chats/:chatId', async (req, res) => {
-    try {
-      const title = String(req.body.title || '').trim();
-      if (!title) {
-        return res.status(400).json({ error: 'Titulo obrigatorio' });
-      }
+    return res.status(201).json({ chat: cloned });
+  }));
 
-      const updated = await store.renameChat(req.params.chatId, title);
-      if (!updated) {
-        return res.status(404).json({ error: 'Chat nao encontrado' });
-      }
+  app.patch('/api/chats/:chatId', asyncHandler(async (req, res) => {
+    assertBodyObject(req.body);
+    const chatId = parseChatId(req.params.chatId, 'chatId');
+    const title = parseTitle(req.body.title, 'Nova conversa');
 
-      return res.json({ chat: updated });
-    } catch (err) {
-      console.error(err);
-      return res.status(500).json({ error: 'Falha ao renomear chat' });
+    const updated = await store.renameChat(chatId, title);
+    if (!updated) {
+      throw new HttpError(404, 'Chat nao encontrado');
     }
-  });
 
-  app.delete('/api/chats/:chatId', async (req, res) => {
-    try {
-      const deleted = await store.deleteChat(req.params.chatId);
-      if (!deleted) {
-        return res.status(404).json({ error: 'Chat nao encontrado' });
-      }
+    return res.json({ chat: updated });
+  }));
 
-      return res.json({ ok: true });
-    } catch (err) {
-      console.error(err);
-      return res.status(500).json({ error: 'Falha ao excluir chat' });
+  app.delete('/api/chats/:chatId', asyncHandler(async (req, res) => {
+    const chatId = parseChatId(req.params.chatId, 'chatId');
+    const deleted = await store.deleteChat(chatId);
+    if (!deleted) {
+      throw new HttpError(404, 'Chat nao encontrado');
     }
-  });
 
-  app.get('/api/chats/:chatId/messages', async (req, res) => {
-    try {
-      const messages = await store.getMessages(req.params.chatId);
-      res.json({ messages });
-    } catch (err) {
-      console.error(err);
-      res.status(500).json({ error: 'Falha ao carregar mensagens' });
+    return res.json({ ok: true });
+  }));
+
+  app.get('/api/chats/:chatId/messages', asyncHandler(async (req, res) => {
+    const chatId = parseChatId(req.params.chatId, 'chatId');
+    const messages = await store.getMessages(chatId);
+    res.json({ messages });
+  }));
+
+  app.post('/api/chats/:chatId/reset', asyncHandler(async (req, res) => {
+    const chatId = parseChatId(req.params.chatId, 'chatId');
+    await store.resetChat(chatId);
+    res.json({ ok: true });
+  }));
+
+  app.get('/api/chats/:chatId/export', asyncHandler(async (req, res) => {
+    const chatId = parseChatId(req.params.chatId, 'chatId');
+    const markdown = await store.exportChatMarkdown(chatId);
+    if (!markdown) {
+      throw new HttpError(404, 'Chat nao encontrado');
     }
-  });
 
-  app.post('/api/chats/:chatId/reset', async (req, res) => {
-    try {
-      await store.resetChat(req.params.chatId);
-      res.json({ ok: true });
-    } catch (err) {
-      console.error(err);
-      res.status(500).json({ error: 'Falha ao resetar chat' });
-    }
-  });
-
-  app.get('/api/chats/:chatId/export', async (req, res) => {
-    try {
-      const markdown = await store.exportChatMarkdown(req.params.chatId);
-      if (!markdown) {
-        return res.status(404).json({ error: 'Chat nao encontrado' });
-      }
-
-      res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
-      res.setHeader(
-        'Content-Disposition',
-        `attachment; filename="chat-${req.params.chatId}.md"`
-      );
-      return res.send(markdown);
-    } catch (err) {
-      console.error(err);
-      return res.status(500).json({ error: 'Falha ao exportar chat' });
-    }
-  });
+    res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="chat-${chatId}.md"`
+    );
+    return res.send(markdown);
+  }));
 
   app.post('/api/chat-stream', async (req, res) => {
     try {
-      const { message } = req.body;
+      assertBodyObject(req.body);
+
+      const message = parseMessage(req.body);
       const chatId = getChatId(req.body);
       const options = parseOptions(req.body);
       const images = getMessageImages(req.body);
@@ -266,9 +360,42 @@ export function createApp(deps = {}) {
       await store.appendMessage(chatId, 'assistant', fullReply);
       res.end();
     } catch (err) {
-      console.error(err);
-      res.status(500).end('Erro no streaming');
+      if (!res.headersSent) {
+        const status = err instanceof HttpError ? err.status : 500;
+        const message = err instanceof HttpError ? err.message : 'Erro no streaming';
+        res.status(status).json({ error: message });
+        return;
+      }
+      res.end();
     }
+  });
+
+  app.use('/api', (_req, res) => {
+    res.status(404).json({ error: 'Endpoint nao encontrado' });
+  });
+
+  app.get('/', (_req, res) => {
+    res.sendFile(path.join(webDir, 'index.html'));
+  });
+
+  app.use((err, req, res, _next) => {
+    const status = err instanceof HttpError ? err.status : 500;
+    const message = err instanceof HttpError
+      ? err.message
+      : 'Erro interno do servidor';
+
+    console.error(err);
+
+    if (res.headersSent) {
+      return;
+    }
+
+    if (req.path.startsWith('/api')) {
+      res.status(status).json({ error: message });
+      return;
+    }
+
+    res.status(status).send(message);
   });
 
   return app;

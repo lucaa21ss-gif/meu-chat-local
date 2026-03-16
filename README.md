@@ -37,8 +37,8 @@ docker compose up --build
 
 2. Abra a UI:
 
-- [http://localhost:3001](http://localhost:3001) para API
-- Abra `web/index.html` no navegador ou sirva a pasta `web` com um servidor estatico
+- [http://localhost:3001](http://localhost:3001) para acessar a interface web
+- [http://localhost:3001/api/chats](http://localhost:3001/api/chats) para validar a API
 
 ## Setup local (sem Docker para frontend/server)
 
@@ -51,6 +51,8 @@ npm start
 ```
 
 API em `http://localhost:3001`.
+
+Com o backend em execucao, a interface tambem fica disponivel em `http://localhost:3001`.
 
 ### Frontend
 
@@ -66,10 +68,13 @@ Para desenvolvimento com recompilacao de CSS:
 npm run watch:css
 ```
 
-Abra `web/index.html` no navegador.
+Se preferir teste sem backend, voce pode abrir `web/index.html` diretamente,
+mas o fluxo recomendado e usar `http://localhost:3001` para manter API e UI na mesma origem.
 
 ## Endpoints principais
 
+- `GET /healthz`: liveness check do servidor
+- `GET /readyz`: readiness check (valida acesso ao store)
 - `POST /api/chat`: chat sem streaming
 - `POST /api/chat-stream`: chat com streaming
 - `POST /api/reset`: limpa chat padrao
@@ -133,10 +138,27 @@ O envio de imagem e opcional e depende do modelo escolhido suportar imagens.
   - execute `npm run build:css` em `web`
 - Erro de conexao com API:
   - verifique se o servidor esta em `http://localhost:3001`
+- UI sem estilo no Docker:
+  - refaca a imagem com `docker compose up --build`
 - Sem resposta do modelo:
   - confirme que o Ollama esta ativo e com modelo instalado
 - Voz indisponivel:
   - o navegador pode nao suportar Web Speech API
+
+## Hardening (Sprint 1)
+
+- Security headers via `helmet`
+- Rate limit por IP nas rotas `/api`, `/api/chat` e `/api/chat-stream`
+- Validacao de payload no backend (chatId, titulo, mensagem, imagens, opcoes)
+- Tratamento global de erros com respostas JSON padronizadas para API
+
+Variaveis de ambiente opcionais no backend:
+
+- `FRONTEND_ORIGIN`: origem permitida no CORS
+- `JSON_LIMIT`: limite de payload JSON (padrao: `8mb`)
+- `RATE_LIMIT_WINDOW_MS`: janela do rate limit geral (padrao: `900000`)
+- `RATE_LIMIT_MAX`: limite geral de requests na janela (padrao: `400`)
+- `RATE_LIMIT_CHAT_MAX`: limite de requests de chat na janela (padrao: `80`)
 
 ## Upgrades futuros sugeridos
 

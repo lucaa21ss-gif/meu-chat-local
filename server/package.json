@@ -7,11 +7,13 @@
     "test": "node --test"
   },
   "dependencies": {
-    "sqlite": "^5.1.1",
-    "sqlite3": "^5.1.7",
-    "express": "^4.18.2",
     "cors": "^2.8.5",
-    "ollama": "latest"
+    "express": "^4.18.2",
+    "express-rate-limit": "^8.3.1",
+    "helmet": "^8.1.0",
+    "ollama": "latest",
+    "sqlite": "^5.1.1",
+    "sqlite3": "^5.1.7"
   },
   "devDependencies": {
     "supertest": "^7.1.1"

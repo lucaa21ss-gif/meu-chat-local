@@ -2,10 +2,19 @@ FROM node:20
 
 WORKDIR /app
 
-COPY package*.json ./
-RUN npm install
+COPY server/package*.json ./server/
+RUN cd server && npm install
 
-COPY . .
+COPY web/package*.json ./web/
+RUN cd web && npm install
+
+COPY server/ ./server/
+COPY web/ ./web/
+
+# Gera o CSS final para o frontend antes de iniciar o servidor.
+RUN cd web && npm run build:css
+
+WORKDIR /app/server
 
 EXPOSE 3001
 
