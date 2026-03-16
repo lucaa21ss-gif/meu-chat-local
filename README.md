@@ -148,7 +148,7 @@ Publicacao de imagem Docker:
 
 - [ .github/workflows/docker-publish.yml ](.github/workflows/docker-publish.yml) publica a imagem no GitHub Container Registry
 - imagem alvo: `ghcr.io/lucaa21ss-gif/meu-chat-local-server`
-- publicacao acontece quando uma tag semantica `v*.*.*` e criada
+- publicacao acontece quando uma tag semantica `v*.*.*` ou `meu-chat-local-v*.*.*` e criada
 
 ## Personalizacao de modelos
 

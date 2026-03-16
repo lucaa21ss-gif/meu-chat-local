@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - "v*.*.*"
+      - "meu-chat-local-v*.*.*"
   workflow_dispatch:
 
 permissions:
@@ -29,16 +30,32 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Extract Docker metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ghcr.io/${{ github.repository_owner }}/meu-chat-local-server
-          tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}}
-            type=raw,value=latest,enable={{is_default_branch}}
+      - name: Resolve semantic version from tag
+        id: version
+        run: |
+          set -e
+          TAG="${GITHUB_REF_NAME}"
+
+          if [[ "$TAG" == meu-chat-local-v* ]]; then
+            VERSION="${TAG#meu-chat-local-v}"
+          elif [[ "$TAG" == v* ]]; then
+            VERSION="${TAG#v}"
+          else
+            echo "Tag nao suportada: $TAG"
+            exit 1
+          fi
+
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Versao semantica invalida: $VERSION"
+            exit 1
+          fi
+
+          MAJOR="${VERSION%%.*}"
+          MAJOR_MINOR="${VERSION%.*}"
+
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "major=$MAJOR" >> "$GITHUB_OUTPUT"
+          echo "major_minor=$MAJOR_MINOR" >> "$GITHUB_OUTPUT"
 
       - name: Build and push image
         uses: docker/build-push-action@v6
@@ -46,5 +63,8 @@ jobs:
           context: .
           file: server/Dockerfile
           push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/meu-chat-local-server:${{ steps.version.outputs.version }}
+            ghcr.io/${{ github.repository_owner }}/meu-chat-local-server:${{ steps.version.outputs.major_minor }}
+            ghcr.io/${{ github.repository_owner }}/meu-chat-local-server:${{ steps.version.outputs.major }}
+            ghcr.io/${{ github.repository_owner }}/meu-chat-local-server:latest
