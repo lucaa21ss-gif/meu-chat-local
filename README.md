@@ -197,6 +197,7 @@ mas o fluxo recomendado e usar `http://localhost:3001` para manter API e UI na m
 - `POST /api/storage/cleanup`: executa simulacao (`dry-run`) ou limpeza real (`execute`) com retencao inteligente para backups
 - `GET /api/incident/status`: consulta o estado operacional atual do incidente (operator/admin)
 - `PATCH /api/incident/status`: atualiza estado operacional do incidente (somente admin)
+- `POST /api/incident/runbook/execute`: executa runbook operacional por tipo (somente admin)
 - `GET /api/diagnostics/export`: exporta pacote de diagnostico forense (somente admin); inclui estado de saude, SLO, storage, erros recentes, checklist de triagem e audit logs
 
 ## Backup criptografado opcional
@@ -338,6 +339,27 @@ curl -X PATCH http://localhost:3001/api/incident/status \
     "owner": "oncall-local",
     "recommendationType": "slo"
   }'
+```
+
+Execucao automatizada por comando unico (triagem + mitigacao):
+
+```bash
+npm run incident:runbook -- --type model-offline --mode execute
+```
+
+Tipos de runbook suportados:
+
+- `model-offline`
+- `db-degraded`
+- `disk-pressure`
+- `backup-alert`
+
+Cada execucao gera um artefato JSON em `artifacts/runbooks/` e registra evidencias no audit log local (`eventType=incident.runbook.execute`).
+
+Rollback operacional para retornar ao estado normal:
+
+```bash
+npm run incident:runbook -- --type model-offline --mode rollback
 ```
 
 ## Suite de caos local e recuperacao

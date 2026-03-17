@@ -107,6 +107,32 @@ const INCIDENT_STATUS_TRANSITIONS = {
   monitoring: new Set(["normal", "investigating", "resolved"]),
   resolved: new Set(["normal", "monitoring", "investigating"]),
 };
+const INCIDENT_RUNBOOK_TYPES = {
+  "model-offline": {
+    severity: "high",
+    recommendationType: "health",
+    triageSummary: "Modelo principal indisponivel; triagem iniciada via runbook",
+    mitigationSummary: "Mitigacao aplicada para modelo indisponivel (fallback/retry)",
+  },
+  "db-degraded": {
+    severity: "critical",
+    recommendationType: "health",
+    triageSummary: "Banco degradado; triagem iniciada via runbook",
+    mitigationSummary: "Mitigacao aplicada para degradacao de banco",
+  },
+  "disk-pressure": {
+    severity: "high",
+    recommendationType: "security",
+    triageSummary: "Pressao de disco detectada; triagem iniciada via runbook",
+    mitigationSummary: "Mitigacao aplicada para pressao de disco",
+  },
+  "backup-alert": {
+    severity: "medium",
+    recommendationType: "backup",
+    triageSummary: "Alerta de backup detectado; triagem iniciada via runbook",
+    mitigationSummary: "Mitigacao aplicada para alerta de backup",
+  },
+};
 const CONFIG_KEYS = {
   CHAT_SYSTEM_PROMPT: "chat.systemPrompt",
   USER_DEFAULT_SYSTEM_PROMPT: "user.defaultSystemPrompt",
@@ -441,6 +467,29 @@ function parseIncidentRecommendationType(raw) {
 function parseIncidentNextUpdateAt(raw) {
   if (raw === undefined || raw === null || raw === "") return null;
   return parseSearchDate(raw, "incident.nextUpdateAt");
+}
+
+function parseIncidentRunbookType(raw) {
+  const type = String(raw || "")
+    .trim()
+    .toLowerCase();
+  if (!type || !Object.prototype.hasOwnProperty.call(INCIDENT_RUNBOOK_TYPES, type)) {
+    throw new HttpError(
+      400,
+      `incident.runbookType invalido: use ${Object.keys(INCIDENT_RUNBOOK_TYPES).join(", ")}`,
+    );
+  }
+  return type;
+}
+
+function parseIncidentRunbookMode(raw) {
+  const mode = String(raw || "execute")
+    .trim()
+    .toLowerCase();
+  if (!["dry-run", "execute", "rollback"].includes(mode)) {
+    throw new HttpError(400, "incident.mode invalido: use dry-run, execute ou rollback");
+  }
+  return mode;
 }
 
 function parseIncidentUpdatePayload(body = {}) {
@@ -1599,6 +1648,64 @@ export function createApp(deps = {}) {
     },
   });
 
+  async function collectIncidentRunbookSignals({ backupPassphrase = null } = {}) {
+    const [healthDb, healthModel, healthDisk, auditPage] = await Promise.all([
+      healthProviders.checkDb(),
+      healthProviders.checkModel(),
+      healthProviders.checkDisk(),
+      store.listAuditLogs({ page: 1, limit: 50 }),
+    ]);
+
+    const telemetryStats = getTelemetryStats().map((item) => ({
+      ...item,
+      errorRate: item.count ? Math.round((item.errors / item.count) * 100) : 0,
+    }));
+
+    const backupValidation = await backupService
+      .validateRecentBackups({ limit: 3, passphrase: backupPassphrase })
+      .catch((error) => ({
+        checkedAt: new Date().toISOString(),
+        limit: 3,
+        status: "falha",
+        items: [],
+        error: String(error?.message || "Falha ao validar backups"),
+      }));
+
+    const rateLimiter = roleLimiter.getMetrics();
+    const recentErrors = auditPage.items
+      .filter(
+        (entry) =>
+          typeof entry.eventType === "string" &&
+          (entry.eventType.includes("blocked") || entry.eventType.includes("error")),
+      )
+      .slice(0, 20);
+
+    const health = {
+      status: buildOverallHealthStatus({ db: healthDb, model: healthModel, disk: healthDisk }),
+      checks: { db: healthDb, model: healthModel, disk: healthDisk },
+    };
+    const slo = buildSloSnapshot(telemetryStats);
+    const incidentStatus = incidentService.getStatus();
+    const recommendations = buildTriageRecommendations({
+      health,
+      slo,
+      backupValidation,
+      rateLimiter,
+      recentErrors,
+      incidentStatus,
+    });
+
+    return {
+      health,
+      slo,
+      backupValidation,
+      rateLimiter,
+      recentErrors,
+      incidentStatus,
+      recommendations,
+    };
+  }
+
   async function recordAudit(eventType, userId = null, meta = {}) {
     try {
       await store.appendAuditLog(userId, eventType, meta);
@@ -2670,6 +2777,155 @@ export function createApp(deps = {}) {
       });
 
       return res.json({ incident });
+    }),
+  );
+
+  app.post(
+    "/api/incident/runbook/execute",
+    requireMinimumRole("admin"),
+    asyncHandler(async (req, res) => {
+      assertBodyObject(req.body);
+      const actor = await resolveActor(req);
+
+      const runbookType = parseIncidentRunbookType(req.body.runbookType);
+      const mode = parseIncidentRunbookMode(req.body.mode);
+      const owner = parseIncidentOwner(req.body.owner) || actor.userId;
+      const customSummary = parseIncidentSummary(req.body.summary);
+      const customNextUpdateAt = parseIncidentNextUpdateAt(req.body.nextUpdateAt);
+      const backupPassphrase = parseBackupPassphrase(req.body.backupPassphrase);
+
+      const runbookPlan = INCIDENT_RUNBOOK_TYPES[runbookType];
+      const runbookId = `runbook-${Date.now()}`;
+      const startedAt = new Date().toISOString();
+      const steps = [];
+      const incidentBefore = incidentService.getStatus();
+      let incidentAfter = incidentBefore;
+
+      if (mode === "dry-run") {
+        steps.push({
+          step: "plan",
+          status: "simulated",
+          detail: "Execucao simulada sem alterar estado operacional",
+          at: new Date().toISOString(),
+        });
+      }
+
+      if (mode === "execute") {
+        const nextUpdateAt =
+          customNextUpdateAt || new Date(Date.now() + 15 * 60 * 1000).toISOString();
+
+        incidentAfter = incidentService.updateStatus(
+          {
+            status: "investigating",
+            severity: runbookPlan.severity,
+            summary: customSummary || runbookPlan.triageSummary,
+            owner,
+            recommendationType: runbookPlan.recommendationType,
+            nextUpdateAt,
+          },
+          actor.userId,
+        );
+        steps.push({
+          step: "triage",
+          status: "completed",
+          detail: "Incidente movido para investigating",
+          at: new Date().toISOString(),
+        });
+
+        incidentAfter = incidentService.updateStatus(
+          {
+            status: "mitigating",
+            severity: runbookPlan.severity,
+            summary: runbookPlan.mitigationSummary,
+            owner,
+            recommendationType: runbookPlan.recommendationType,
+            nextUpdateAt,
+          },
+          actor.userId,
+        );
+        steps.push({
+          step: "mitigation",
+          status: "completed",
+          detail: "Incidente movido para mitigating",
+          at: new Date().toISOString(),
+        });
+      }
+
+      if (mode === "rollback") {
+        if (incidentAfter.status !== "normal") {
+          incidentAfter = incidentService.updateStatus(
+            {
+              status: "monitoring",
+              severity: "low",
+              summary: "Rollback operacional em progresso",
+              owner,
+              recommendationType: "manual",
+              nextUpdateAt: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
+            },
+            actor.userId,
+          );
+          steps.push({
+            step: "rollback-monitoring",
+            status: "completed",
+            detail: "Incidente movido para monitoring antes do retorno ao normal",
+            at: new Date().toISOString(),
+          });
+
+          incidentAfter = incidentService.updateStatus(
+            {
+              status: "normal",
+              severity: "info",
+              summary: customSummary || `Rollback concluido para ${runbookType}`,
+              owner: null,
+              recommendationType: null,
+              nextUpdateAt: null,
+            },
+            actor.userId,
+          );
+        }
+
+        steps.push({
+          step: "rollback-finalize",
+          status: "completed",
+          detail: "Estado operacional normalizado",
+          at: new Date().toISOString(),
+        });
+      }
+
+      const signals = await collectIncidentRunbookSignals({ backupPassphrase });
+      const finishedAt = new Date().toISOString();
+
+      await recordAudit("incident.runbook.execute", actor.userId, {
+        runbookId,
+        runbookType,
+        mode,
+        healthStatus: signals.health.status,
+        sloStatus: signals.slo.status,
+        backupStatus: signals.backupValidation.status,
+        finalIncidentStatus: incidentAfter.status,
+      });
+
+      return res.json({
+        ok: true,
+        runbook: {
+          id: runbookId,
+          type: runbookType,
+          mode,
+          actorUserId: actor.userId,
+          startedAt,
+          finishedAt,
+          incidentBefore,
+          incidentAfter,
+          steps,
+          evidence: {
+            health: signals.health,
+            slo: signals.slo,
+            backupValidation: signals.backupValidation,
+            recentErrors: signals.recentErrors,
+            recommendations: signals.recommendations,
+          },
+        },
+      });
     }),
   );
 

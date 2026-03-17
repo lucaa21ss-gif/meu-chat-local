@@ -2015,6 +2015,97 @@ test("PATCH /api/incident/status bloqueia viewer e transicao invalida", async ()
         .expect(400);
 });
 
+test("POST /api/incident/runbook/execute executa triagem+mitigacao e registra evidencia", async () => {
+    const app = createApp({
+        chatClient: createMockChatClient(),
+        ...createMockStore(),
+        healthProviders: {
+            checkDb: async () => ({ status: "healthy", latencyMs: 2 }),
+            checkModel: async () => ({
+                status: "degraded",
+                latencyMs: 8,
+                ollama: "offline",
+                error: "model unavailable",
+            }),
+            checkDisk: async () => ({
+                status: "healthy",
+                latencyMs: 1,
+                totalBytes: 1000,
+                freeBytes: 600,
+                freePercent: 60,
+            }),
+        },
+    });
+
+    const response = await request(app)
+        .post("/api/incident/runbook/execute")
+        .set("x-user-id", "user-default")
+        .send({
+            runbookType: "model-offline",
+            mode: "execute",
+            owner: "oncall-local",
+        })
+        .expect(200);
+
+    assert.equal(response.body.ok, true);
+    assert.equal(response.body.runbook.type, "model-offline");
+    assert.equal(response.body.runbook.mode, "execute");
+    assert.equal(response.body.runbook.incidentAfter.status, "mitigating");
+    assert.equal(response.body.runbook.incidentAfter.owner, "oncall-local");
+    assert.equal(Array.isArray(response.body.runbook.steps), true);
+    assert.equal(response.body.runbook.steps.length >= 2, true);
+    assert.equal(response.body.runbook.evidence.health.status, "degraded");
+
+    const logs = await request(app)
+        .get("/api/audit/logs?eventType=incident.runbook.execute")
+        .expect(200);
+
+    assert.equal(logs.body.logs.length >= 1, true);
+    assert.equal(logs.body.logs[0].meta.runbookType, "model-offline");
+    assert.equal(logs.body.logs[0].meta.mode, "execute");
+});
+
+test("POST /api/incident/runbook/execute com rollback retorna estado para normal", async () => {
+    const app = createApp({
+        chatClient: createMockChatClient(),
+        ...createMockStore(),
+    });
+
+    await request(app)
+        .post("/api/incident/runbook/execute")
+        .set("x-user-id", "user-default")
+        .send({ runbookType: "db-degraded", mode: "execute" })
+        .expect(200);
+
+    const rollback = await request(app)
+        .post("/api/incident/runbook/execute")
+        .set("x-user-id", "user-default")
+        .send({ runbookType: "db-degraded", mode: "rollback" })
+        .expect(200);
+
+    assert.equal(rollback.body.ok, true);
+    assert.equal(rollback.body.runbook.mode, "rollback");
+    assert.equal(rollback.body.runbook.incidentAfter.status, "normal");
+
+    const logs = await request(app)
+        .get("/api/audit/logs?eventType=incident.runbook.execute")
+        .expect(200);
+    assert.equal(logs.body.logs[0].meta.mode, "rollback");
+});
+
+test("POST /api/incident/runbook/execute bloqueado para viewer", async () => {
+    const app = createApp({
+        chatClient: createMockChatClient(),
+        ...createMockStore(),
+    });
+
+    await request(app)
+        .post("/api/incident/runbook/execute")
+        .set("x-user-id", "user-viewer")
+        .send({ runbookType: "disk-pressure", mode: "execute" })
+        .expect(403);
+});
+
 test("GET /api/audit/logs suporta paginacao e filtros", async () => {
     const app = createApp({
         chatClient: createMockChatClient(),
