@@ -204,6 +204,7 @@ mas o fluxo recomendado e usar `http://localhost:3001` para manter API e UI na m
 - `POST /api/disaster-recovery/test`: executa cenário automatizado de desastre e restauração (somente admin)
 - `GET /api/integrity/status`: consulta integridade de artefatos críticos em runtime (operator/admin)
 - `POST /api/integrity/verify`: força verificação de integridade e registra auditoria (somente admin)
+- `GET /api/capacity/latest`: consulta o último resumo do perfil local de capacidade (operator/admin)
 - `GET /api/diagnostics/export`: exporta pacote de diagnostico forense (somente admin); inclui estado de saude, SLO, storage, erros recentes, checklist de triagem e audit logs
 
 ## Backup criptografado opcional
@@ -241,6 +242,7 @@ Campos do pacote (versao 2):
 | `app`                  | Versao do Node.js, plataforma, uptime, consumo de memoria             |
 | `health`               | Status geral e checks individuais (db, model, disk)                   |
 | `integrity`            | Integridade de artefatos críticos em runtime (mismatches/missing)     |
+| `capacity`             | Último resumo local de throughput, latência e erro por endpoint       |
 | `rateLimiter`          | Metricas de rate limiting por perfil                                  |
 | `telemetry`            | Status de telemetria e top rotas por latencia/erros                   |
 | `autoHealing`          | Estado do auto-healing (modo, limites, circuito e ultimo resultado)   |
@@ -457,6 +459,39 @@ Procedimento de promocao recomendado:
 3. Executar canary (`npm run release:canary`).
 4. Promover somente com gate `approved`.
 5. Em `blocked`, revisar o relatorio JSON e corrigir antes de nova tentativa.
+
+## Perfil local de capacidade
+
+Execução por comando único:
+
+```bash
+npm run capacity:profile
+```
+
+O runner exercita os endpoints críticos abaixo com carga controlada:
+
+- `GET /api/health`
+- `GET /api/diagnostics/export`
+- `POST /api/chat`
+
+Métricas e gate operacional:
+
+- latência `p50`, `p95` e `p99`
+- `throughputRps` por endpoint e total
+- `errorRate` por endpoint e total
+- status final `approved|blocked` com exit code `1` quando o orçamento falha
+
+Evidências e consulta operacional:
+
+- relatório JSON em `server/artifacts/capacity/capacity-report.json`
+- resumo disponível em `GET /api/capacity/latest`
+- `GET /api/health` e `GET /api/diagnostics/export` passam a incluir o último snapshot de capacidade
+
+Exemplo com parâmetros opcionais:
+
+```bash
+npm run capacity:profile -- --iterations 20 --concurrency 4 --max-p95-ms 1200 --min-throughput-rps 1.5
+```
 
 ## Teste automatizado de restauração de desastre (DR)
 

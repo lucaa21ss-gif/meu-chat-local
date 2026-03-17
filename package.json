@@ -9,6 +9,7 @@
     "incident:runbook": "bash scripts/runbook-incident.sh",
     "dr:test": "bash scripts/disaster-recovery-test.sh",
     "release:canary": "node scripts/release-canary.mjs",
+    "capacity:profile": "node scripts/capacity-profile.mjs",
     "dist:package": "bash scripts/package-dist.sh",
     "dist:install": "bash scripts/install.sh",
     "dist:start": "bash scripts/start.sh",

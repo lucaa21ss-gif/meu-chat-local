@@ -1500,6 +1500,64 @@ test("POST /api/integrity/verify retorna ok false com divergencia", async () => 
     assert.equal(response.body.integrity.mismatches.length, 1);
 });
 
+test("GET /api/capacity/latest retorna resumo e bloqueia viewer", async () => {
+    const app = createApp({
+        chatClient: createMockChatClient(),
+        ...createMockStore(),
+        capacityService: {
+            getLatestSummary: async () => ({
+                status: "approved",
+                reason: "capacity-report-ready",
+                generatedAt: new Date().toISOString(),
+                reportPath: "server/artifacts/capacity/capacity-report.json",
+                thresholds: {
+                    maxErrorRate: 5,
+                    maxP95Ms: 1500,
+                    minThroughputRps: 1,
+                },
+                totals: {
+                    requestCount: 12,
+                    successCount: 12,
+                    errorCount: 0,
+                    errorRate: 0,
+                    throughputRps: 3.2,
+                },
+                endpoints: [
+                    {
+                        name: "chat-flow",
+                        method: "POST",
+                        path: "/api/chat",
+                        requestCount: 4,
+                        successCount: 4,
+                        errorCount: 0,
+                        errorRate: 0,
+                        throughputRps: 2.8,
+                        latencyMs: { p50: 120, p95: 240, p99: 300 },
+                        budget: {
+                            status: "approved",
+                            reasons: [],
+                        },
+                    },
+                ],
+            }),
+        },
+    });
+
+    await request(app)
+        .get("/api/capacity/latest")
+        .set("x-user-id", "user-viewer")
+        .expect(403);
+
+    const response = await request(app)
+        .get("/api/capacity/latest")
+        .set("x-user-id", "user-operator")
+        .expect(200);
+
+    assert.equal(response.body.capacity.status, "approved");
+    assert.equal(response.body.capacity.totals.requestCount, 12);
+    assert.equal(response.body.capacity.endpoints[0].name, "chat-flow");
+});
+
 test("POST /api/disaster-recovery/test executa cenário e retorna RTO/status final", async () => {
     const app = createApp({
         chatClient: createMockChatClient(),
@@ -2952,6 +3010,44 @@ test("diagnostics: autoHealing presente no pacote forense", async () => {
     const payload = JSON.parse(res.text);
     assert.ok(payload.autoHealing, "autoHealing deve estar presente");
     assert.equal(typeof payload.autoHealing.enabled, "boolean");
+});
+
+test("diagnostics: capacity presente no pacote forense", async () => {
+    const app = createApp({
+        chatClient: createMockChatClient(),
+        ...createMockStore(),
+        capacityService: {
+            getLatestSummary: async () => ({
+                status: "blocked",
+                reason: "capacity-budget-violated",
+                generatedAt: new Date().toISOString(),
+                reportPath: "server/artifacts/capacity/capacity-report.json",
+                thresholds: {
+                    maxErrorRate: 5,
+                    maxP95Ms: 1500,
+                    minThroughputRps: 1,
+                },
+                totals: {
+                    requestCount: 9,
+                    successCount: 8,
+                    errorCount: 1,
+                    errorRate: 11.11,
+                    throughputRps: 0.8,
+                },
+                endpoints: [],
+            }),
+        },
+    });
+
+    const res = await request(app)
+        .get("/api/diagnostics/export")
+        .set("x-user-id", "user-default")
+        .expect(200);
+
+    const payload = JSON.parse(res.text);
+    assert.ok(payload.capacity, "capacity deve estar presente");
+    assert.equal(payload.capacity.status, "blocked");
+    assert.equal(payload.capacity.totals.errorCount, 1);
 });
 
 test("observabilidade: GET /api/diagnostics/export bloqueado para viewer", async () => {

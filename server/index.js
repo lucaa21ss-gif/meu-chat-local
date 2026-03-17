@@ -1933,6 +1933,151 @@ export function createIntegrityRuntimeService({
   };
 }
 
+function buildCapacityEmptySummary(reason = "capacity-report-missing") {
+  return {
+    status: "unknown",
+    reason,
+    generatedAt: null,
+    reportPath: null,
+    thresholds: null,
+    totals: {
+      requestCount: 0,
+      successCount: 0,
+      errorCount: 0,
+      errorRate: 0,
+      throughputRps: 0,
+    },
+    endpoints: [],
+  };
+}
+
+function createCapacityProfileService({
+  baseDir,
+  artifactsDir,
+  reportFileName = "capacity-report.json",
+} = {}) {
+  async function resolveLatestReportPath() {
+    const preferredPath = path.join(artifactsDir, reportFileName);
+    try {
+      await fsStat(preferredPath);
+      return preferredPath;
+    } catch {
+      // Fallback para o arquivo mais recente caso o nome padrao mude.
+    }
+
+    let entries = [];
+    try {
+      entries = await fsReaddir(artifactsDir, { withFileTypes: true });
+    } catch {
+      return null;
+    }
+
+    const candidates = await Promise.all(
+      entries
+        .filter((entry) => entry.isFile() && entry.name.endsWith(".json"))
+        .map(async (entry) => {
+          const fullPath = path.join(artifactsDir, entry.name);
+          const stats = await fsStat(fullPath);
+          return {
+            fullPath,
+            mtimeMs: stats.mtimeMs,
+          };
+        }),
+    );
+
+    if (!candidates.length) return null;
+    candidates.sort((left, right) => right.mtimeMs - left.mtimeMs);
+    return candidates[0].fullPath;
+  }
+
+  function summarizeEndpoint(endpoint = {}) {
+    return {
+      name: endpoint.name || "unknown",
+      method: endpoint.method || "GET",
+      path: endpoint.path || null,
+      requestCount: Number(endpoint.requestCount || 0),
+      successCount: Number(endpoint.successCount || 0),
+      errorCount: Number(endpoint.errorCount || 0),
+      errorRate:
+        typeof endpoint.errorRate === "number" ? endpoint.errorRate : 0,
+      throughputRps:
+        typeof endpoint.throughputRps === "number" ? endpoint.throughputRps : 0,
+      latencyMs: {
+        p50:
+          typeof endpoint.latencyMs?.p50 === "number"
+            ? endpoint.latencyMs.p50
+            : null,
+        p95:
+          typeof endpoint.latencyMs?.p95 === "number"
+            ? endpoint.latencyMs.p95
+            : null,
+        p99:
+          typeof endpoint.latencyMs?.p99 === "number"
+            ? endpoint.latencyMs.p99
+            : null,
+      },
+      budget: {
+        status: endpoint.budget?.status || "unknown",
+        reasons: Array.isArray(endpoint.budget?.reasons)
+          ? endpoint.budget.reasons
+          : [],
+      },
+    };
+  }
+
+  function summarizeReport(report, reportPath) {
+    const endpoints = Array.isArray(report?.endpoints)
+      ? report.endpoints.map((endpoint) => summarizeEndpoint(endpoint))
+      : [];
+
+    return {
+      status: report?.budgets?.status || report?.status || "unknown",
+      reason:
+        Array.isArray(report?.budgets?.reasons) && report.budgets.reasons.length
+          ? report.budgets.reasons.join("; ")
+          : endpoints.some((item) => item.budget.status === "blocked")
+            ? "capacity-budget-violated"
+            : "capacity-report-ready",
+      generatedAt: report?.generatedAt || null,
+      reportPath: reportPath ? path.relative(baseDir, reportPath) : null,
+      thresholds: report?.thresholds || null,
+      totals: {
+        requestCount: Number(report?.totals?.requestCount || 0),
+        successCount: Number(report?.totals?.successCount || 0),
+        errorCount: Number(report?.totals?.errorCount || 0),
+        errorRate:
+          typeof report?.totals?.errorRate === "number"
+            ? report.totals.errorRate
+            : 0,
+        throughputRps:
+          typeof report?.totals?.throughputRps === "number"
+            ? report.totals.throughputRps
+            : 0,
+      },
+      endpoints,
+    };
+  }
+
+  async function getLatestSummary() {
+    const reportPath = await resolveLatestReportPath();
+    if (!reportPath) {
+      return buildCapacityEmptySummary();
+    }
+
+    try {
+      const content = await fsReadFile(reportPath, "utf8");
+      const report = JSON.parse(content);
+      return summarizeReport(report, reportPath);
+    } catch {
+      return buildCapacityEmptySummary("capacity-report-unreadable");
+    }
+  }
+
+  return {
+    getLatestSummary,
+  };
+}
+
 function buildTriageRecommendations({
   health,
   slo,
@@ -2324,6 +2469,12 @@ export function createApp(deps = {}) {
       ],
       staleAfterMs: 30_000,
     });
+  const capacityService =
+    deps.capacityService ||
+    createCapacityProfileService({
+      baseDir: path.resolve(serverDir, ".."),
+      artifactsDir: path.join(serverDir, "artifacts", "capacity"),
+    });
 
   const roleLimits = deps.roleLimits ?? {
     admin: { windowMs: requestWindowMs, max: 300, chatMax: 100 },
@@ -2614,6 +2765,7 @@ export function createApp(deps = {}) {
 
   app.locals.backupService = backupService;
   app.locals.storageService = storageService;
+  app.locals.capacityService = capacityService;
 
   app.get("/healthz", (req, res) => {
     req.logger?.info({ uptime: process.uptime() }, "Liveness check");
@@ -2664,6 +2816,7 @@ export function createApp(deps = {}) {
         errorRate: item.count ? Math.round((item.errors / item.count) * 100) : 0,
       }));
       const slo = buildSloSnapshot(getTelemetryStats());
+      const capacity = await capacityService.getLatestSummary();
 
       const alerts = [];
       if (db.status !== HEALTH_STATUS.HEALTHY) {
@@ -2677,6 +2830,9 @@ export function createApp(deps = {}) {
       }
       if (integrityStatus.status === "failed") {
         alerts.push("Divergencia de integridade detectada em artefatos criticos");
+      }
+      if (capacity.status === "blocked") {
+        alerts.push("Orcamento de performance violado no ultimo perfil de capacidade");
       }
 
       if (autoHealingExecution.executed) {
@@ -2696,6 +2852,7 @@ export function createApp(deps = {}) {
           topRoutes: telemetry,
         },
         integrity: integrityStatus,
+        capacity,
         slo,
         autoHealing: autoHealingService.getStatus(),
         rateLimiter: roleLimiter.getMetrics(),
@@ -3606,6 +3763,15 @@ export function createApp(deps = {}) {
     }),
   );
 
+  app.get(
+    "/api/capacity/latest",
+    requireMinimumRole("operator"),
+    asyncHandler(async (_req, res) => {
+      const capacity = await capacityService.getLatestSummary();
+      return res.json({ capacity });
+    }),
+  );
+
   app.post(
     "/api/incident/runbook/execute",
     requireMinimumRole("admin"),
@@ -4049,6 +4215,7 @@ export function createApp(deps = {}) {
           error: String(error?.message || "Falha ao validar backups"),
         }));
       const integritySnapshot = await integrityService.getOrRefresh();
+      const capacitySnapshot = await capacityService.getLatestSummary();
       const sloSnapshot = buildSloSnapshot(
         getTelemetryStats().map((item) => ({
           ...item,
@@ -4098,6 +4265,7 @@ export function createApp(deps = {}) {
           topRoutes: telemetry,
         },
         integrity: integritySnapshot,
+        capacity: capacitySnapshot,
         autoHealing: autoHealingService.getStatus(),
         storage: storageSnapshot,
         backupValidation: backupValidationSnapshot,
