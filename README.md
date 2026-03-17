@@ -414,6 +414,46 @@ Eventos de auditoria gerados:
 - `autohealing.execute`
 - `autohealing.auto.execute`
 
+## Canary local de release
+
+Gate operacional antes de promover release para uso local critico.
+
+Execucao por comando unico:
+
+```bash
+npm run release:canary
+```
+
+Smoke checks executados:
+
+- `GET /api/health` (exige status `healthy`)
+- `GET /api/diagnostics/export` (exige pacote valido)
+- `POST /api/chat` (exige fluxo basico de resposta)
+
+Regras de gate:
+
+- `approved`: todos os checks essenciais aprovados
+- `blocked`: qualquer check essencial falhou (processo retorna exit code 1)
+
+Relatorio de gate:
+
+- JSON em `server/artifacts/canary/canary-report.json`
+- inclui status final, motivos de bloqueio/aprovacao e detalhes de cada check
+
+Opcionalmente, customize a execucao:
+
+```bash
+npm run release:canary -- --base-url http://localhost:3001 --actor user-default --timeout-ms 15000
+```
+
+Procedimento de promocao recomendado:
+
+1. Empacotar release (`npm run dist:package`).
+2. Subir ambiente local (`npm run dist:install` ou stack equivalente).
+3. Executar canary (`npm run release:canary`).
+4. Promover somente com gate `approved`.
+5. Em `blocked`, revisar o relatorio JSON e corrigir antes de nova tentativa.
+
 ## Suite de caos local e recuperacao
 
 Execucao por comando unico:

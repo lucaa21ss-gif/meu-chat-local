@@ -7,6 +7,7 @@
     "format": "prettier --write \"**/*.{js,mjs,json,md,yml,yaml,html,css}\"",
     "format:check": "prettier --check \"**/*.{js,mjs,json,md,yml,yaml,html,css}\"",
     "incident:runbook": "bash scripts/runbook-incident.sh",
+    "release:canary": "node scripts/release-canary.mjs",
     "dist:package": "bash scripts/package-dist.sh",
     "dist:install": "bash scripts/install.sh",
     "dist:start": "bash scripts/start.sh",
