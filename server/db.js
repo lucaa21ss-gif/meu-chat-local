@@ -574,7 +574,15 @@ export async function ensureChat(
 
 export async function listChats(userId, opts = {}) {
   await initDb();
-  const { favoriteOnly = false, showArchived = false, tag = null } = opts;
+  const {
+    favoriteOnly = false,
+    showArchived = false,
+    tag = null,
+    search = null,
+    page = 1,
+    limit = 20,
+    returnPagination = false,
+  } = opts;
 
   const whereParts = [];
   const params = [];
@@ -592,6 +600,19 @@ export async function listChats(userId, opts = {}) {
 
   if (favoriteOnly) {
     whereParts.push("is_favorite = 1");
+  }
+
+  if (search) {
+    whereParts.push(
+      `(LOWER(title) LIKE ? OR EXISTS (
+        SELECT 1
+        FROM messages m
+        WHERE m.chat_id = chats.id
+          AND LOWER(COALESCE(m.content, '')) LIKE ?
+      ))`,
+    );
+    const searchTerm = `%${String(search).trim().toLowerCase()}%`;
+    params.push(searchTerm, searchTerm);
   }
 
   const whereClause = whereParts.length
@@ -621,11 +642,29 @@ export async function listChats(userId, opts = {}) {
     );
   }
 
-  return rows.map((r) => ({
+  const items = rows.map((r) => ({
     ...r,
     isFavorite: r.isFavorite === 1,
     tags: safeParseJsonArray(r.tags),
   }));
+
+  if (!returnPagination) {
+    return items;
+  }
+
+  const safeLimit = Math.min(100, Math.max(1, Number.parseInt(limit, 10) || 20));
+  const safePage = Math.max(1, Number.parseInt(page, 10) || 1);
+  const total = items.length;
+  const totalPages = total === 0 ? 0 : Math.ceil(total / safeLimit);
+  const offset = (safePage - 1) * safeLimit;
+
+  return {
+    items: items.slice(offset, offset + safeLimit),
+    page: safePage,
+    limit: safeLimit,
+    total,
+    totalPages,
+  };
 }
 
 export async function createChat(id, title, userId = "user-default") {

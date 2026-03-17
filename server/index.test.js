@@ -125,14 +125,35 @@ function createMockStore() {
             if (!users.has(id)) users.set(id, { id, name, role });
         },
         listChats: async (userId, opts = {}) => {
-            const { favoriteOnly = false, showArchived = false, tag = null } = opts;
+            const {
+                favoriteOnly = false,
+                showArchived = false,
+                tag = null,
+                search = null,
+                page = 1,
+                limit = 20,
+                returnPagination = false,
+            } = opts;
             const all = Array.from(chats.values());
-            return all
+            const normalizedSearch = String(search || "").trim().toLowerCase();
+            const items = all
                 .filter((c) =>
                     userId ? (c.userId || "user-default") === userId : true,
                 )
                 .filter((c) => (showArchived ? !!c.archivedAt : !c.archivedAt))
                 .filter((c) => (favoriteOnly ? !!c.isFavorite : true))
+                .filter((c) => {
+                    if (!normalizedSearch) return true;
+                    const titleMatch = String(c.title || "")
+                        .toLowerCase()
+                        .includes(normalizedSearch);
+                    const messageMatch = ensureMessages(c.id).some((msg) =>
+                        String(msg.content || "")
+                            .toLowerCase()
+                            .includes(normalizedSearch),
+                    );
+                    return titleMatch || messageMatch;
+                })
                 .filter((c) =>
                     tag
                         ? (c.tags || []).some(
@@ -148,6 +169,27 @@ function createMockStore() {
                     tags: Array.isArray(tags) ? tags : [],
                     systemPrompt: systemPrompt || "",
                 }));
+
+            if (!returnPagination) {
+                return items;
+            }
+
+            const safeLimit = Math.min(
+                100,
+                Math.max(1, Number.parseInt(limit, 10) || 20),
+            );
+            const safePage = Math.max(1, Number.parseInt(page, 10) || 1);
+            const total = items.length;
+            const totalPages = total === 0 ? 0 : Math.ceil(total / safeLimit);
+            const offset = (safePage - 1) * safeLimit;
+
+            return {
+                items: items.slice(offset, offset + safeLimit),
+                page: safePage,
+                limit: safeLimit,
+                total,
+                totalPages,
+            };
         },
         createChat: async (id, title, userId = "user-default") => {
             const chat = {
@@ -745,6 +787,60 @@ test("GET /api/chats aplica filtros favorite, archived e tag", async () => {
         .get("/api/chats?archived=true&tag=trabalho")
         .expect(200);
     assert.equal(byTag.body.chats.length >= 1, true);
+});
+
+test("GET /api/chats aplica paginacao na listagem", async () => {
+    const app = createApp({
+        chatClient: createMockChatClient(),
+        ...createMockStore(),
+    });
+
+    for (const chatId of ["tab-p1", "tab-p2", "tab-p3"]) {
+        await request(app)
+            .post("/api/chats")
+            .send({ id: chatId, title: `Chat ${chatId}` })
+            .expect(201);
+    }
+
+    const response = await request(app)
+        .get("/api/chats?page=2&limit=2")
+        .expect(200);
+
+    assert.equal(Array.isArray(response.body.chats), true);
+    assert.equal(response.body.pagination.page, 2);
+    assert.equal(response.body.pagination.limit, 2);
+    assert.equal(response.body.pagination.total >= 4, true);
+    assert.equal(response.body.chats.length, 2);
+});
+
+test("GET /api/chats filtra por busca em titulo e conteudo", async () => {
+    const store = createMockStore();
+    const app = createApp({
+        chatClient: createMockChatClient(),
+        ...store,
+    });
+
+    await request(app)
+        .post("/api/chats")
+        .send({ id: "tab-busca-titulo", title: "Projeto Atlas" })
+        .expect(201);
+
+    await request(app)
+        .post("/api/chats")
+        .send({ id: "tab-busca-conteudo", title: "Notas" })
+        .expect(201);
+
+    await store.appendMessage("tab-busca-conteudo", "user", "Plano omega de rollout");
+
+    const byTitle = await request(app)
+        .get("/api/chats?search=atlas")
+        .expect(200);
+    assert.equal(byTitle.body.chats.some((chat) => chat.id === "tab-busca-titulo"), true);
+
+    const byContent = await request(app)
+        .get("/api/chats?search=omega")
+        .expect(200);
+    assert.equal(byContent.body.chats.some((chat) => chat.id === "tab-busca-conteudo"), true);
 });
 
 test("telemetria opt-in habilita, coleta e desabilita", async () => {

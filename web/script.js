@@ -65,6 +65,29 @@ const healthRefreshBtnEl = document.getElementById("healthRefreshBtn");
 const healthSummaryTextEl = document.getElementById("healthSummaryText");
 const healthChecksTextEl = document.getElementById("healthChecksText");
 const healthSloTextEl = document.getElementById("healthSloText");
+const filterAllBtnEl = document.getElementById("filterAllBtn");
+const filterFavoritesBtnEl = document.getElementById("filterFavoritesBtn");
+const filterArchivedBtnEl = document.getElementById("filterArchivedBtn");
+const filterTagInputEl = document.getElementById("filterTagInput");
+const filterTagApplyBtnEl = document.getElementById("filterTagApplyBtn");
+const chatListSearchInputEl = document.getElementById("chatListSearchInput");
+const chatListPaginationInfoEl = document.getElementById("chatListPaginationInfo");
+const chatListLoadMoreBtnEl = document.getElementById("chatListLoadMoreBtn");
+const searchInputEl = document.getElementById("searchInput");
+const searchRoleEl = document.getElementById("searchRole");
+const searchFromEl = document.getElementById("searchFrom");
+const searchToEl = document.getElementById("searchTo");
+const searchBtnEl = document.getElementById("searchBtn");
+const searchClearBtnEl = document.getElementById("searchClearBtn");
+const searchPageInfoEl = document.getElementById("searchPageInfo");
+const searchPrevBtnEl = document.getElementById("searchPrevBtn");
+const searchNextBtnEl = document.getElementById("searchNextBtn");
+const searchResultsEl = document.getElementById("searchResults");
+const docInputEl = document.getElementById("docInput");
+const ragStatusEl = document.getElementById("ragStatus");
+const onboardingModelSelectEl = document.getElementById("onboardingModelSelect");
+const onboardingHealthStatusEl = document.getElementById("onboardingHealthStatus");
+const onboardingSmokeStatusEl = document.getElementById("onboardingSmokeStatus");
 
 const state = {
   chats: [],
@@ -98,6 +121,15 @@ const state = {
   chatFilters: {
     mode: "all",
     tag: "",
+  },
+  chatList: {
+    search: "",
+    page: 1,
+    limit: 20,
+    total: 0,
+    totalPages: 0,
+    scrollTop: 0,
+    searchTimer: null,
   },
   telemetryEnabled: false,
   ollamaStatus: "unknown",
@@ -282,6 +314,7 @@ async function loadUsers() {
 
 async function switchUser(userId) {
   state.userId = userId;
+  resetChatListPagination();
   localStorage.setItem("chatUserId", userId);
   try {
     await fetchJson("/api/audit/profile-switch", {
@@ -392,6 +425,8 @@ async function deleteCurrentProfile() {
 function buildChatsQueryString() {
   const params = new URLSearchParams();
   params.set("userId", state.userId);
+  params.set("page", String(state.chatList.page));
+  params.set("limit", String(state.chatList.limit));
 
   if (state.chatFilters.mode === "favorites") {
     params.set("favorite", "true");
@@ -402,8 +437,47 @@ function buildChatsQueryString() {
   if (state.chatFilters.tag) {
     params.set("tag", state.chatFilters.tag);
   }
+  if (state.chatList.search) {
+    params.set("search", state.chatList.search);
+  }
 
   return params.toString();
+}
+
+function updateChatListPaginationUi() {
+  if (chatListPaginationInfoEl) {
+    const total = state.chatList.total;
+    const loaded = state.chats.length;
+    if (state.chatList.search) {
+      chatListPaginationInfoEl.textContent = `Busca ativa: ${total} conversa(s), ${loaded} carregada(s).`;
+    } else {
+      chatListPaginationInfoEl.textContent = `Conversas carregadas: ${loaded} de ${total}.`;
+    }
+  }
+
+  if (!chatListLoadMoreBtnEl) return;
+  const hasMore = state.chatList.page < state.chatList.totalPages;
+  chatListLoadMoreBtnEl.classList.toggle("hidden", !hasMore);
+  chatListLoadMoreBtnEl.disabled = !hasMore;
+}
+
+function resetChatListPagination(options = {}) {
+  state.chatList.page = 1;
+  if (options.keepScroll !== true) {
+    state.chatList.scrollTop = 0;
+  }
+}
+
+function scheduleChatListSearch() {
+  if (state.chatList.searchTimer) {
+    window.clearTimeout(state.chatList.searchTimer);
+  }
+
+  state.chatList.searchTimer = window.setTimeout(() => {
+    state.chatList.searchTimer = null;
+    resetChatListPagination();
+    loadChats().catch(console.error);
+  }, 300);
 }
 
 function formatBytes(value) {
@@ -543,6 +617,7 @@ function updateFilterUi() {
 
 async function setFilterMode(mode) {
   state.chatFilters.mode = mode;
+  resetChatListPagination();
   updateFilterUi();
   await loadChats();
 }
@@ -1620,6 +1695,13 @@ function renderTabs() {
       ? "Desarquivar aba"
       : "Arquivar aba";
   }
+
+  updateChatListPaginationUi();
+  requestAnimationFrame(() => {
+    if (tabsEl) {
+      tabsEl.scrollTop = state.chatList.scrollTop;
+    }
+  });
 }
 
 async function fetchJson(path, options = {}) {
@@ -1649,14 +1731,30 @@ async function fetchJson(path, options = {}) {
   return response.json();
 }
 
-async function loadChats() {
+async function loadChats(options = {}) {
   try {
+    const { appendPage = false } = options;
+    const previousScrollTop = tabsEl?.scrollTop || 0;
     const query = buildChatsQueryString();
     const data = await fetchJson(`/api/chats?${query}`);
-    state.chats = data.chats || [];
+    const incomingChats = data.chats || [];
+    const pagination = data.pagination || {};
+
+    state.chatList.total = Number.parseInt(pagination.total, 10) || incomingChats.length;
+    state.chatList.totalPages = Number.parseInt(pagination.totalPages, 10) || 0;
+    state.chatList.page = Number.parseInt(pagination.page, 10) || state.chatList.page;
+
+    state.chats = appendPage
+      ? [...state.chats, ...incomingChats.filter((chat) => !state.chats.some((item) => item.id === chat.id))]
+      : incomingChats;
+    state.chatList.scrollTop = previousScrollTop;
 
     if (!state.chats.length) {
-      if (state.chatFilters.mode !== "archived" && !state.chatFilters.tag) {
+      if (
+        state.chatFilters.mode !== "archived" &&
+        !state.chatFilters.tag &&
+        !state.chatList.search
+      ) {
         await createNewChat("Conversa Principal");
       } else {
         state.activeChatId = null;
@@ -3385,6 +3483,7 @@ if (filterArchivedBtnEl) {
 if (filterTagApplyBtnEl) {
   filterTagApplyBtnEl.addEventListener("click", () => {
     state.chatFilters.tag = (filterTagInputEl?.value || "").trim();
+    resetChatListPagination();
     loadChats().catch(console.error);
   });
 }
@@ -3394,7 +3493,29 @@ if (filterTagInputEl) {
     if (event.key !== "Enter") return;
     event.preventDefault();
     state.chatFilters.tag = (filterTagInputEl.value || "").trim();
+    resetChatListPagination();
     loadChats().catch(console.error);
+  });
+}
+
+if (chatListSearchInputEl) {
+  chatListSearchInputEl.addEventListener("input", () => {
+    state.chatList.search = (chatListSearchInputEl.value || "").trim();
+    scheduleChatListSearch();
+  });
+}
+
+if (chatListLoadMoreBtnEl) {
+  chatListLoadMoreBtnEl.addEventListener("click", () => {
+    if (state.chatList.page >= state.chatList.totalPages) return;
+    state.chatList.page += 1;
+    loadChats({ appendPage: true }).catch(console.error);
+  });
+}
+
+if (tabsEl) {
+  tabsEl.addEventListener("scroll", () => {
+    state.chatList.scrollTop = tabsEl.scrollTop;
   });
 }
 

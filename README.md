@@ -826,6 +826,14 @@ Observacoes:
 - Os atalhos globais ficam desativados quando um `input`, `textarea` ou area editavel esta em foco.
 - O modal `Atalhos ?` usa o mesmo mapa centralizado de atalhos do frontend para evitar divergencia entre UI e comportamento.
 
+## Historico de chats
+
+- A coluna lateral carrega conversas em paginas de 20 itens.
+- Use o campo `Buscar conversas` para filtrar por titulo da aba ou conteudo das mensagens.
+- A busca do sidebar usa debounce de `300ms` para evitar requisicoes excessivas.
+- Quando houver mais resultados, use `Carregar mais` para trazer a proxima pagina sem perder o estado atual da lista.
+- A posicao de scroll do sidebar e preservada ao navegar entre conversas.
+
 ## Perfis multiusuario locais
 
 - Cada perfil local possui isolamento de abas, historico e documentos RAG.

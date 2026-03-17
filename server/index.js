@@ -772,10 +772,17 @@ function parseChatListFilters(query = {}) {
   const favoriteOnly = parseBooleanLike(query.favorite, false);
   const showArchived = parseBooleanLike(query.archived, false);
   const tag = String(query.tag || "").trim();
+  const search = String(query.search || "").trim();
+  const page = parseSearchPage(query.page);
+  const rawLimit = query.limit;
+  const limit = rawLimit === undefined ? 20 : parseSearchLimit(rawLimit);
   return {
     favoriteOnly,
     showArchived,
     tag: tag || null,
+    search: search || null,
+    page,
+    limit,
   };
 }
 
@@ -4039,8 +4046,19 @@ export function createApp(deps = {}) {
     asyncHandler(async (req, res) => {
       const userId = parseUserId(req.query?.userId);
       const filters = parseChatListFilters(req.query || {});
-      const chats = await store.listChats(userId, filters);
-      res.json({ chats });
+      const result = await store.listChats(userId, {
+        ...filters,
+        returnPagination: true,
+      });
+      res.json({
+        chats: result.items,
+        pagination: {
+          page: result.page,
+          limit: result.limit,
+          total: result.total,
+          totalPages: result.totalPages,
+        },
+      });
     }),
   );
 

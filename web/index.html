@@ -258,7 +258,34 @@
             </button>
           </div>
         </div>
+        <div class="mt-3 rounded-xl border border-slate-200 bg-white/70 p-3 dark:border-slate-700 dark:bg-slate-800/60">
+          <label
+            for="chatListSearchInput"
+            class="mb-1.5 block text-xs font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400"
+          >
+            Buscar conversas
+          </label>
+          <input
+            id="chatListSearchInput"
+            type="search"
+            placeholder="Titulo ou mensagem..."
+            class="w-full rounded-lg border border-slate-300 bg-white px-2.5 py-2 text-sm text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+          />
+          <p
+            id="chatListPaginationInfo"
+            class="mt-2 text-[11px] text-slate-500 dark:text-slate-400"
+          >
+            Carregando conversas...
+          </p>
+        </div>
         <div id="chatTabs" class="mt-4 flex-1 space-y-2 overflow-y-auto"></div>
+        <button
+          id="chatListLoadMoreBtn"
+          type="button"
+          class="mt-3 hidden rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+        >
+          Carregar mais
+        </button>
         <button
           id="duplicateBtn"
           type="button"
