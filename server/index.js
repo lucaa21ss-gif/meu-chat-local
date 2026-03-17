@@ -70,6 +70,7 @@ const MAX_TITLE_LENGTH = 120;
 const MAX_MESSAGE_LENGTH = 4000;
 const MAX_IMAGES = 4;
 const MAX_IMAGE_BASE64_LENGTH = 2_500_000;
+const MAX_IMAGES_TOTAL_BASE64_LENGTH = 6_000_000;
 const MAX_RAG_DOCS_PER_UPLOAD = 6;
 const MAX_RAG_DOC_NAME_LENGTH = 140;
 const MAX_RAG_DOC_CONTENT_LENGTH = 120_000;
@@ -97,6 +98,13 @@ const HEALTH_STATUS = {
   DEGRADED: "degraded",
   UNHEALTHY: "unhealthy",
 };
+const ALLOWED_IMAGE_MIME_TYPES = new Set([
+  "image/png",
+  "image/jpeg",
+  "image/jpg",
+  "image/webp",
+  "image/gif",
+]);
 
 class HttpError extends Error {
   constructor(status, message) {
@@ -212,14 +220,44 @@ function getMessageImages(body = {}) {
     throw new HttpError(400, "images deve ser uma lista");
   }
 
+  if (body.images.length > MAX_IMAGES) {
+    throw new HttpError(400, `maximo de ${MAX_IMAGES} imagens por mensagem`);
+  }
+
   const images = body.images
     .map((entry) => String(entry || "").trim())
-    .filter(Boolean)
-    .slice(0, MAX_IMAGES);
+    .filter(Boolean);
+
+  let totalLength = 0;
 
   for (const image of images) {
     if (image.length > MAX_IMAGE_BASE64_LENGTH) {
       throw new HttpError(400, "Imagem muito grande");
+    }
+
+    totalLength += image.length;
+    if (totalLength > MAX_IMAGES_TOTAL_BASE64_LENGTH) {
+      throw new HttpError(400, "Payload de imagens excede o limite permitido");
+    }
+
+    if (image.startsWith("data:")) {
+      const mimeMatch = image.match(/^data:([^;,]+);base64,/i);
+      if (!mimeMatch) {
+        throw new HttpError(400, "Imagem invalida");
+      }
+      const mimeType = mimeMatch[1].toLowerCase();
+      if (!ALLOWED_IMAGE_MIME_TYPES.has(mimeType)) {
+        throw new HttpError(400, "Tipo de imagem nao permitido");
+      }
+      const encoded = image.slice(image.indexOf(",") + 1).trim();
+      if (!encoded || !/^[A-Za-z0-9+/=\r\n]+$/.test(encoded)) {
+        throw new HttpError(400, "Imagem invalida");
+      }
+      continue;
+    }
+
+    if (!/^[A-Za-z0-9+/=\r\n]+$/.test(image)) {
+      throw new HttpError(400, "Imagem invalida");
     }
   }
 
@@ -1233,6 +1271,16 @@ export function createApp(deps = {}) {
     return req.actor;
   }
 
+  async function recordBlockedAttempt(req, eventType, error, meta = {}) {
+    if (!(error instanceof HttpError)) return;
+
+    const actor = await resolveActor(req).catch(() => null);
+    await recordAudit(eventType, actor?.userId || null, {
+      reason: error.message,
+      ...meta,
+    });
+  }
+
   function requireMinimumRole(minimumRole) {
     return asyncHandler(async (req, _res, next) => {
       const actor = await resolveActor(req);
@@ -1391,7 +1439,17 @@ export function createApp(deps = {}) {
       const chatId = getChatId(req.body);
       const options = parseOptions(req.body);
       const rag = parseRagOptions(req.body);
-      const images = getMessageImages(req.body);
+      let images;
+      try {
+        images = getMessageImages(req.body);
+      } catch (error) {
+        await recordBlockedAttempt(req, "upload.blocked", error, {
+          route: "/api/chat",
+          chatId,
+          imagesCount: Array.isArray(req.body?.images) ? req.body.images.length : 0,
+        });
+        throw error;
+      }
 
       await store.ensureChat(chatId);
       await store.appendMessage(chatId, "user", message, images);
@@ -1466,7 +1524,19 @@ export function createApp(deps = {}) {
     asyncHandler(async (req, res) => {
       assertBodyObject(req.body);
       const chatId = parseChatId(req.params.chatId, "chatId");
-      const documents = parseRagDocuments(req.body);
+      let documents;
+      try {
+        documents = parseRagDocuments(req.body);
+      } catch (error) {
+        await recordBlockedAttempt(req, "upload.blocked", error, {
+          route: "/api/chats/:chatId/rag/documents",
+          chatId,
+          documentsCount: Array.isArray(req.body?.documents)
+            ? req.body.documents.length
+            : 0,
+        });
+        throw error;
+      }
 
       await store.ensureChat(chatId);
 
@@ -2022,7 +2092,15 @@ export function createApp(deps = {}) {
     "/api/chats/import",
     requireMinimumRole("operator"),
     asyncHandler(async (req, res) => {
-      const payload = parseChatImportPayload(req.body);
+      let payload;
+      try {
+        payload = parseChatImportPayload(req.body);
+      } catch (error) {
+        await recordBlockedAttempt(req, "import.blocked", error, {
+          route: "/api/chats/import",
+        });
+        throw error;
+      }
 
       const forceNew = parseBooleanLike(req.query.forceNew, false);
       const result = await store.importChatJson(payload, { forceNew });
@@ -2227,7 +2305,17 @@ export function createApp(deps = {}) {
       const chatId = getChatId(req.body);
       const options = parseOptions(req.body);
       const rag = parseRagOptions(req.body);
-      const images = getMessageImages(req.body);
+      let images;
+      try {
+        images = getMessageImages(req.body);
+      } catch (error) {
+        await recordBlockedAttempt(req, "upload.blocked", error, {
+          route: "/api/chat-stream",
+          chatId,
+          imagesCount: Array.isArray(req.body?.images) ? req.body.images.length : 0,
+        });
+        throw error;
+      }
 
       await store.ensureChat(chatId);
       await store.appendMessage(chatId, "user", message, images);

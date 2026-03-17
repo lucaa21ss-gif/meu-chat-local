@@ -2201,3 +2201,65 @@ test("seguranca: backup restore rejeita base64 malformado", async () => {
 
   assert.equal(response.body.error, "Arquivo de backup invalido");
 });
+
+test("upload policy: /api/chat rejeita mais de 4 imagens com erro claro", async () => {
+  const app = createApp({
+    chatClient: createMockChatClient(),
+    ...createMockStore(),
+  });
+
+  const response = await request(app)
+    .post("/api/chat")
+    .send({
+      chatId: "default",
+      message: "teste",
+      images: ["AAA", "BBB", "CCC", "DDD", "EEE"],
+    })
+    .expect(400);
+
+  assert.equal(response.body.error, "maximo de 4 imagens por mensagem");
+});
+
+test("upload policy: /api/chat rejeita tipo de imagem nao permitido", async () => {
+  const app = createApp({
+    chatClient: createMockChatClient(),
+    ...createMockStore(),
+  });
+
+  const response = await request(app)
+    .post("/api/chat")
+    .send({
+      chatId: "default",
+      message: "teste",
+      images: ["data:text/plain;base64,QUJD"],
+    })
+    .expect(400);
+
+  assert.equal(response.body.error, "Tipo de imagem nao permitido");
+});
+
+test("upload policy: bloqueios de upload ficam registrados no audit log", async () => {
+  const app = createApp({
+    chatClient: createMockChatClient(),
+    ...createMockStore(),
+  });
+
+  await request(app)
+    .post("/api/chats/default/rag/documents")
+    .send({
+      documents: Array.from({ length: 7 }, (_, idx) => ({
+        name: `doc-${idx}.txt`,
+        content: "conteudo",
+      })),
+    })
+    .expect(400);
+
+  const logs = await request(app)
+    .get("/api/audit/logs?eventType=upload.blocked&limit=5")
+    .set("x-user-id", "user-default")
+    .expect(200);
+
+  assert.equal(logs.body.logs.length >= 1, true);
+  assert.equal(logs.body.logs[0].eventType, "upload.blocked");
+  assert.equal(logs.body.logs[0].meta.route, "/api/chats/:chatId/rag/documents");
+});
