@@ -3710,7 +3710,7 @@ window.resetar = resetar;
     // Fallback para ambientes sem o utilitario carregado.
     await checkOllamaStatus();
     setInterval(() => {
-      checkOllamaStatus().catch(() => {});
+      checkOllamaStatus().catch(() => { });
     }, 30_000);
   }
 

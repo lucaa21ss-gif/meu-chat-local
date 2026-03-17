@@ -3828,7 +3828,7 @@ test("GET /api/scorecard sinaliza critico quando integridade falha e alerta quan
         baselineService: {
             check: async () => ({ status: "drift", driftedKeys: ["telemetryEnabled"], checkedAt: new Date().toISOString() }),
             load: async () => null,
-            save: async () => {},
+            save: async () => { },
         },
     });
 

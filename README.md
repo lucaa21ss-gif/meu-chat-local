@@ -584,24 +584,24 @@ Visao executiva local do estado operacional do sistema. Consolida 10 dimensoes e
 
 ### Endpoint
 
-| Metodo | Rota             | Role minima | Descricao                                    |
-| ------ | ---------------- | ----------- | -------------------------------------------- |
+| Metodo | Rota             | Role minima | Descricao                                       |
+| ------ | ---------------- | ----------- | ----------------------------------------------- |
 | GET    | `/api/scorecard` | operator    | Retorna scorecard consolidado com recomendacoes |
 
 ### Dimensoes avaliadas
 
-| Dimensao        | Fonte de dados                        | critico           | alerta                         |
-| --------------- | ------------------------------------- | ----------------- | ------------------------------ |
-| `health`        | `/api/health` (checkDb/Model/Disk)    | unhealthy         | degraded                       |
-| `slo`           | Telemetria (p95/errorRate)            | —                 | status=alerta                  |
-| `backup`        | `backupService.validateRecentBackups` | status=falha      | status=alerta                  |
-| `integrity`     | `integrityService.getOrRefresh`       | status=failed     | —                              |
-| `capacity`      | `capacityService.getLatestSummary`    | status=blocked    | status=alerta                  |
-| `auto-healing`  | `autoHealingService.getStatus`        | —                 | disabled ou circuit=open       |
-| `incident`      | `incidentService.getStatus`           | —                 | investigating/mitigating       |
-| `baseline`      | `baselineService.check`               | —                 | status=drift                   |
-| `approvals`     | Aprovacoes com status=pending         | —                 | pendingCount > 0               |
-| `queue`         | `queueService.getMetrics`             | —                 | rejections ou saturacao        |
+| Dimensao       | Fonte de dados                        | critico        | alerta                   |
+| -------------- | ------------------------------------- | -------------- | ------------------------ |
+| `health`       | `/api/health` (checkDb/Model/Disk)    | unhealthy      | degraded                 |
+| `slo`          | Telemetria (p95/errorRate)            | —              | status=alerta            |
+| `backup`       | `backupService.validateRecentBackups` | status=falha   | status=alerta            |
+| `integrity`    | `integrityService.getOrRefresh`       | status=failed  | —                        |
+| `capacity`     | `capacityService.getLatestSummary`    | status=blocked | status=alerta            |
+| `auto-healing` | `autoHealingService.getStatus`        | —              | disabled ou circuit=open |
+| `incident`     | `incidentService.getStatus`           | —              | investigating/mitigating |
+| `baseline`     | `baselineService.check`               | —              | status=drift             |
+| `approvals`    | Aprovacoes com status=pending         | —              | pendingCount > 0         |
+| `queue`        | `queueService.getMetrics`             | —              | rejections ou saturacao  |
 
 ### Logica de status geral
 
@@ -618,11 +618,25 @@ Visao executiva local do estado operacional do sistema. Consolida 10 dimensoes e
     "generatedAt": "2026-03-17T12:00:00.000Z",
     "status": "alerta",
     "dimensions": [
-      { "name": "health", "label": "Saude do sistema", "status": "ok", "detail": { "status": "healthy" } },
-      { "name": "baseline", "label": "Drift de configuracao", "status": "alerta", "detail": { "driftedKeys": ["telemetryEnabled"] } }
+      {
+        "name": "health",
+        "label": "Saude do sistema",
+        "status": "ok",
+        "detail": { "status": "healthy" }
+      },
+      {
+        "name": "baseline",
+        "label": "Drift de configuracao",
+        "status": "alerta",
+        "detail": { "driftedKeys": ["telemetryEnabled"] }
+      }
     ],
     "recommendations": [
-      { "dimension": "baseline", "severity": "medium", "action": "Dimensao Drift de configuracao em alerta — revisar e planejar correcao" }
+      {
+        "dimension": "baseline",
+        "severity": "medium",
+        "action": "Dimensao Drift de configuracao em alerta — revisar e planejar correcao"
+      }
     ]
   }
 }
@@ -634,20 +648,20 @@ Mecanismo de aprovacao previa para acoes de alto impacto. Exige que um administr
 
 ### Acoes protegidas
 
-| Acao                         | Endpoint protegido                      |
-| ---------------------------- | --------------------------------------- |
-| `backup.restore`             | `POST /api/backup/restore`              |
-| `disaster-recovery.test`     | `POST /api/disaster-recovery/test`      |
-| `incident.runbook.execute`   | `POST /api/incident/runbook/execute`    |
-| `storage.cleanup.execute`    | `POST /api/storage/cleanup` (execute)   |
+| Acao                       | Endpoint protegido                    |
+| -------------------------- | ------------------------------------- |
+| `backup.restore`           | `POST /api/backup/restore`            |
+| `disaster-recovery.test`   | `POST /api/disaster-recovery/test`    |
+| `incident.runbook.execute` | `POST /api/incident/runbook/execute`  |
+| `storage.cleanup.execute`  | `POST /api/storage/cleanup` (execute) |
 
 ### Endpoints de aprovacao
 
-| Metodo | Rota                                    | Role minima | Descricao                                        |
-| ------ | --------------------------------------- | ----------- | ------------------------------------------------ |
-| GET    | `/api/approvals`                        | operator    | Lista solicitacoes (filtros: status, page, limit)|
-| POST   | `/api/approvals`                        | operator    | Cria solicitacao de aprovacao                    |
-| POST   | `/api/approvals/:approvalId/decision`   | admin       | Aprova ou nega solicitacao                       |
+| Metodo | Rota                                  | Role minima | Descricao                                         |
+| ------ | ------------------------------------- | ----------- | ------------------------------------------------- |
+| GET    | `/api/approvals`                      | operator    | Lista solicitacoes (filtros: status, page, limit) |
+| POST   | `/api/approvals`                      | operator    | Cria solicitacao de aprovacao                     |
+| POST   | `/api/approvals/:approvalId/decision` | admin       | Aprova ou nega solicitacao                        |
 
 ### Fluxo de uso
 
