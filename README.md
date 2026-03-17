@@ -180,6 +180,8 @@ mas o fluxo recomendado e usar `http://localhost:3001` para manter API e UI na m
 - `GET /api/chats/:chatId/export`: exporta conversa em Markdown
 - `GET /api/backup/export`: exporta backup completo (`.tgz` legado ou `.tgz.enc` protegido por passphrase)
 - `POST /api/backup/restore`: restaura backup completo com deteccao automatica de formato legado/criptografado
+- `POST /api/backup/restore`: restaura backup completo com deteccao automatica de formato legado/criptografado
+- `GET /api/diagnostics/export`: exporta pacote de diagnostico forense (somente admin); inclui estado de saude, SLO, storage, erros recentes, checklist de triagem e audit logs
 
 ## Backup criptografado opcional
 
@@ -201,6 +203,37 @@ Compatibilidade:
 
 - Backups legados nao criptografados continuam suportados sem alteracoes.
 - Backups protegidos exigem a mesma passphrase utilizada na exportacao.
+
+## Governanca de dependencias
+## Pacote de diagnostico forense e triagem
+
+O endpoint `GET /api/diagnostics/export` (somente `admin`) gera um pacote JSON versionado com todas as informacoes necessarias para investigacao e triagem de incidentes.
+
+Campos do pacote (versao 2):
+
+| Campo | Descricao |
+|---|---|
+| `version` | Versao do schema do pacote (atualmente `2`) |
+| `generatedAt` | Timestamp ISO 8601 de geracao |
+| `traceId` | ID de rastreamento correlacionavel com logs do servidor |
+| `app` | Versao do Node.js, plataforma, uptime, consumo de memoria |
+| `health` | Status geral e checks individuais (db, model, disk) |
+| `rateLimiter` | Metricas de rate limiting por perfil |
+| `telemetry` | Status de telemetria e top rotas por latencia/erros |
+| `storage` | Consumo atual por tipo (db, uploads, documents, backups) |
+| `slo` | Snapshot de SLO com avaliacao por rota critica |
+| `recentErrors` | Ultimos eventos bloqueados ou de erro dos audit logs |
+| `recentAuditLogs` | Ultimos 50 eventos de auditoria |
+| `recentConfigVersions` | Ultimas 50 versoes de configuracao |
+| `environment` | Dados nao-sensiveis do processo (NODE_ENV, pid, arch) |
+| `triageChecklist` | Checklist versionado com passos recomendados para o operador |
+| `securityNote` | Declaracao explicita do que foi excluido do pacote |
+
+Garantias de privacidade e seguranca:
+
+- Nenhuma variavel de ambiente sensivel (segredos, tokens, senhas) e incluida.
+- Mensagens de chat e conteudo de documentos nao aparecem no pacote.
+- Passphrases de backup nao sao registradas em audit logs nem exportadas.
 
 ## Governanca de dependencias
 

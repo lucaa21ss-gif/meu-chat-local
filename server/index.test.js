@@ -2234,9 +2234,21 @@ test("observabilidade: x-trace-id presente em respostas de sucesso e de erro", a
 });
 
 test("observabilidade: GET /api/diagnostics/export retorna pacote com campos obrigatorios", async () => {
+  const mockStorageService = {
+    getUsage: async () => ({
+      dbBytes: 1024,
+      uploadsBytes: 2048,
+      documentsBytes: 512,
+      backupsBytes: 256,
+      totalBytes: 3840,
+    }),
+    cleanup: async () => ({ mode: "dry-run", files: [], filesCount: 0, estimatedFreedBytes: 0 }),
+  };
+
   const app = createApp({
     chatClient: createMockChatClient(),
     ...createMockStore(),
+    storageService: mockStorageService,
     healthProviders: {
       checkDb:    async () => ({ status: "healthy", latencyMs: 2 }),
       checkModel: async () => ({ status: "healthy", latencyMs: 3, ollama: "online" }),
@@ -2260,7 +2272,7 @@ test("observabilidade: GET /api/diagnostics/export retorna pacote com campos obr
   );
 
   const payload = JSON.parse(res.text);
-  assert.equal(payload.version, 1);
+  assert.equal(payload.version, 2, "versao do pacote deve ser 2");
   assert.ok(payload.generatedAt, "generatedAt obrigatorio");
   assert.ok(payload.traceId, "traceId obrigatorio no pacote");
   assert.ok(payload.app, "secao app obrigatoria");
@@ -2272,11 +2284,128 @@ test("observabilidade: GET /api/diagnostics/export retorna pacote com campos obr
   assert.ok(Array.isArray(payload.recentAuditLogs), "recentAuditLogs deve ser array");
   assert.ok(Array.isArray(payload.recentConfigVersions), "recentConfigVersions deve ser array");
 
+  // Novos campos do pacote forense (#40)
+  assert.ok(payload.storage, "storage obrigatorio no pacote forense");
+  assert.equal(typeof payload.storage.totalBytes, "number", "storage.totalBytes deve ser numero");
+  assert.ok(payload.slo, "slo obrigatorio no pacote forense");
+  assert.ok(typeof payload.slo.status === "string", "slo.status deve ser string");
+  assert.ok(Array.isArray(payload.slo.evaluatedRoutes), "slo.evaluatedRoutes deve ser array");
+  assert.ok(Array.isArray(payload.recentErrors), "recentErrors deve ser array");
+  assert.ok(payload.environment, "environment obrigatorio no pacote forense");
+  assert.ok(typeof payload.environment.nodeEnv === "string", "environment.nodeEnv deve ser string");
+  assert.equal(typeof payload.environment.pid, "number", "environment.pid deve ser numero");
+  assert.ok(payload.triageChecklist, "triageChecklist obrigatorio no pacote forense");
+  assert.equal(typeof payload.triageChecklist.version, "number", "triageChecklist.version deve ser numero");
+  assert.ok(Array.isArray(payload.triageChecklist.items), "triageChecklist.items deve ser array");
+  assert.ok(payload.triageChecklist.items.length > 0, "triageChecklist deve ter ao menos um item");
+  assert.ok(typeof payload.securityNote === "string", "securityNote deve estar presente");
+
   assert.equal(
     res.headers["x-trace-id"],
     payload.traceId,
     "traceId do pacote deve coincidir com o header x-trace-id",
   );
+});
+
+test("diagnostics: pacote nao vaza segredos de ambiente", async () => {
+  process.env._TEST_SECRET_TOKEN = "supersecret-should-not-appear";
+  process.env._TEST_DB_PASSWORD = "db-password-should-not-appear";
+
+  const app = createApp({
+    chatClient: createMockChatClient(),
+    ...createMockStore(),
+    storageService: {
+      getUsage: async () => ({ dbBytes: 0, uploadsBytes: 0, documentsBytes: 0, backupsBytes: 0, totalBytes: 0 }),
+      cleanup: async () => ({ mode: "dry-run", files: [], filesCount: 0, estimatedFreedBytes: 0 }),
+    },
+  });
+
+  const res = await request(app)
+    .get("/api/diagnostics/export")
+    .set("x-user-id", "user-default")
+    .expect(200);
+
+  delete process.env._TEST_SECRET_TOKEN;
+  delete process.env._TEST_DB_PASSWORD;
+
+  const raw = res.text;
+  assert.ok(!raw.includes("supersecret-should-not-appear"), "token secreto nao deve aparecer no pacote");
+  assert.ok(!raw.includes("db-password-should-not-appear"), "senha de banco nao deve aparecer no pacote");
+});
+
+test("diagnostics: triageChecklist e array versionado com itens", async () => {
+  const app = createApp({
+    chatClient: createMockChatClient(),
+    ...createMockStore(),
+    storageService: {
+      getUsage: async () => ({ dbBytes: 0, uploadsBytes: 0, documentsBytes: 0, backupsBytes: 0, totalBytes: 0 }),
+      cleanup: async () => ({ mode: "dry-run", files: [], filesCount: 0, estimatedFreedBytes: 0 }),
+    },
+  });
+
+  const res = await request(app)
+    .get("/api/diagnostics/export")
+    .set("x-user-id", "user-default")
+    .expect(200);
+
+  const payload = JSON.parse(res.text);
+  assert.ok(payload.triageChecklist, "triageChecklist presente");
+  assert.equal(payload.triageChecklist.version, 1, "versao do checklist deve ser 1");
+  assert.ok(Array.isArray(payload.triageChecklist.items), "items deve ser array");
+  assert.ok(payload.triageChecklist.items.length >= 5, "deve ter ao menos 5 passos de triagem");
+  assert.ok(
+    payload.triageChecklist.items.every((item) => typeof item === "string" && item.length > 0),
+    "todos os itens do checklist devem ser strings nao vazias",
+  );
+});
+
+test("diagnostics: storage presente no pacote forense", async () => {
+  const mockUsage = {
+    dbBytes: 500,
+    uploadsBytes: 1000,
+    documentsBytes: 200,
+    backupsBytes: 100,
+    totalBytes: 1800,
+  };
+
+  const app = createApp({
+    chatClient: createMockChatClient(),
+    ...createMockStore(),
+    storageService: {
+      getUsage: async () => mockUsage,
+      cleanup: async () => ({ mode: "dry-run", files: [], filesCount: 0, estimatedFreedBytes: 0 }),
+    },
+  });
+
+  const res = await request(app)
+    .get("/api/diagnostics/export")
+    .set("x-user-id", "user-default")
+    .expect(200);
+
+  const payload = JSON.parse(res.text);
+  assert.ok(payload.storage, "storage deve estar presente");
+  assert.equal(payload.storage.totalBytes, 1800, "totalBytes deve refletir mock");
+  assert.equal(payload.storage.dbBytes, 500, "dbBytes deve refletir mock");
+  assert.equal(payload.storage.uploadsBytes, 1000, "uploadsBytes deve refletir mock");
+});
+
+test("diagnostics: recentErrors presente no pacote forense", async () => {
+  const app = createApp({
+    chatClient: createMockChatClient(),
+    ...createMockStore(),
+    storageService: {
+      getUsage: async () => ({ dbBytes: 0, uploadsBytes: 0, documentsBytes: 0, backupsBytes: 0, totalBytes: 0 }),
+      cleanup: async () => ({ mode: "dry-run", files: [], filesCount: 0, estimatedFreedBytes: 0 }),
+    },
+  });
+
+  const res = await request(app)
+    .get("/api/diagnostics/export")
+    .set("x-user-id", "user-default")
+    .expect(200);
+
+  const payload = JSON.parse(res.text);
+  assert.ok(Array.isArray(payload.recentErrors), "recentErrors deve ser array");
 });
 
 test("observabilidade: GET /api/diagnostics/export bloqueado para viewer", async () => {

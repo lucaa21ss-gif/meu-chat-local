@@ -2539,9 +2539,23 @@ export function createApp(deps = {}) {
         errorRate: item.count ? Math.round((item.errors / item.count) * 100) : 0,
       }));
       const rateLimiterMetrics = roleLimiter.getMetrics();
+      const storageSnapshot = await storageService.getUsage().catch(() => null);
+      const sloSnapshot = buildSloSnapshot(
+        getTelemetryStats().map((item) => ({
+          ...item,
+          errorRate: item.count ? Math.round((item.errors / item.count) * 100) : 0,
+        }))
+      );
+      const recentErrors = auditPage.items
+        .filter(
+          (entry) =>
+            typeof entry.eventType === "string" &&
+            (entry.eventType.includes("blocked") || entry.eventType.includes("error"))
+        )
+        .slice(0, 20);
 
       const payload = {
-        version: 1,
+        version: 2,
         generatedAt,
         traceId,
         app: {
@@ -2559,8 +2573,32 @@ export function createApp(deps = {}) {
           enabled: isTelemetryEnabled(),
           topRoutes: telemetry,
         },
+        storage: storageSnapshot,
+        slo: sloSnapshot,
+        recentErrors,
         recentAuditLogs: auditPage.items,
         recentConfigVersions: configPage.items,
+        environment: {
+          nodeEnv: process.env.NODE_ENV || "production",
+          pid: process.pid,
+          arch: process.arch,
+        },
+        triageChecklist: {
+          version: 1,
+          items: [
+            "1. Verificar status geral em payload.health.status — degraded ou unhealthy exige investigacao imediata",
+            "2. Revisar eventos bloqueados em payload.recentErrors — padroes repetidos indicam ataque ou misconfiguracao",
+            "3. Conferir consumo de armazenamento em payload.storage — alertar se uso ultrapassar threshold operacional",
+            "4. Avaliar SLO em payload.slo.status — rotas com status 'alerta' requerem analise de latencia e taxa de erro",
+            "5. Analisar audit logs recentes em payload.recentAuditLogs em busca de atividades anomalas",
+            "6. Verificar versoes de configuracao em payload.recentConfigVersions — rollbacks nao autorizados sao sinal de incidente",
+            "7. Checar rate limiter em payload.rateLimiter — pico de rejeicoes pode indicar abuso ou sobrecarga",
+            "8. Confirmar telemetria ativa em payload.telemetry.enabled — desabilitada reduz visibilidade de incidentes",
+            "9. Registrar payload.traceId para correlacao com logs do servidor durante a investigacao",
+          ],
+        },
+        securityNote:
+          "Este pacote nao inclui: mensagens de chat, passphrases de backup, variaveis de ambiente sensiveis (segredos, tokens, senhas) nem dados de identificacao pessoal alem de userId em audit logs",
       };
 
       req.logger?.info({ traceId }, "Pacote de diagnostico exportado");
