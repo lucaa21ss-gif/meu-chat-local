@@ -239,6 +239,7 @@ Variaveis de ambiente opcionais no backend:
 - `OLLAMA_TIMEOUT_MS`: timeout por tentativa de inferencia em milissegundos (padrao: `45000`)
 - `OLLAMA_MAX_ATTEMPTS`: numero maximo de tentativas por requisicao de chat (padrao: `2`, maximo `3`)
 - `OLLAMA_FALLBACK_MODEL`: modelo de fallback quando o principal falha (ex.: `mistral`)
+- `CHAT_DB_PATH`: caminho customizado para o arquivo SQLite (opcional)
 - `LOG_LEVEL`: nivel de log (`fatal`, `error`, `warn`, `info`, `debug`, `trace`) (padrao: `info`)
 - `NODE_ENV`: quando `production`, usa logs JSON em vez de formato colorido de desenvolvimento
 - `LOG_PRETTY`: quando `true`, habilita logs legiveis via `pino-pretty` (recomendado apenas para desenvolvimento local)
@@ -255,6 +256,12 @@ Notas sobre CORS:
 - Compressao gzip de respostas HTTP via middleware `compression`
 - Cache de assets estaticos com `max-age=1d`
 - `/readyz` inclui tempo de resposta para diagnostico rapido
+
+## Migrations de banco (Sprint 6)
+
+- Schema versionado em `schema_migrations` (SQLite)
+- Migracoes executadas automaticamente no startup
+- Execucao idempotente para suportar upgrades sem reset de dados
 
 ## Upgrades futuros sugeridos
 

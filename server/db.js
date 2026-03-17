@@ -5,9 +5,14 @@ import { open } from "sqlite";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const dbPath = path.join(__dirname, "chat.db");
+const defaultDbPath = path.join(__dirname, "chat.db");
+const DB_SCHEMA_VERSION = 2;
 
 let db;
+
+function resolveDbPath() {
+  return process.env.CHAT_DB_PATH || defaultDbPath;
+}
 
 function titleFromText(text = "") {
   const normalized = String(text).trim().replace(/\s+/g, " ");
@@ -19,33 +24,113 @@ export async function initDb() {
   if (db) return db;
 
   db = await open({
-    filename: dbPath,
+    filename: resolveDbPath(),
     driver: sqlite3.Database,
   });
 
-  await db.exec(`
-    PRAGMA journal_mode = WAL;
-
-    CREATE TABLE IF NOT EXISTS chats (
-      id TEXT PRIMARY KEY,
-      title TEXT NOT NULL,
-      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-    );
-
-    CREATE TABLE IF NOT EXISTS messages (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      chat_id TEXT NOT NULL,
-      role TEXT NOT NULL,
-      content TEXT NOT NULL,
-      images_json TEXT,
-      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY(chat_id) REFERENCES chats(id)
-    );
-  `);
+  await db.exec("PRAGMA journal_mode = WAL;");
+  await runMigrations(db);
 
   await ensureChat("default", "Conversa Principal");
   return db;
+}
+
+async function ensureMigrationsTable(connection) {
+  await connection.exec(`
+    CREATE TABLE IF NOT EXISTS schema_migrations (
+      id INTEGER PRIMARY KEY CHECK(id = 1),
+      version INTEGER NOT NULL DEFAULT 0,
+      updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
+
+    INSERT INTO schema_migrations (id, version)
+    VALUES (1, 0)
+    ON CONFLICT(id) DO NOTHING;
+  `);
+}
+
+async function getCurrentSchemaVersion(connection) {
+  const row = await connection.get(
+    "SELECT version FROM schema_migrations WHERE id = 1",
+  );
+  return Number.parseInt(row?.version, 10) || 0;
+}
+
+async function setSchemaVersion(connection, version) {
+  await connection.run(
+    `UPDATE schema_migrations
+     SET version = ?, updated_at = CURRENT_TIMESTAMP
+     WHERE id = 1`,
+    [version],
+  );
+}
+
+async function runMigrations(connection) {
+  await ensureMigrationsTable(connection);
+
+  const migrations = [
+    {
+      version: 1,
+      up: async () => {
+        await connection.exec(`
+          CREATE TABLE IF NOT EXISTS chats (
+            id TEXT PRIMARY KEY,
+            title TEXT NOT NULL,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+          );
+
+          CREATE TABLE IF NOT EXISTS messages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            chat_id TEXT NOT NULL,
+            role TEXT NOT NULL,
+            content TEXT NOT NULL,
+            images_json TEXT,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(chat_id) REFERENCES chats(id)
+          );
+        `);
+      },
+    },
+    {
+      version: 2,
+      up: async () => {
+        await connection.exec(`
+          CREATE INDEX IF NOT EXISTS idx_chats_updated_at
+            ON chats(updated_at DESC);
+
+          CREATE INDEX IF NOT EXISTS idx_messages_chat_id_id
+            ON messages(chat_id, id);
+        `);
+      },
+    },
+  ];
+
+  let currentVersion = await getCurrentSchemaVersion(connection);
+
+  for (const migration of migrations) {
+    if (migration.version <= currentVersion) continue;
+    await migration.up();
+    await setSchemaVersion(connection, migration.version);
+    currentVersion = migration.version;
+  }
+
+  if (currentVersion < DB_SCHEMA_VERSION) {
+    throw new Error(
+      `Schema desatualizado: esperado ${DB_SCHEMA_VERSION}, atual ${currentVersion}`,
+    );
+  }
+}
+
+export async function getSchemaVersion() {
+  await initDb();
+  return getCurrentSchemaVersion(db);
+}
+
+export async function closeDb() {
+  if (!db) return;
+  await db.close();
+  db = undefined;
 }
 
 export async function ensureChat(id, title = "Nova conversa") {
@@ -173,6 +258,32 @@ export async function getMessages(chatId) {
     role: row.role,
     content: row.content,
     images: row.imagesJson ? JSON.parse(row.imagesJson) : [],
+    createdAt: row.createdAt,
+  }));
+}
+
+export async function searchMessages(chatId, query, limit = 20) {
+  await initDb();
+
+  const safeQuery = String(query || "").trim();
+  if (!safeQuery) return [];
+
+  const safeLimit = Math.min(100, Math.max(1, Number.parseInt(limit, 10) || 20));
+  const likeQuery = `%${safeQuery}%`;
+
+  const rows = await db.all(
+    `SELECT role, content, created_at AS createdAt
+     FROM messages
+     WHERE chat_id = ?
+       AND content LIKE ? COLLATE NOCASE
+     ORDER BY id DESC
+     LIMIT ?`,
+    [chatId, likeQuery, safeLimit],
+  );
+
+  return rows.map((row) => ({
+    role: row.role,
+    content: row.content,
     createdAt: row.createdAt,
   }));
 }
