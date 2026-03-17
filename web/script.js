@@ -9,6 +9,7 @@ const newChatBtnEl = document.getElementById("newChatBtn");
 const exportBtnEl = document.getElementById("exportBtn");
 const exportJsonBtnEl = document.getElementById("exportJsonBtn");
 const exportAllJsonBtnEl = document.getElementById("exportAllJsonBtn");
+const exportFavoritesMdBtnEl = document.getElementById("exportFavoritesMdBtn");
 const importJsonBtnEl = document.getElementById("importJsonBtn");
 const tabsMobileEl = document.getElementById("chatTabsMobile");
 const newChatBtnMobileEl = document.getElementById("newChatBtnMobile");
@@ -23,6 +24,9 @@ const exportBtnMobileEl = document.getElementById("exportBtnMobile");
 const exportJsonBtnMobileEl = document.getElementById("exportJsonBtnMobile");
 const exportAllJsonBtnMobileEl = document.getElementById(
   "exportAllJsonBtnMobile",
+);
+const exportFavoritesMdBtnMobileEl = document.getElementById(
+  "exportFavoritesMdBtnMobile",
 );
 const backupBtnEl = document.getElementById("backupBtn");
 const restoreBackupBtnEl = document.getElementById("restoreBackupBtn");
@@ -986,6 +990,8 @@ function updateRbacUi() {
     document.getElementById("importJsonBtnMobile"),
     document.getElementById("exportAllJsonBtn"),
     document.getElementById("exportAllJsonBtnMobile"),
+    document.getElementById("exportFavoritesMdBtn"),
+    document.getElementById("exportFavoritesMdBtnMobile"),
   ];
 
   for (const el of adminOnly) {
@@ -1544,27 +1550,28 @@ function appendMessage(role, content, options = {}) {
     bubble.appendChild(gallery);
   }
 
+  const actionsRow = document.createElement("div");
+  actionsRow.className = "mt-2 flex flex-wrap gap-2";
+
+  const copyBtn = document.createElement("button");
+  copyBtn.type = "button";
+  copyBtn.className =
+    "rounded-md border border-slate-300 bg-white px-2 py-1 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700";
+  copyBtn.textContent = "Copiar mensagem";
+  copyBtn.addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText(contentEl.textContent || "");
+      copyBtn.textContent = "Copiado";
+      setTimeout(() => {
+        copyBtn.textContent = "Copiar mensagem";
+      }, 1200);
+    } catch (err) {
+      console.error(err);
+    }
+  });
+  actionsRow.appendChild(copyBtn);
+
   if (role === "assistant") {
-    const actionsRow = document.createElement("div");
-    actionsRow.className = "mt-2 flex flex-wrap gap-2";
-
-    const copyBtn = document.createElement("button");
-    copyBtn.type = "button";
-    copyBtn.className =
-      "rounded-md border border-slate-300 bg-white px-2 py-1 text-xs font-semibold text-slate-600 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700";
-    copyBtn.textContent = "Copiar resposta";
-    copyBtn.addEventListener("click", async () => {
-      try {
-        await navigator.clipboard.writeText(contentEl.textContent || "");
-        copyBtn.textContent = "Copiado";
-        setTimeout(() => {
-          copyBtn.textContent = "Copiar resposta";
-        }, 1200);
-      } catch (err) {
-        console.error(err);
-      }
-    });
-
     const speakBtn = document.createElement("button");
     speakBtn.type = "button";
     speakBtn.className =
@@ -1606,9 +1613,7 @@ function appendMessage(role, content, options = {}) {
       synthesis.speak(utterance);
     });
 
-    actionsRow.appendChild(copyBtn);
     actionsRow.appendChild(speakBtn);
-    bubble.appendChild(actionsRow);
 
     if (Array.isArray(options.sources) && options.sources.length > 0) {
       const citationsWrap = document.createElement("div");
@@ -1630,6 +1635,8 @@ function appendMessage(role, content, options = {}) {
       bubble.appendChild(citationsWrap);
     }
   }
+
+  bubble.appendChild(actionsRow);
 
   if (role === "user") {
     row.appendChild(bubble);
@@ -2372,7 +2379,7 @@ async function exportChat() {
 
   try {
     const response = await fetch(
-      `${API_BASE}/api/chats/${encodeURIComponent(state.activeChatId)}/export`,
+      `${API_BASE}/api/chats/${encodeURIComponent(state.activeChatId)}/export?format=markdown`,
     );
     if (!response.ok) {
       throw new Error("Falha ao exportar conversa");
@@ -2393,6 +2400,37 @@ async function exportChat() {
     showStatus(`Nao foi possivel exportar conversa: ${error.message}`, {
       type: "error",
       retryAction: () => exportChat(),
+    });
+    throw error;
+  }
+}
+
+async function exportFavoriteChatsMarkdown() {
+  try {
+    const response = await fetch(
+      `${API_BASE}/api/chats/export?userId=${encodeURIComponent(state.userId)}&favorites=true&format=markdown`,
+    );
+    if (!response.ok) {
+      throw new Error("Falha ao exportar favoritos em Markdown");
+    }
+
+    const markdownText = await response.text();
+    const blob = new Blob([markdownText], { type: "text/markdown" });
+    const url = URL.createObjectURL(blob);
+
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `chats-favoritos-${state.userId}.md`;
+    anchor.click();
+
+    URL.revokeObjectURL(url);
+    showStatus("Favoritos exportados em Markdown com sucesso.", {
+      type: "success",
+    });
+  } catch (error) {
+    showStatus(`Nao foi possivel exportar favoritos em Markdown: ${error.message}`, {
+      type: "error",
+      retryAction: () => exportFavoriteChatsMarkdown(),
     });
     throw error;
   }
@@ -3184,6 +3222,22 @@ if (exportAllJsonBtnEl) {
 if (exportAllJsonBtnMobileEl) {
   exportAllJsonBtnMobileEl.addEventListener("click", () => {
     exportAllChatsJson().catch((err) => {
+      console.error(err);
+    });
+  });
+}
+
+if (exportFavoritesMdBtnEl) {
+  exportFavoritesMdBtnEl.addEventListener("click", () => {
+    exportFavoriteChatsMarkdown().catch((err) => {
+      console.error(err);
+    });
+  });
+}
+
+if (exportFavoritesMdBtnMobileEl) {
+  exportFavoritesMdBtnMobileEl.addEventListener("click", () => {
+    exportFavoriteChatsMarkdown().catch((err) => {
       console.error(err);
     });
   });

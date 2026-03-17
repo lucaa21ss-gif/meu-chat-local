@@ -192,7 +192,8 @@ mas o fluxo recomendado e usar `http://localhost:3001` para manter API e UI na m
 - `GET /api/chats/:chatId/rag/documents`: lista documentos indexados da aba
 - `GET /api/chats/:chatId/rag/search?q=termo&limit=4`: busca trechos relevantes da base documental
 - `POST /api/chats/:chatId/reset`: limpa uma aba
-- `GET /api/chats/:chatId/export`: exporta conversa em Markdown
+- `GET /api/chats/:chatId/export?format=markdown|json`: exporta conversa em Markdown ou JSON
+- `GET /api/chats/export?userId=<perfil>&favorites=true&format=markdown`: exporta em lote as conversas favoritas em Markdown
 - `GET /api/backup/export`: exporta backup completo (`.tgz` legado ou `.tgz.enc` protegido por passphrase)
 - `POST /api/backup/restore`: restaura backup completo com deteccao automatica de formato legado/criptografado
 - `GET /api/backup/validate?limit=3`: valida os ultimos backups e retorna status operacional (`ok|alerta|falha`)
@@ -806,7 +807,7 @@ Checklist de atualizacao segura:
 - use `Iniciar ditado` para preencher a mensagem por voz
 
 7. Envie a mensagem e acompanhe o streaming
-8. Copie respostas pelo botao `Copiar resposta` ou escute com `Ouvir resposta` (TTS)
+8. Copie qualquer mensagem pelo botao `Copiar mensagem`; para respostas da IA, use tambem `Ouvir resposta` (TTS)
 9. Exporte a conversa por `Exportar Markdown`
 10. Use `Renomear aba` e `Excluir aba` para organizar suas conversas
 

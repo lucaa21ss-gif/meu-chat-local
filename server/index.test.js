@@ -560,7 +560,15 @@ function createMockStore() {
         },
         exportChatMarkdown: async (chatId) => {
             if (!chats.has(chatId)) return null;
-            const parts = ["# Export"];
+            const chat = chats.get(chatId);
+            const parts = [
+                `# ${chat.title || "Export"}`,
+                "",
+                `ID: ${chat.id}`,
+                `Gerado em: ${new Date().toISOString()}`,
+                "Modelo: nao informado",
+                "",
+            ];
             for (const msg of ensureMessages(chatId)) {
                 parts.push(`## ${msg.role}`);
                 parts.push(msg.content);
@@ -1883,6 +1891,26 @@ test("GET /api/chats/:chatId/export?format=json exporta conversa estruturada", a
     assert.equal(res.body.chat.messages.length >= 1, true);
 });
 
+test("GET /api/chats/:chatId/export?format=markdown retorna markdown valido", async () => {
+    const app = createApp({
+        chatClient: createMockChatClient(),
+        ...createMockStore(),
+    });
+
+    await request(app)
+        .post("/api/chat")
+        .send({ chatId: "default", message: "ola markdown" })
+        .expect(200);
+
+    const res = await request(app)
+        .get("/api/chats/default/export?format=markdown")
+        .expect(200);
+
+    assert.equal(/text\/markdown|text\/plain/.test(res.headers["content-type"]), true);
+    assert.equal(res.text.includes("ola markdown"), true);
+    assert.equal(res.text.includes("Gerado em:"), true);
+});
+
 test("GET /api/backup/export retorna arquivo compactado", async () => {
     let capturedOptions = null;
     const app = createApp({
@@ -2208,6 +2236,36 @@ test("GET /api/chats/export retorna lote JSON por userId", async () => {
         response.body.chats.some((chat) => chat.id === "chat-lote-1"),
         true,
     );
+});
+
+test("GET /api/chats/export?favorites=true&format=markdown exporta lote de favoritos em markdown", async () => {
+    const app = createApp({
+        chatClient: createMockChatClient(),
+        ...createMockStore(),
+    });
+
+    await request(app)
+        .post("/api/chats")
+        .send({ id: "chat-fav-1", title: "Favorita 1", userId: "user-default" })
+        .expect(201);
+
+    await request(app)
+        .post("/api/chats")
+        .send({ id: "chat-nao-fav", title: "Nao favorita", userId: "user-default" })
+        .expect(201);
+
+    await request(app)
+        .patch("/api/chats/chat-fav-1/favorite")
+        .send({ isFavorite: true })
+        .expect(200);
+
+    const response = await request(app)
+        .get("/api/chats/export?userId=user-default&favorites=true&format=markdown")
+        .expect(200);
+
+    assert.equal(/text\/markdown|text\/plain/.test(response.headers["content-type"]), true);
+    assert.equal(response.text.includes("Favorita 1"), true);
+    assert.equal(response.text.includes("Nao favorita"), false);
 });
 
 test("PATCH/GET /api/chats/:chatId/system-prompt atualiza prompt da conversa", async () => {

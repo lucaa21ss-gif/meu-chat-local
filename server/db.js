@@ -1312,6 +1312,32 @@ export async function resetChat(chatId) {
   ]);
 }
 
+function looksLikeCodeBlock(text) {
+  const value = String(text || "").trim();
+  if (!value) return false;
+  if (value.includes("```") || value.includes("\t")) return true;
+  const codeHints = [
+    /\bfunction\b/,
+    /\bconst\b|\blet\b|\bvar\b/,
+    /\bclass\b/,
+    /=>/,
+    /\{[\s\S]*\}/,
+    /;\s*$/m,
+    /<\/?[a-z][\s\S]*>/i,
+  ];
+  return codeHints.some((pattern) => pattern.test(value));
+}
+
+function formatMessageMarkdown(content) {
+  const value = String(content || "").trim();
+  if (!value) return "_Sem conteudo_";
+  if (value.includes("```")) return value;
+  if (looksLikeCodeBlock(value)) {
+    return `\`\`\`text\n${value}\n\`\`\``;
+  }
+  return value;
+}
+
 export async function exportChatMarkdown(chatId) {
   await initDb();
   const chat = await db.get("SELECT id, title FROM chats WHERE id = ?", [
@@ -1320,18 +1346,21 @@ export async function exportChatMarkdown(chatId) {
   if (!chat) return null;
 
   const messages = await getMessages(chatId);
+  const modelName = "nao informado";
   const lines = [
     `# ${chat.title}`,
     "",
     `ID: ${chat.id}`,
     `Gerado em: ${new Date().toISOString()}`,
+    `Modelo: ${modelName}`,
+    `Mensagens: ${messages.length}`,
     "",
   ];
 
   for (const message of messages) {
     lines.push(`## ${message.role === "user" ? "Usuario" : "IA"}`);
     lines.push("");
-    lines.push(message.content || "_Sem conteudo_");
+    lines.push(formatMessageMarkdown(message.content));
     if (message.images?.length) {
       lines.push("");
       lines.push(`Imagens anexadas: ${message.images.length}`);

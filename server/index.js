@@ -4288,11 +4288,15 @@ export function createApp(deps = {}) {
         return res.send(JSON.stringify(payload, null, 2));
       }
 
+      if (!["md", "markdown"].includes(format)) {
+        throw new HttpError(400, "Formato de exportacao invalido");
+      }
+
       const markdown = await store.exportChatMarkdown(chatId);
       if (!markdown) throw new HttpError(404, "Chat nao encontrado");
       await recordAudit("chat.export", null, {
         chatId,
-        format: "md",
+        format: "markdown",
       });
       res.setHeader("Content-Type", "text/markdown; charset=utf-8");
       res.setHeader(
@@ -4308,13 +4312,16 @@ export function createApp(deps = {}) {
     requireMinimumRole("operator"),
     asyncHandler(async (req, res) => {
       const userId = parseUserId(req.query?.userId);
+      const format = String(req.query?.format || "json").toLowerCase();
+      const favoritesOnly = parseBooleanLike(req.query?.favorites, false);
+
       const activeChats = await store.listChats(userId, {
-        favoriteOnly: false,
+        favoriteOnly: favoritesOnly,
         showArchived: false,
         tag: null,
       });
       const archivedChats = await store.listChats(userId, {
-        favoriteOnly: false,
+        favoriteOnly: favoritesOnly,
         showArchived: true,
         tag: null,
       });
@@ -4322,6 +4329,32 @@ export function createApp(deps = {}) {
         (chat, idx, arr) =>
           arr.findIndex((item) => item.id === chat.id) === idx,
       );
+
+      if (format === "markdown" || format === "md") {
+        const markdownSections = [];
+        for (const chat of chats) {
+          const markdown = await store.exportChatMarkdown(chat.id);
+          if (markdown) markdownSections.push(markdown);
+        }
+
+        const mergedMarkdown = markdownSections.join("\n\n---\n\n");
+        res.setHeader("Content-Type", "text/markdown; charset=utf-8");
+        res.setHeader(
+          "Content-Disposition",
+          `attachment; filename="chats-${userId}-${favoritesOnly ? "favoritos" : "todos"}.md"`,
+        );
+        await recordAudit("chat.export.batch", userId, {
+          chatsCount: markdownSections.length,
+          format: "markdown",
+          favoritesOnly,
+        });
+        return res.send(mergedMarkdown || "# Nenhuma conversa encontrada");
+      }
+
+      if (format !== "json") {
+        throw new HttpError(400, "Formato de exportacao em lote invalido");
+      }
+
       const exported = [];
       for (const chat of chats) {
         const payload = await store.exportChatJson(chat.id);
@@ -4335,6 +4368,8 @@ export function createApp(deps = {}) {
       );
       await recordAudit("chat.export.batch", userId, {
         chatsCount: exported.length,
+        format: "json",
+        favoritesOnly,
       });
       return res.send(
         JSON.stringify(
