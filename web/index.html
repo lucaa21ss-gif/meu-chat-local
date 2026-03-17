@@ -4,6 +4,21 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Meu Chat Local</title>
+    <script>
+      (() => {
+        try {
+          const mode = localStorage.getItem("themeMode") || "system";
+          const prefersDark = window.matchMedia(
+            "(prefers-color-scheme: dark)",
+          ).matches;
+          const shouldUseDark =
+            mode === "dark" || (mode === "system" && prefersDark);
+          if (shouldUseDark) {
+            document.documentElement.classList.add("dark");
+          }
+        } catch {}
+      })();
+    </script>
     <link rel="icon" type="image/svg+xml" href="assets/logo-chat-local.svg" />
     <link rel="stylesheet" href="output.css" />
   </head>
@@ -48,7 +63,7 @@
             id="darkModeBtn"
             type="button"
             class="rounded-full p-2 text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
-            title="Alternar modo escuro"
+            title="Tema: sistema"
           >
             <svg
               id="sunIcon"
@@ -78,6 +93,21 @@
                 stroke-linejoin="round"
                 stroke-width="2"
                 d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"
+              />
+            </svg>
+            <svg
+              id="autoIcon"
+              class="hidden h-5 w-5"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M9.75 17L6 20.75M6 20.75h3.75M6 20.75V17M18 13.5V7a2 2 0 00-2-2H6a2 2 0 00-2 2v6.5a2 2 0 002 2h10a2 2 0 002-2z"
               />
             </svg>
           </button>

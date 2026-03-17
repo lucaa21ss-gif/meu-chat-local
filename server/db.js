@@ -6,7 +6,7 @@ import { open } from "sqlite";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const defaultDbPath = path.join(__dirname, "chat.db");
-const DB_SCHEMA_VERSION = 6;
+const DB_SCHEMA_VERSION = 7;
 
 let db;
 
@@ -222,6 +222,14 @@ async function runMigrations(connection) {
         `);
       },
     },
+    {
+      version: 7,
+      up: async () => {
+        await connection.exec(`
+          ALTER TABLE users ADD COLUMN theme TEXT NOT NULL DEFAULT 'system';
+        `);
+      },
+    },
   ];
 
   let currentVersion = await getCurrentSchemaVersion(connection);
@@ -265,6 +273,7 @@ export async function listUsers() {
   return db.all(
     `SELECT id, name,
             default_system_prompt AS defaultSystemPrompt,
+            theme,
             created_at AS createdAt,
             updated_at AS updatedAt
      FROM users
@@ -284,7 +293,12 @@ export async function createUser(id, name) {
     }
     throw err;
   }
-  return { id, name: safeName, defaultSystemPrompt: "" };
+  return {
+    id,
+    name: safeName,
+    defaultSystemPrompt: "",
+    theme: "system",
+  };
 }
 
 export async function renameUser(userId, name) {
@@ -304,11 +318,28 @@ export async function renameUser(userId, name) {
     throw err;
   }
   const row = await db.get(
-    `SELECT id, name, default_system_prompt AS defaultSystemPrompt
+    `SELECT id, name,
+            default_system_prompt AS defaultSystemPrompt,
+            theme
      FROM users WHERE id = ?`,
     [userId],
   );
   return row || null;
+}
+
+export async function setUserTheme(userId, theme) {
+  await initDb();
+  const safeTheme = ["light", "dark", "system"].includes(theme)
+    ? theme
+    : "system";
+  const result = await db.run(
+    `UPDATE users
+     SET theme = ?, updated_at = CURRENT_TIMESTAMP
+     WHERE id = ?`,
+    [safeTheme, userId],
+  );
+  if (!result.changes) return null;
+  return { id: userId, theme: safeTheme };
 }
 
 export async function setUserDefaultSystemPrompt(userId, defaultSystemPrompt) {
@@ -353,6 +384,7 @@ export async function getUserById(userId) {
   const row = await db.get(
     `SELECT id, name,
             default_system_prompt AS defaultSystemPrompt,
+            theme,
             created_at AS createdAt
      FROM users WHERE id = ?`,
     [userId],

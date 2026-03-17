@@ -34,6 +34,7 @@ import {
   listUsers,
   createUser,
   renameUser,
+  setUserTheme,
   setUserDefaultSystemPrompt,
   deleteUser,
   getUserById,
@@ -197,6 +198,14 @@ function parseSystemPrompt(raw) {
     );
   }
   return prompt;
+}
+
+function parseTheme(raw) {
+  const theme = String(raw ?? "").trim().toLowerCase();
+  if (!["light", "dark", "system"].includes(theme)) {
+    throw new HttpError(400, "Tema invalido: use light, dark ou system");
+  }
+  return theme;
 }
 
 function parseChatListFilters(query = {}) {
@@ -528,6 +537,7 @@ export function createApp(deps = {}) {
     listUsers: deps.listUsers || listUsers,
     createUser: deps.createUser || createUser,
     renameUser: deps.renameUser || renameUser,
+    setUserTheme: deps.setUserTheme || setUserTheme,
     setUserDefaultSystemPrompt:
       deps.setUserDefaultSystemPrompt || setUserDefaultSystemPrompt,
     deleteUser: deps.deleteUser || deleteUser,
@@ -882,6 +892,18 @@ export function createApp(deps = {}) {
         userId,
         defaultSystemPrompt,
       );
+      if (!updated) throw new HttpError(404, "Perfil nao encontrado");
+      return res.json({ user: updated });
+    }),
+  );
+
+  app.patch(
+    "/api/users/:userId/theme",
+    asyncHandler(async (req, res) => {
+      assertBodyObject(req.body);
+      const userId = parseChatId(req.params.userId, "userId");
+      const theme = parseTheme(req.body.theme);
+      const updated = await store.setUserTheme(userId, theme);
       if (!updated) throw new HttpError(404, "Perfil nao encontrado");
       return res.json({ user: updated });
     }),

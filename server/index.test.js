@@ -23,7 +23,12 @@ function createMockStore() {
   const users = new Map([
     [
       "user-default",
-      { id: "user-default", name: "padrao", defaultSystemPrompt: "" },
+      {
+        id: "user-default",
+        name: "padrao",
+        defaultSystemPrompt: "",
+        theme: "system",
+      },
     ],
   ]);
 
@@ -44,7 +49,7 @@ function createMockStore() {
       if ([...users.values()].some((u) => u.name === name)) {
         throw new Error("Nome de perfil ja existe");
       }
-      const user = { id, name, defaultSystemPrompt: "" };
+      const user = { id, name, defaultSystemPrompt: "", theme: "system" };
       users.set(id, user);
       return user;
     },
@@ -196,6 +201,17 @@ function createMockStore() {
         id: userId,
         defaultSystemPrompt: String(defaultSystemPrompt || ""),
       };
+    },
+    setUserTheme: async (userId, theme) => {
+      if (!users.has(userId)) return null;
+      const safeTheme = ["light", "dark", "system"].includes(theme)
+        ? theme
+        : "system";
+      users.set(userId, {
+        ...users.get(userId),
+        theme: safeTheme,
+      });
+      return { id: userId, theme: safeTheme };
     },
     ensureChat: async (chatId, title, userId = "user-default") => {
       if (!chats.has(chatId)) {
@@ -1257,6 +1273,21 @@ test("PATCH /api/users/:userId/system-prompt-default atualiza prompt padrao", as
     response.body.user.defaultSystemPrompt,
     "Fale em portugues do Brasil.",
   );
+});
+
+test("PATCH /api/users/:userId/theme atualiza tema do perfil", async () => {
+  const app = createApp({
+    chatClient: createMockChatClient(),
+    ...createMockStore(),
+  });
+
+  const response = await request(app)
+    .patch("/api/users/user-default/theme")
+    .send({ theme: "dark" })
+    .expect(200);
+
+  assert.equal(response.body.user.id, "user-default");
+  assert.equal(response.body.user.theme, "dark");
 });
 
 test("POST /api/chat injeta prompts de perfil e conversa no payload", async () => {
