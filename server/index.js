@@ -24,6 +24,12 @@ import {
   upsertRagDocument,
   listRagDocuments,
   searchDocumentChunks,
+  listUsers,
+  createUser,
+  renameUser,
+  deleteUser,
+  getUserById,
+  ensureUser,
 } from "./db.js";
 
 const CHAT_ID_REGEX = /^[a-zA-Z0-9:_-]{1,80}$/;
@@ -34,6 +40,7 @@ const MAX_IMAGE_BASE64_LENGTH = 2_500_000;
 const MAX_RAG_DOCS_PER_UPLOAD = 6;
 const MAX_RAG_DOC_NAME_LENGTH = 140;
 const MAX_RAG_DOC_CONTENT_LENGTH = 120_000;
+const MAX_USER_NAME_LENGTH = 40;
 
 class HttpError extends Error {
   constructor(status, message) {
@@ -76,6 +83,25 @@ function parseChatId(raw, fieldName = "chatId") {
 function getChatId(body = {}) {
   const raw = body.chatId ?? "default";
   return parseChatId(raw, "chatId");
+}
+
+function parseUserId(raw, fallback = "user-default") {
+  const value = String(raw ?? fallback).trim() || fallback;
+  if (!CHAT_ID_REGEX.test(value)) {
+    throw new HttpError(400, "userId invalido");
+  }
+  return value;
+}
+
+function parseUserName(raw) {
+  const name = String(raw ?? "").trim();
+  if (!name) {
+    throw new HttpError(400, "Nome do perfil obrigatorio");
+  }
+  if (name.length > MAX_USER_NAME_LENGTH) {
+    throw new HttpError(400, `Nome muito longo (max ${MAX_USER_NAME_LENGTH})`);
+  }
+  return name;
 }
 
 function parseTitle(raw, fallback = "Nova conversa") {
@@ -399,6 +425,12 @@ export function createApp(deps = {}) {
     upsertRagDocument: deps.upsertRagDocument || upsertRagDocument,
     listRagDocuments: deps.listRagDocuments || listRagDocuments,
     searchDocumentChunks: deps.searchDocumentChunks || searchDocumentChunks,
+    listUsers: deps.listUsers || listUsers,
+    createUser: deps.createUser || createUser,
+    renameUser: deps.renameUser || renameUser,
+    deleteUser: deps.deleteUser || deleteUser,
+    getUserById: deps.getUserById || getUserById,
+    ensureUser: deps.ensureUser || ensureUser,
     appendMessage: deps.appendMessage || appendMessage,
     resetChat: deps.resetChat || resetChat,
     exportChatMarkdown: deps.exportChatMarkdown || exportChatMarkdown,
@@ -642,9 +674,58 @@ export function createApp(deps = {}) {
   );
 
   app.get(
-    "/api/chats",
+    "/api/users",
     asyncHandler(async (_req, res) => {
-      const chats = await store.listChats();
+      const users = await store.listUsers();
+      res.json({ users });
+    }),
+  );
+
+  app.post(
+    "/api/users",
+    asyncHandler(async (req, res) => {
+      assertBodyObject(req.body);
+      const name = parseUserName(req.body.name);
+      const id = `user-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+      const user = await store.createUser(id, name);
+      res.status(201).json({ user });
+    }),
+  );
+
+  app.patch(
+    "/api/users/:userId",
+    asyncHandler(async (req, res) => {
+      assertBodyObject(req.body);
+      const userId = parseChatId(req.params.userId, "userId");
+      const name = parseUserName(req.body.name);
+      const updated = await store.renameUser(userId, name);
+      if (!updated) {
+        throw new HttpError(404, "Perfil nao encontrado");
+      }
+      return res.json({ user: updated });
+    }),
+  );
+
+  app.delete(
+    "/api/users/:userId",
+    asyncHandler(async (req, res) => {
+      const userId = parseChatId(req.params.userId, "userId");
+      if (userId === "user-default") {
+        throw new HttpError(403, "Perfil padrao nao pode ser excluido");
+      }
+      const deleted = await store.deleteUser(userId);
+      if (!deleted) {
+        throw new HttpError(404, "Perfil nao encontrado");
+      }
+      return res.json({ ok: true });
+    }),
+  );
+
+  app.get(
+    "/api/chats",
+    asyncHandler(async (req, res) => {
+      const userId = parseUserId(req.query?.userId);
+      const chats = await store.listChats(userId);
       res.json({ chats });
     }),
   );
@@ -656,7 +737,8 @@ export function createApp(deps = {}) {
       const generatedId = `chat-${Date.now()}`;
       const id = parseChatId(req.body.id || generatedId, "id");
       const title = parseTitle(req.body.title, "Nova conversa");
-      const created = await store.createChat(id, title);
+      const userId = parseUserId(req.body.userId);
+      const created = await store.createChat(id, title, userId);
       res.status(201).json({ chat: created });
     }),
   );

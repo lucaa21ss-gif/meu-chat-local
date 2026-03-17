@@ -5,10 +5,13 @@ import { createApp } from "./index.js";
 
 function createMockStore() {
   const chats = new Map([
-    ["default", { id: "default", title: "Conversa Principal" }],
+    ["default", { id: "default", title: "Conversa Principal", userId: "user-default" }],
   ]);
   const messages = new Map([["default", []]]);
   const ragDocumentsByChat = new Map();
+  const users = new Map([
+    ["user-default", { id: "user-default", name: "padrao" }],
+  ]);
 
   const ensureMessages = (chatId) => {
     if (!messages.has(chatId)) messages.set(chatId, []);
@@ -22,12 +25,51 @@ function createMockStore() {
 
   return {
     initDb: async () => {},
-    listChats: async () => Array.from(chats.values()),
-    createChat: async (id, title) => {
-      const chat = { id, title };
+    listUsers: async () => Array.from(users.values()),
+    createUser: async (id, name) => {
+      if ([...users.values()].some((u) => u.name === name)) {
+        throw new Error("Nome de perfil ja existe");
+      }
+      const user = { id, name };
+      users.set(id, user);
+      return user;
+    },
+    renameUser: async (userId, name) => {
+      if (!users.has(userId)) return null;
+      if ([...users.values()].some((u) => u.name === name && u.id !== userId)) {
+        throw new Error("Nome de perfil ja existe");
+      }
+      users.set(userId, { ...users.get(userId), name });
+      return users.get(userId);
+    },
+    deleteUser: async (userId) => {
+      if (userId === "user-default") throw new Error("Perfil padrao nao pode ser excluido");
+      const existed = users.delete(userId);
+      for (const [chatId, chat] of chats.entries()) {
+        if ((chat.userId || "user-default") === userId) {
+          chats.delete(chatId);
+          messages.delete(chatId);
+          ragDocumentsByChat.delete(chatId);
+        }
+      }
+      return existed;
+    },
+    getUserById: async (userId) => users.get(userId) || null,
+    ensureUser: async (id, name) => {
+      if (!users.has(id)) users.set(id, { id, name });
+    },
+    listChats: async (userId) => {
+      const all = Array.from(chats.values());
+      return (userId
+        ? all.filter((c) => (c.userId || "user-default") === userId)
+        : all
+      ).map(({ id, title }) => ({ id, title }));
+    },
+    createChat: async (id, title, userId = "user-default") => {
+      const chat = { id, title, userId };
       chats.set(id, chat);
       ensureMessages(id);
-      return chat;
+      return { id, title };
     },
     duplicateChat: async (sourceChatId, targetChatId, title, options = {}) => {
       if (!chats.has(sourceChatId)) return null;
@@ -52,9 +94,9 @@ function createMockStore() {
       messages.delete(chatId);
       return existed;
     },
-    ensureChat: async (chatId) => {
+    ensureChat: async (chatId, title, userId = "user-default") => {
       if (!chats.has(chatId)) {
-        chats.set(chatId, { id: chatId, title: "Nova conversa" });
+        chats.set(chatId, { id: chatId, title: "Nova conversa", userId });
       }
       ensureMessages(chatId);
     },
@@ -593,6 +635,82 @@ test("POST /api/chat retorna 504 quando inferencia excede timeout", async () => 
     String(response.body?.error || response.text || '').includes('Tempo limite excedido'),
     true,
   );
+});
+
+test("GET /api/users e POST /api/users gerenciam perfis de usuario", async () => {
+  const app = createApp({
+    chatClient: createMockChatClient(),
+    ...createMockStore(),
+  });
+
+  const listed = await request(app).get("/api/users").expect(200);
+  assert.equal(Array.isArray(listed.body.users), true);
+  assert.equal(listed.body.users.some((u) => u.name === "padrao"), true);
+
+  const created = await request(app)
+    .post("/api/users")
+    .send({ name: "alice" })
+    .expect(201);
+
+  assert.equal(created.body.user.name, "alice");
+  assert.ok(created.body.user.id);
+
+  const listed2 = await request(app).get("/api/users").expect(200);
+  assert.equal(listed2.body.users.some((u) => u.name === "alice"), true);
+});
+
+test("PATCH e DELETE /api/users/:userId renomeiam e excluem perfil", async () => {
+  const app = createApp({
+    chatClient: createMockChatClient(),
+    ...createMockStore(),
+  });
+
+  const created = await request(app)
+    .post("/api/users")
+    .send({ name: "bob" })
+    .expect(201);
+
+  const userId = created.body.user.id;
+
+  const renamed = await request(app)
+    .patch(`/api/users/${userId}`)
+    .send({ name: "bob-renomeado" })
+    .expect(200);
+
+  assert.equal(renamed.body.user.name, "bob-renomeado");
+
+  await request(app).delete(`/api/users/${userId}`).expect(200);
+
+  const listed = await request(app).get("/api/users").expect(200);
+  assert.equal(listed.body.users.some((u) => u.name === "bob-renomeado"), false);
+});
+
+test("abas criadas por usuarios diferentes ficam isoladas", async () => {
+  const app = createApp({
+    chatClient: createMockChatClient(),
+    ...createMockStore(),
+  });
+
+  const carol = await request(app)
+    .post("/api/users")
+    .send({ name: "carol" })
+    .expect(201);
+  const carolId = carol.body.user.id;
+
+  await request(app)
+    .post("/api/chats")
+    .send({ id: "chat-carol", title: "Aba Carol", userId: carolId })
+    .expect(201);
+
+  const carolChats = await request(app)
+    .get(`/api/chats?userId=${carolId}`)
+    .expect(200);
+  const defaultChats = await request(app)
+    .get("/api/chats?userId=user-default")
+    .expect(200);
+
+  assert.equal(carolChats.body.chats.some((c) => c.id === "chat-carol"), true);
+  assert.equal(defaultChats.body.chats.some((c) => c.id === "chat-carol"), false);
 });
 
 test("GET /api/chats/:chatId/search valida query curta", async () => {

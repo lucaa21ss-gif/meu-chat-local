@@ -6,7 +6,7 @@ import { open } from "sqlite";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const defaultDbPath = path.join(__dirname, "chat.db");
-const DB_SCHEMA_VERSION = 3;
+const DB_SCHEMA_VERSION = 4;
 
 let db;
 
@@ -58,7 +58,8 @@ export async function initDb() {
   await db.exec("PRAGMA journal_mode = WAL;");
   await runMigrations(db);
 
-  await ensureChat("default", "Conversa Principal");
+  await ensureUser("user-default", "padrao");
+  await ensureChat("default", "Conversa Principal", "user-default");
   return db;
 }
 
@@ -165,6 +166,29 @@ async function runMigrations(connection) {
         `);
       },
     },
+    {
+      version: 4,
+      up: async () => {
+        await connection.exec(`
+          CREATE TABLE IF NOT EXISTS users (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(name)
+          );
+
+          INSERT INTO users (id, name)
+          VALUES ('user-default', 'padrao')
+          ON CONFLICT(id) DO NOTHING;
+
+          ALTER TABLE chats ADD COLUMN user_id TEXT NOT NULL DEFAULT 'user-default';
+
+          CREATE INDEX IF NOT EXISTS idx_chats_user_id
+            ON chats(user_id, updated_at DESC);
+        `);
+      },
+    },
   ];
 
   let currentVersion = await getCurrentSchemaVersion(connection);
@@ -194,17 +218,112 @@ export async function closeDb() {
   db = undefined;
 }
 
-export async function ensureChat(id, title = "Nova conversa") {
+export async function ensureUser(id, name) {
   await initDb();
   await db.run(
-    `INSERT INTO chats (id, title) VALUES (?, ?)
+    `INSERT INTO users (id, name) VALUES (?, ?)
      ON CONFLICT(id) DO NOTHING`,
-    [id, title],
+    [id, name],
   );
 }
 
-export async function listChats() {
+export async function listUsers() {
   await initDb();
+  return db.all(
+    `SELECT id, name, created_at AS createdAt, updated_at AS updatedAt
+     FROM users
+     ORDER BY name ASC`,
+  );
+}
+
+export async function createUser(id, name) {
+  await initDb();
+  const safeName = String(name || "").trim();
+  if (!safeName) throw new Error("Nome do perfil obrigatorio");
+  try {
+    await db.run(`INSERT INTO users (id, name) VALUES (?, ?)`, [id, safeName]);
+  } catch (err) {
+    if (String(err?.message || "").includes("UNIQUE")) {
+      throw new Error("Nome de perfil ja existe");
+    }
+    throw err;
+  }
+  return { id, name: safeName };
+}
+
+export async function renameUser(userId, name) {
+  await initDb();
+  const safeName = String(name || "").trim();
+  if (!safeName) throw new Error("Nome do perfil obrigatorio");
+  try {
+    const result = await db.run(
+      `UPDATE users SET name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+      [safeName, userId],
+    );
+    if (!result.changes) return null;
+  } catch (err) {
+    if (String(err?.message || "").includes("UNIQUE")) {
+      throw new Error("Nome de perfil ja existe");
+    }
+    throw err;
+  }
+  return { id: userId, name: safeName };
+}
+
+export async function deleteUser(userId) {
+  await initDb();
+  if (userId === "user-default") {
+    throw new Error("Perfil padrao nao pode ser excluido");
+  }
+  const chatRows = await db.all(
+    "SELECT id FROM chats WHERE user_id = ?",
+    [userId],
+  );
+  for (const { id: chatId } of chatRows) {
+    const docRows = await db.all(
+      "SELECT id FROM rag_documents WHERE chat_id = ?",
+      [chatId],
+    );
+    for (const { id: docId } of docRows) {
+      await db.run("DELETE FROM rag_chunks WHERE document_id = ?", [docId]);
+    }
+    await db.run("DELETE FROM rag_documents WHERE chat_id = ?", [chatId]);
+    await db.run("DELETE FROM messages WHERE chat_id = ?", [chatId]);
+  }
+  await db.run("DELETE FROM chats WHERE user_id = ?", [userId]);
+  const result = await db.run("DELETE FROM users WHERE id = ?", [userId]);
+  return result.changes > 0;
+}
+
+export async function getUserById(userId) {
+  await initDb();
+  const row = await db.get(
+    "SELECT id, name, created_at AS createdAt FROM users WHERE id = ?",
+    [userId],
+  );
+  return row || null;
+}
+
+export async function ensureChat(id, title = "Nova conversa", userId = "user-default") {
+  await initDb();
+  await db.run(
+    `INSERT INTO chats (id, title, user_id) VALUES (?, ?, ?)
+     ON CONFLICT(id) DO NOTHING`,
+    [id, title, userId],
+  );
+}
+
+export async function listChats(userId) {
+  await initDb();
+  if (userId) {
+    return db.all(
+      `SELECT id, title, created_at AS createdAt, updated_at AS updatedAt
+       FROM chats
+       WHERE user_id = ?
+       ORDER BY datetime(updated_at) DESC`,
+      [userId],
+    );
+  }
   return db.all(
     `SELECT id, title, created_at AS createdAt, updated_at AS updatedAt
      FROM chats
@@ -212,10 +331,13 @@ export async function listChats() {
   );
 }
 
-export async function createChat(id, title) {
+export async function createChat(id, title, userId = "user-default") {
   await initDb();
   const safeTitle = titleFromText(title);
-  await db.run(`INSERT INTO chats (id, title) VALUES (?, ?)`, [id, safeTitle]);
+  await db.run(
+    `INSERT INTO chats (id, title, user_id) VALUES (?, ?, ?)`,
+    [id, safeTitle, userId],
+  );
 
   return { id, title: safeTitle };
 }
