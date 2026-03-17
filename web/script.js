@@ -510,6 +510,7 @@ async function checkOllamaStatus() {
         model: { status: "unknown" },
         disk: { status: "unknown" },
       },
+      rateLimiter: data.rateLimiter || null,
       alerts: Array.isArray(data.alerts) ? data.alerts : [],
     };
   } catch (_err) {
@@ -556,6 +557,12 @@ async function checkOllamaStatus() {
       `Modelo: ${modelStatus}`,
       `Disco: ${diskStatus}`,
     ];
+    const rl = state.health?.rateLimiter;
+    if (rl) {
+      lines.push(
+        `Fila: ${rl.currentQueueSize}/${rl.queueMax} | Enfileiradas: ${rl.queuedTotal} | Rejeitadas: ${rl.rejectedTotal}`,
+      );
+    }
     const alerts = (state.health.alerts || []).slice(0, 2);
     if (alerts.length) {
       lines.push(`Alerta: ${alerts.join(" | ")}`);

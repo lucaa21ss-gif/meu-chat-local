@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import request from "supertest";
 import { createApp } from "./index.js";
+import { createRoleLimiterQueue } from "./rateLimiter.js";
 
 function createMockStore() {
   const chats = new Map([
@@ -1930,4 +1931,108 @@ test("POST /api/chat injeta prompts de perfil e conversa no payload", async () =
   assert.equal(capturedMessages[0]?.content, "Prompt padrao perfil");
   assert.equal(capturedMessages[1]?.role, "system");
   assert.equal(capturedMessages[1]?.content, "Prompt da conversa");
+});
+
+test("rate limiter: burst excede limite, fila absorve excedente e 503 quando cheia", async () => {
+  const rlQueue = createRoleLimiterQueue({
+    roleLimits: {
+      admin:    { windowMs: 400, max: 2, chatMax: 1 },
+      operator: { windowMs: 400, max: 2, chatMax: 1 },
+      viewer:   { windowMs: 400, max: 2, chatMax: 1 },
+    },
+    queueMax: 2,
+    queueTimeoutMs: 600,
+    getRoleForUser: async () => "viewer",
+  });
+
+  const app = createApp({
+    chatClient: createMockChatClient(),
+    ...createMockStore(),
+    roleLimiter: rlQueue,
+  });
+
+  // Duas primeiras requisicoes: dentro do limite
+  const [r1, r2] = await Promise.all([
+    request(app).get("/api/chats").set("x-user-id", "user-default"),
+    request(app).get("/api/chats").set("x-user-id", "user-default"),
+  ]);
+  assert.equal(r1.status, 200);
+  assert.equal(r2.status, 200);
+
+  // Tres seguintes: 2 enfileiram + 1 rejeitada (503) com fila cheia
+  const [r3, r4, r5] = await Promise.all([
+    request(app).get("/api/chats").set("x-user-id", "user-default"),
+    request(app).get("/api/chats").set("x-user-id", "user-default"),
+    request(app).get("/api/chats").set("x-user-id", "user-default"),
+  ]);
+
+  const statuses = [r3.status, r4.status, r5.status].sort((a, b) => a - b);
+  assert.deepEqual(statuses, [200, 200, 503]);
+
+  const metrics = rlQueue.getMetrics();
+  assert.equal(metrics.queuedTotal, 2, "devem ter sido enfileiradas 2 requisicoes");
+  assert.equal(metrics.rejectedTotal, 1, "deve ter sido rejeitada 1 requisicao");
+  assert.equal(metrics.currentQueueSize, 0, "fila deve estar vazia apos dreno");
+});
+
+test("rate limiter: timeout de fila retorna 429 quando espera excede queueTimeoutMs", async () => {
+  const rlQueue = createRoleLimiterQueue({
+    roleLimits: {
+      admin:    { windowMs: 600, max: 1, chatMax: 1 },
+      operator: { windowMs: 600, max: 1, chatMax: 1 },
+      viewer:   { windowMs: 600, max: 1, chatMax: 1 },
+    },
+    queueMax: 5,
+    queueTimeoutMs: 50,
+    getRoleForUser: async () => "viewer",
+  });
+
+  const app = createApp({
+    chatClient: createMockChatClient(),
+    ...createMockStore(),
+    roleLimiter: rlQueue,
+  });
+
+  // Primeira requisicao: dentro do limite (200)
+  await request(app)
+    .get("/api/chats")
+    .set("x-user-id", "user-default")
+    .expect(200);
+
+  // Segunda: entra na fila, mas timeout (50ms) < janela (600ms) → 429
+  const r2 = await request(app)
+    .get("/api/chats")
+    .set("x-user-id", "user-default");
+
+  assert.equal(r2.status, 429);
+  assert.equal(rlQueue.getMetrics().timedOutTotal, 1);
+});
+
+test("rate limiter: metricas de fila aparecem no /api/health", async () => {
+  const rlQueue = createRoleLimiterQueue({
+    roleLimits: { viewer: { windowMs: 60_000, max: 100, chatMax: 10 } },
+    queueMax: 15,
+    queueTimeoutMs: 5_000,
+    getRoleForUser: async () => "viewer",
+  });
+
+  const app = createApp({
+    chatClient: createMockChatClient(),
+    ...createMockStore(),
+    roleLimiter: rlQueue,
+    healthProviders: {
+      checkDb:    async () => ({ status: "healthy",  latencyMs: 1 }),
+      checkModel: async () => ({ status: "healthy",  latencyMs: 1, ollama: "online" }),
+      checkDisk:  async () => ({ status: "healthy",  latencyMs: 1, freePercent: 50 }),
+    },
+  });
+
+  const res = await request(app).get("/api/health").expect(200);
+
+  assert.ok(res.body.rateLimiter, "rateLimiter deve estar presente no health");
+  assert.equal(res.body.rateLimiter.queueMax, 15);
+  assert.equal(res.body.rateLimiter.currentQueueSize, 0);
+  assert.ok("queuedTotal"   in res.body.rateLimiter);
+  assert.ok("rejectedTotal" in res.body.rateLimiter);
+  assert.ok("timedOutTotal" in res.body.rateLimiter);
 });

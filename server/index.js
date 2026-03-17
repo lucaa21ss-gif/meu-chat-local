@@ -5,8 +5,8 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { statfs } from "node:fs/promises";
 import helmet from "helmet";
-import rateLimit from "express-rate-limit";
 import { client } from "./ollama.js";
+import { createRoleLimiterQueue } from "./rateLimiter.js";
 import logger, { createHttpLogger } from "./logger.js";
 import {
   initDb,
@@ -926,11 +926,6 @@ export function createApp(deps = {}) {
     process.env.RATE_LIMIT_WINDOW_MS || `${15 * 60 * 1000}`,
     10,
   );
-  const requestLimit = Number.parseInt(process.env.RATE_LIMIT_MAX || "400", 10);
-  const chatRequestLimit = Number.parseInt(
-    process.env.RATE_LIMIT_CHAT_MAX || "80",
-    10,
-  );
   const ollamaTimeoutMs = parsePositiveInt(
     deps.ollamaTimeoutMs ?? process.env.OLLAMA_TIMEOUT_MS,
     45_000,
@@ -975,6 +970,28 @@ export function createApp(deps = {}) {
       chatClient,
       dbPath,
     });
+
+  const roleLimits = deps.roleLimits ?? {
+    admin:    { windowMs: requestWindowMs, max: 300, chatMax: 100 },
+    operator: { windowMs: requestWindowMs, max: 150, chatMax:  50 },
+    viewer:   { windowMs: requestWindowMs, max:  60, chatMax:  20 },
+  };
+  const roleLimiter = deps.roleLimiter ?? createRoleLimiterQueue({
+    roleLimits,
+    queueMax: Number.parseInt(process.env.RATE_LIMIT_QUEUE_MAX || "30", 10),
+    queueTimeoutMs: Number.parseInt(
+      process.env.RATE_LIMIT_QUEUE_TIMEOUT_MS || "8000",
+      10,
+    ),
+    getRoleForUser: async (userId) => {
+      try {
+        const user = await store.getUserById(userId);
+        return normalizeRole(user?.role, "viewer");
+      } catch {
+        return "viewer";
+      }
+    },
+  });
 
   async function recordAudit(eventType, userId = null, meta = {}) {
     try {
@@ -1121,24 +1138,6 @@ export function createApp(deps = {}) {
     });
   }
 
-  const apiLimiter = rateLimit({
-    windowMs: Number.isFinite(requestWindowMs)
-      ? requestWindowMs
-      : 15 * 60 * 1000,
-    max: Number.isFinite(requestLimit) ? requestLimit : 400,
-    standardHeaders: true,
-    legacyHeaders: false,
-    message: { error: "Muitas requisicoes, tente novamente em alguns minutos" },
-  });
-
-  const chatLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000,
-    max: Number.isFinite(chatRequestLimit) ? chatRequestLimit : 80,
-    standardHeaders: true,
-    legacyHeaders: false,
-    message: { error: "Limite de chat excedido temporariamente" },
-  });
-
   app.disable("x-powered-by");
   app.use(
     helmet({
@@ -1169,9 +1168,9 @@ export function createApp(deps = {}) {
     }),
   );
 
-  app.use("/api", apiLimiter);
-  app.use("/api/chat", chatLimiter);
-  app.use("/api/chat-stream", chatLimiter);
+  app.use("/api", roleLimiter.createMiddleware("api"));
+  app.use("/api/chat", roleLimiter.createMiddleware("chat"));
+  app.use("/api/chat-stream", roleLimiter.createMiddleware("chat"));
 
   app.locals.backupService = backupService;
   app.locals.storageService = storageService;
@@ -1240,6 +1239,7 @@ export function createApp(deps = {}) {
           enabled: isTelemetryEnabled(),
           topRoutes: telemetry,
         },
+        rateLimiter: roleLimiter.getMetrics(),
         alerts,
         // Compatibilidade com frontend legado.
         ollama: model.ollama || "offline",
