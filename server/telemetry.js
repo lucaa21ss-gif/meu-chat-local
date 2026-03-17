@@ -5,6 +5,7 @@
 
 const stats = new Map();
 let enabled = false;
+const MAX_LATENCY_SAMPLES = 120;
 
 export function isEnabled() {
   return enabled;
@@ -23,12 +24,25 @@ export function record(method, path, durationMs, isError) {
     errors: 0,
     totalMs: 0,
     lastMs: 0,
+    samples: [],
   };
   entry.count += 1;
   entry.totalMs += durationMs;
   entry.lastMs = durationMs;
+  entry.samples.push(durationMs);
+  if (entry.samples.length > MAX_LATENCY_SAMPLES) {
+    entry.samples.shift();
+  }
   if (isError) entry.errors += 1;
   stats.set(key, entry);
+}
+
+function percentile(values = [], target = 95) {
+  if (!Array.isArray(values) || values.length === 0) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const rank = Math.ceil((target / 100) * sorted.length) - 1;
+  const index = Math.max(0, Math.min(rank, sorted.length - 1));
+  return sorted[index];
 }
 
 export function getStats() {
@@ -39,7 +53,9 @@ export function getStats() {
       path: e.path,
       count: e.count,
       errors: e.errors,
+      errorRate: e.count ? Math.round((e.errors / e.count) * 100) : 0,
       avgMs: e.count ? Math.round(e.totalMs / e.count) : 0,
+      p95Ms: Math.round(percentile(e.samples, 95)),
       lastMs: e.lastMs,
     }));
 }

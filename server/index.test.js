@@ -1313,6 +1313,89 @@ test("GET /api/health retorna unhealthy quando DB falha", async () => {
   assert.equal(response.body.checks.db.status, "unhealthy");
 });
 
+test("GET /api/slo retorna snapshot com rotas avaliadas", async () => {
+  const app = createApp({
+    ...createMockStore(),
+    chatClient: createMockChatClient(),
+  });
+
+  await request(app)
+    .patch("/api/telemetry")
+    .set("x-user-id", "user-default")
+    .send({ enabled: true })
+    .expect(200);
+
+  for (let i = 0; i < 6; i += 1) {
+    await request(app)
+      .post("/api/chat")
+      .send({ chatId: "default", message: `slo-${i}` })
+      .expect(200);
+  }
+
+  const response = await request(app)
+    .get("/api/slo")
+    .set("x-user-id", "user-operator")
+    .expect(200);
+
+  assert.equal(response.body.telemetryEnabled, true);
+  assert.ok(response.body.objectives);
+  assert.ok(Array.isArray(response.body.evaluatedRoutes));
+  assert.equal(
+    response.body.evaluatedRoutes.some((item) => item.route === "POST /api/chat"),
+    true,
+  );
+});
+
+test("GET /api/slo marca alerta quando p95 ultrapassa limiar", async () => {
+  const app = createApp({
+    ...createMockStore(),
+    chatClient: {
+      chat: async () => {
+        await new Promise((resolve) => setTimeout(resolve, 1300));
+        return { message: { content: "ok" } };
+      },
+    },
+  });
+
+  await request(app)
+    .patch("/api/telemetry")
+    .set("x-user-id", "user-default")
+    .send({ enabled: true })
+    .expect(200);
+
+  for (let i = 0; i < 5; i += 1) {
+    await request(app)
+      .post("/api/chat")
+      .send({ chatId: "default", message: `lento-${i}` })
+      .expect(200);
+  }
+
+  const response = await request(app)
+    .get("/api/slo")
+    .set("x-user-id", "user-default")
+    .expect(200);
+
+  assert.equal(response.body.status, "alerta");
+  const chatRoute = response.body.evaluatedRoutes.find(
+    (item) => item.route === "POST /api/chat",
+  );
+  assert.ok(chatRoute);
+  assert.equal(chatRoute.status, "alerta");
+  assert.equal(chatRoute.p95Ms >= chatRoute.target.p95Ms, true);
+});
+
+test("GET /api/slo bloqueado para viewer", async () => {
+  const app = createApp({
+    ...createMockStore(),
+    chatClient: createMockChatClient(),
+  });
+
+  await request(app)
+    .get("/api/slo")
+    .set("x-user-id", "user-viewer")
+    .expect(403);
+});
+
 test("POST /api/chat-stream retorna erro padrao quando servico externo falha", async () => {
   const app = createApp({
     ...createMockStore(),

@@ -914,6 +914,65 @@ function buildOverallHealthStatus(checks = {}) {
   return HEALTH_STATUS.HEALTHY;
 }
 
+function buildSloSnapshot(telemetryStats = []) {
+  const objectives = {
+    availabilityMaxErrorRatePct: 5,
+    p95LatencyReadMs: 400,
+    p95LatencyWriteMs: 1200,
+    minSamples: 5,
+  };
+
+  const criticalRoutes = telemetryStats.filter((item) => {
+    const key = `${item.method} ${item.path}`;
+    return [
+      "GET /api/chats",
+      "POST /api/chat",
+      "POST /api/chat-stream",
+      "GET /api/health",
+    ].includes(key);
+  });
+
+  const evaluations = criticalRoutes.map((route) => {
+    const isRead = route.method === "GET";
+    const latencyTarget = isRead
+      ? objectives.p95LatencyReadMs
+      : objectives.p95LatencyWriteMs;
+    const hasSamples = route.count >= objectives.minSamples;
+    const availabilityOk = hasSamples
+      ? (route.errorRate || 0) <= objectives.availabilityMaxErrorRatePct
+      : true;
+    const latencyOk = hasSamples ? (route.p95Ms || 0) <= latencyTarget : true;
+    const status = hasSamples
+      ? availabilityOk && latencyOk
+        ? "ok"
+        : "alerta"
+      : "insuficiente";
+
+    return {
+      route: `${route.method} ${route.path}`,
+      count: route.count || 0,
+      errorRate: route.errorRate || 0,
+      p95Ms: route.p95Ms || 0,
+      target: {
+        errorRate: objectives.availabilityMaxErrorRatePct,
+        p95Ms: latencyTarget,
+      },
+      status,
+    };
+  });
+
+  const considered = evaluations.filter((item) => item.status !== "insuficiente");
+  const allOk = considered.length > 0 && considered.every((item) => item.status === "ok");
+  const hasAlerts = considered.some((item) => item.status === "alerta");
+
+  return {
+    generatedAt: new Date().toISOString(),
+    objectives,
+    status: allOk ? "ok" : hasAlerts ? "alerta" : "insuficiente",
+    evaluatedRoutes: evaluations,
+  };
+}
+
 function createDefaultHealthProviders({ store, chatClient, dbPath }) {
   return {
     async checkDb() {
@@ -1402,6 +1461,7 @@ export function createApp(deps = {}) {
         ...item,
         errorRate: item.count ? Math.round((item.errors / item.count) * 100) : 0,
       }));
+      const slo = buildSloSnapshot(getTelemetryStats());
 
       const alerts = [];
       if (db.status !== HEALTH_STATUS.HEALTHY) {
@@ -1422,11 +1482,25 @@ export function createApp(deps = {}) {
           enabled: isTelemetryEnabled(),
           topRoutes: telemetry,
         },
+        slo,
         rateLimiter: roleLimiter.getMetrics(),
         alerts,
         // Compatibilidade com frontend legado.
         ollama: model.ollama || "offline",
         latencyMs: Number(model.latencyMs || 0),
+      });
+    }),
+  );
+
+  app.get(
+    "/api/slo",
+    requireMinimumRole("operator"),
+    asyncHandler(async (_req, res) => {
+      const telemetry = getTelemetryStats();
+      const snapshot = buildSloSnapshot(telemetry);
+      res.json({
+        telemetryEnabled: isTelemetryEnabled(),
+        ...snapshot,
       });
     }),
   );

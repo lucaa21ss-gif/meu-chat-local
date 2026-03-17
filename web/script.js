@@ -63,6 +63,7 @@ const diagnosticsExportBtnEl = document.getElementById("diagnosticsExportBtn");
 const healthRefreshBtnEl = document.getElementById("healthRefreshBtn");
 const healthSummaryTextEl = document.getElementById("healthSummaryText");
 const healthChecksTextEl = document.getElementById("healthChecksText");
+const healthSloTextEl = document.getElementById("healthSloText");
 
 const state = {
   chats: [],
@@ -511,6 +512,7 @@ async function checkOllamaStatus() {
         model: { status: "unknown" },
         disk: { status: "unknown" },
       },
+      slo: data.slo || { status: "insuficiente", evaluatedRoutes: [] },
       rateLimiter: data.rateLimiter || null,
       alerts: Array.isArray(data.alerts) ? data.alerts : [],
     };
@@ -523,6 +525,7 @@ async function checkOllamaStatus() {
         model: { status: "unhealthy" },
         disk: { status: "unknown" },
       },
+      slo: { status: "insuficiente", evaluatedRoutes: [] },
       alerts: ["Falha ao consultar endpoint de health"],
     };
   }
@@ -569,6 +572,26 @@ async function checkOllamaStatus() {
       lines.push(`Alerta: ${alerts.join(" | ")}`);
     }
     healthChecksTextEl.textContent = lines.join(" • ");
+  }
+
+  if (healthSloTextEl) {
+    const sloStatus = state.health?.slo?.status || "insuficiente";
+    const labels = {
+      ok: "OK",
+      alerta: "ALERTA",
+      insuficiente: "SEM AMOSTRAS",
+    };
+    const evaluatedRoutes = Array.isArray(state.health?.slo?.evaluatedRoutes)
+      ? state.health.slo.evaluatedRoutes.filter((item) => item.status !== "insuficiente")
+      : [];
+    const details = evaluatedRoutes
+      .slice(0, 2)
+      .map((item) => `${item.route} p95=${item.p95Ms}ms err=${item.errorRate}%`)
+      .join(" | ");
+
+    healthSloTextEl.textContent = details
+      ? `SLO: ${labels[sloStatus] || "SEM AMOSTRAS"} • ${details}`
+      : `SLO: ${labels[sloStatus] || "SEM AMOSTRAS"}`;
   }
 }
 

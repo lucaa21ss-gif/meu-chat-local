@@ -157,6 +157,8 @@ mas o fluxo recomendado e usar `http://localhost:3001` para manter API e UI na m
 
 - `GET /healthz`: liveness check do servidor
 - `GET /readyz`: readiness check (valida acesso ao store)
+- `GET /api/health`: saude expandida (checks + telemetria + status SLO)
+- `GET /api/slo`: snapshot de confiabilidade por rotas criticas (operator/admin)
 - `POST /api/chat`: chat sem streaming
 - `POST /api/chat-stream`: chat com streaming
 - `POST /api/reset`: limpa chat padrao
@@ -207,6 +209,21 @@ mas o fluxo recomendado e usar `http://localhost:3001` para manter API e UI na m
 - A listagem de abas usa `GET /api/chats?userId=<perfil>`.
 
 Exemplos de uso da API:
+
+## SLO local de confiabilidade
+
+Objetivos aplicados automaticamente pelo backend com base na telemetria:
+
+- Disponibilidade: taxa de erro maxima de `5%` por rota critica.
+- Latencia p95 para rotas de leitura (`GET`): ate `400ms`.
+- Latencia p95 para rotas de escrita (`POST`): ate `1200ms`.
+- Minimo de amostras para avaliacao: `5` requests por rota.
+
+Status possiveis no snapshot SLO:
+
+- `ok`: objetivos atendidos.
+- `alerta`: algum limiar excedido.
+- `insuficiente`: amostragem abaixo do minimo.
 
 ```bash
 curl http://localhost:3001/api/users
