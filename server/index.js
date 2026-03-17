@@ -43,6 +43,7 @@ import {
   renameUser,
   setUserTheme,
   setUserStorageLimit,
+  setUserRole,
   setUserDefaultSystemPrompt,
   deleteUser,
   getUserById,
@@ -71,6 +72,12 @@ const MAX_RAG_DOC_NAME_LENGTH = 140;
 const MAX_RAG_DOC_CONTENT_LENGTH = 120_000;
 const MAX_USER_NAME_LENGTH = 40;
 const MAX_SYSTEM_PROMPT_LENGTH = 2500;
+const USER_ROLES = ["admin", "operator", "viewer"];
+const ROLE_LEVEL = {
+  viewer: 1,
+  operator: 2,
+  admin: 3,
+};
 
 const HEALTH_STATUS = {
   HEALTHY: "healthy",
@@ -138,6 +145,27 @@ function parseUserName(raw) {
     throw new HttpError(400, `Nome muito longo (max ${MAX_USER_NAME_LENGTH})`);
   }
   return name;
+}
+
+function parseUserRole(raw, fallback = "operator") {
+  const role = String(raw ?? fallback)
+    .trim()
+    .toLowerCase();
+  if (!USER_ROLES.includes(role)) {
+    throw new HttpError(400, "role invalida: use admin, operator ou viewer");
+  }
+  return role;
+}
+
+function normalizeRole(role, fallback = "viewer") {
+  const safeRole = String(role || "").trim().toLowerCase();
+  return USER_ROLES.includes(safeRole) ? safeRole : fallback;
+}
+
+function hasRequiredRole(userRole, minimumRole) {
+  const current = ROLE_LEVEL[normalizeRole(userRole, "viewer")] || 0;
+  const minimum = ROLE_LEVEL[normalizeRole(minimumRole, "viewer")] || 0;
+  return current >= minimum;
 }
 
 function parseTitle(raw, fallback = "Nova conversa") {
@@ -810,6 +838,7 @@ export function createApp(deps = {}) {
     renameUser: deps.renameUser || renameUser,
     setUserTheme: deps.setUserTheme || setUserTheme,
     setUserStorageLimit: deps.setUserStorageLimit || setUserStorageLimit,
+    setUserRole: deps.setUserRole || setUserRole,
     setUserDefaultSystemPrompt:
       deps.setUserDefaultSystemPrompt || setUserDefaultSystemPrompt,
     deleteUser: deps.deleteUser || deleteUser,
@@ -897,6 +926,52 @@ export function createApp(deps = {}) {
         "Falha ao registrar evento de auditoria",
       );
     }
+  }
+
+  async function resolveActor(req) {
+    if (req.actor) return req.actor;
+
+    const headerUserId = req.get("x-user-id");
+    const bodyUserId =
+      req.body && typeof req.body === "object" ? req.body.userId : undefined;
+    const queryUserId = req.query?.userId;
+    const actorId = parseUserId(
+      headerUserId || queryUserId || bodyUserId || "user-default",
+    );
+    const actorUser = await store.getUserById(actorId);
+
+    if (!actorUser) {
+      throw new HttpError(401, "Perfil de acesso nao encontrado");
+    }
+
+    req.actor = {
+      userId: actorId,
+      role: normalizeRole(actorUser.role, "viewer"),
+    };
+
+    return req.actor;
+  }
+
+  function requireMinimumRole(minimumRole) {
+    return asyncHandler(async (req, _res, next) => {
+      const actor = await resolveActor(req);
+      if (!hasRequiredRole(actor.role, minimumRole)) {
+        throw new HttpError(403, "Permissao insuficiente para esta acao");
+      }
+      next();
+    });
+  }
+
+  function requireAdminOrSelf(userIdParam = "userId") {
+    return asyncHandler(async (req, _res, next) => {
+      const actor = await resolveActor(req);
+      const targetUserId = parseUserId(req.params[userIdParam]);
+      if (actor.userId === targetUserId || actor.role === "admin") {
+        next();
+        return;
+      }
+      throw new HttpError(403, "Permissao insuficiente para esta acao");
+    });
   }
 
   const apiLimiter = rateLimit({
@@ -1178,6 +1253,7 @@ export function createApp(deps = {}) {
 
   app.patch(
     "/api/telemetry",
+    requireMinimumRole("admin"),
     asyncHandler(async (req, res) => {
       assertBodyObject(req.body);
       const enabled = parseBooleanLike(req.body.enabled, false);
@@ -1199,17 +1275,20 @@ export function createApp(deps = {}) {
 
   app.post(
     "/api/users",
+    requireMinimumRole("admin"),
     asyncHandler(async (req, res) => {
       assertBodyObject(req.body);
       const name = parseUserName(req.body.name);
+      const role = parseUserRole(req.body.role, "operator");
       const id = `user-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-      const user = await store.createUser(id, name);
+      const user = await store.createUser(id, name, role);
       res.status(201).json({ user });
     }),
   );
 
   app.patch(
     "/api/users/:userId",
+    requireMinimumRole("admin"),
     asyncHandler(async (req, res) => {
       assertBodyObject(req.body);
       const userId = parseChatId(req.params.userId, "userId");
@@ -1224,6 +1303,7 @@ export function createApp(deps = {}) {
 
   app.patch(
     "/api/users/:userId/system-prompt-default",
+    requireMinimumRole("admin"),
     asyncHandler(async (req, res) => {
       assertBodyObject(req.body);
       const userId = parseChatId(req.params.userId, "userId");
@@ -1241,6 +1321,7 @@ export function createApp(deps = {}) {
 
   app.patch(
     "/api/users/:userId/theme",
+    requireAdminOrSelf("userId"),
     asyncHandler(async (req, res) => {
       assertBodyObject(req.body);
       const userId = parseChatId(req.params.userId, "userId");
@@ -1253,11 +1334,25 @@ export function createApp(deps = {}) {
 
   app.patch(
     "/api/users/:userId/storage-limit",
+    requireMinimumRole("admin"),
     asyncHandler(async (req, res) => {
       assertBodyObject(req.body);
       const userId = parseChatId(req.params.userId, "userId");
       const storageLimitMb = parseStorageLimitMb(req.body.storageLimitMb);
       const updated = await store.setUserStorageLimit(userId, storageLimitMb);
+      if (!updated) throw new HttpError(404, "Perfil nao encontrado");
+      return res.json({ user: updated });
+    }),
+  );
+
+  app.patch(
+    "/api/users/:userId/role",
+    requireMinimumRole("admin"),
+    asyncHandler(async (req, res) => {
+      assertBodyObject(req.body);
+      const userId = parseChatId(req.params.userId, "userId");
+      const role = parseUserRole(req.body.role);
+      const updated = await store.setUserRole(userId, role);
       if (!updated) throw new HttpError(404, "Perfil nao encontrado");
       return res.json({ user: updated });
     }),
@@ -1277,6 +1372,7 @@ export function createApp(deps = {}) {
 
   app.delete(
     "/api/users/:userId",
+    requireMinimumRole("admin"),
     asyncHandler(async (req, res) => {
       const userId = parseChatId(req.params.userId, "userId");
       if (userId === "user-default") {
@@ -1497,6 +1593,7 @@ export function createApp(deps = {}) {
 
   app.get(
     "/api/chats/:chatId/export",
+    requireMinimumRole("operator"),
     asyncHandler(async (req, res) => {
       const chatId = parseChatId(req.params.chatId, "chatId");
       const format = String(req.query.format || "md").toLowerCase();
@@ -1533,6 +1630,7 @@ export function createApp(deps = {}) {
 
   app.get(
     "/api/chats/export",
+    requireMinimumRole("operator"),
     asyncHandler(async (req, res) => {
       const userId = parseUserId(req.query?.userId);
       const activeChats = await store.listChats(userId, {
@@ -1580,6 +1678,7 @@ export function createApp(deps = {}) {
 
   app.post(
     "/api/chats/import",
+    requireMinimumRole("operator"),
     asyncHandler(async (req, res) => {
       assertBodyObject(req.body);
 
@@ -1600,6 +1699,7 @@ export function createApp(deps = {}) {
 
   app.get(
     "/api/backup/export",
+    requireMinimumRole("admin"),
     asyncHandler(async (_req, res) => {
       const backup = await backupService.createBackup();
       await recordAudit("backup.export", null, {
@@ -1617,6 +1717,7 @@ export function createApp(deps = {}) {
 
   app.post(
     "/api/backup/restore",
+    requireMinimumRole("admin"),
     asyncHandler(async (req, res) => {
       assertBodyObject(req.body);
       const archiveBuffer = parseBackupPayload(req.body.archiveBase64);
@@ -1658,6 +1759,7 @@ export function createApp(deps = {}) {
 
   app.post(
     "/api/storage/cleanup",
+    requireMinimumRole("admin"),
     asyncHandler(async (req, res) => {
       assertBodyObject(req.body);
       const mode = parseCleanupMode(req.body.mode);
@@ -1695,6 +1797,7 @@ export function createApp(deps = {}) {
 
   app.get(
     "/api/audit/export",
+    requireMinimumRole("admin"),
     asyncHandler(async (req, res) => {
       const filters = parseAuditFilters(req.query || {});
       const payload = await store.exportAuditLogs(filters);

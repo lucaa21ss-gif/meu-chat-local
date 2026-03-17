@@ -6,7 +6,7 @@ import { open } from "sqlite";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const defaultDbPath = path.join(__dirname, "chat.db");
-const DB_SCHEMA_VERSION = 9;
+const DB_SCHEMA_VERSION = 10;
 
 let db;
 
@@ -31,6 +31,14 @@ function safeParseJsonArray(str) {
   } catch {
     return [];
   }
+}
+
+function normalizeUserRole(role) {
+  const safeRole = String(role || "").trim().toLowerCase();
+  if (["admin", "operator", "viewer"].includes(safeRole)) {
+    return safeRole;
+  }
+  return "operator";
 }
 
 function splitDocumentIntoChunks(text, maxChunkLength = 900, overlap = 120) {
@@ -73,7 +81,8 @@ export async function initDb() {
   await db.exec("PRAGMA journal_mode = WAL;");
   await runMigrations(db);
 
-  await ensureUser("user-default", "padrao");
+  await ensureUser("user-default", "padrao", "admin");
+  await setUserRole("user-default", "admin");
   await ensureChat("default", "Conversa Principal", "user-default");
   return db;
 }
@@ -265,6 +274,15 @@ async function runMigrations(connection) {
         `);
       },
     },
+    {
+      version: 10,
+      up: async () => {
+        await connection.exec(`
+          ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'operator';
+          UPDATE users SET role = 'admin' WHERE id = 'user-default';
+        `);
+      },
+    },
   ];
 
   let currentVersion = await getCurrentSchemaVersion(connection);
@@ -304,12 +322,12 @@ export async function createDbSnapshot(snapshotPath) {
   await db.exec(`VACUUM INTO '${escapedTarget}'`);
 }
 
-export async function ensureUser(id, name) {
+export async function ensureUser(id, name, role = "operator") {
   await initDb();
   await db.run(
-    `INSERT INTO users (id, name) VALUES (?, ?)
+    `INSERT INTO users (id, name, role) VALUES (?, ?, ?)
      ON CONFLICT(id) DO NOTHING`,
-    [id, name],
+    [id, name, normalizeUserRole(role)],
   );
 }
 
@@ -319,7 +337,8 @@ export async function listUsers() {
     `SELECT id, name,
             default_system_prompt AS defaultSystemPrompt,
             theme,
-          storage_limit_mb AS storageLimitMb,
+            role,
+            storage_limit_mb AS storageLimitMb,
             created_at AS createdAt,
             updated_at AS updatedAt
      FROM users
@@ -327,12 +346,17 @@ export async function listUsers() {
   );
 }
 
-export async function createUser(id, name) {
+export async function createUser(id, name, role = "operator") {
   await initDb();
   const safeName = String(name || "").trim();
   if (!safeName) throw new Error("Nome do perfil obrigatorio");
+  const safeRole = normalizeUserRole(role);
   try {
-    await db.run(`INSERT INTO users (id, name) VALUES (?, ?)`, [id, safeName]);
+    await db.run(`INSERT INTO users (id, name, role) VALUES (?, ?, ?)`, [
+      id,
+      safeName,
+      safeRole,
+    ]);
   } catch (err) {
     if (String(err?.message || "").includes("UNIQUE")) {
       throw new Error("Nome de perfil ja existe");
@@ -344,6 +368,7 @@ export async function createUser(id, name) {
     name: safeName,
     defaultSystemPrompt: "",
     theme: "system",
+    role: safeRole,
     storageLimitMb: 512,
   };
 }
@@ -368,6 +393,7 @@ export async function renameUser(userId, name) {
     `SELECT id, name,
             default_system_prompt AS defaultSystemPrompt,
             theme,
+            role,
             storage_limit_mb AS storageLimitMb
      FROM users WHERE id = ?`,
     [userId],
@@ -444,13 +470,27 @@ export async function deleteUser(userId) {
   return result.changes > 0;
 }
 
+export async function setUserRole(userId, role) {
+  await initDb();
+  const safeRole = normalizeUserRole(role);
+  const result = await db.run(
+    `UPDATE users
+     SET role = ?, updated_at = CURRENT_TIMESTAMP
+     WHERE id = ?`,
+    [safeRole, userId],
+  );
+  if (!result.changes) return null;
+  return { id: userId, role: safeRole };
+}
+
 export async function getUserById(userId) {
   await initDb();
   const row = await db.get(
     `SELECT id, name,
             default_system_prompt AS defaultSystemPrompt,
             theme,
-          storage_limit_mb AS storageLimitMb,
+            role,
+            storage_limit_mb AS storageLimitMb,
             created_at AS createdAt
      FROM users WHERE id = ?`,
     [userId],

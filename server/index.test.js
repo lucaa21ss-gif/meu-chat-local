@@ -28,6 +28,29 @@ function createMockStore() {
         name: "padrao",
         defaultSystemPrompt: "",
         theme: "system",
+        role: "admin",
+        storageLimitMb: 512,
+      },
+    ],
+    [
+      "user-operator",
+      {
+        id: "user-operator",
+        name: "operador",
+        defaultSystemPrompt: "",
+        theme: "system",
+        role: "operator",
+        storageLimitMb: 512,
+      },
+    ],
+    [
+      "user-viewer",
+      {
+        id: "user-viewer",
+        name: "visualizador",
+        defaultSystemPrompt: "",
+        theme: "system",
+        role: "viewer",
         storageLimitMb: 512,
       },
     ],
@@ -48,7 +71,7 @@ function createMockStore() {
   return {
     initDb: async () => {},
     listUsers: async () => Array.from(users.values()),
-    createUser: async (id, name) => {
+    createUser: async (id, name, role = "operator") => {
       if ([...users.values()].some((u) => u.name === name)) {
         throw new Error("Nome de perfil ja existe");
       }
@@ -57,6 +80,7 @@ function createMockStore() {
         name,
         defaultSystemPrompt: "",
         theme: "system",
+        role,
         storageLimitMb: 512,
       };
       users.set(id, user);
@@ -84,8 +108,16 @@ function createMockStore() {
       return existed;
     },
     getUserById: async (userId) => users.get(userId) || null,
-    ensureUser: async (id, name) => {
-      if (!users.has(id)) users.set(id, { id, name });
+    setUserRole: async (userId, role) => {
+      if (!users.has(userId)) return null;
+      users.set(userId, {
+        ...users.get(userId),
+        role,
+      });
+      return { id: userId, role };
+    },
+    ensureUser: async (id, name, role = "operator") => {
+      if (!users.has(id)) users.set(id, { id, name, role });
     },
     listChats: async (userId, opts = {}) => {
       const { favoriteOnly = false, showArchived = false, tag = null } = opts;
@@ -1686,6 +1718,59 @@ test("acoes criticas registram auditoria automaticamente", async () => {
 
   assert.equal(logs.body.logs.length >= 1, true);
   assert.equal(logs.body.logs[0].eventType, "chat.export");
+});
+
+test("RBAC bloqueia backup para viewer e permite para admin", async () => {
+  const app = createApp({
+    chatClient: createMockChatClient(),
+    ...createMockStore(),
+    backupService: {
+      createBackup: async () => ({
+        fileName: "rbac-test.tgz",
+        sizeBytes: 10,
+        archiveBuffer: Buffer.from("ok"),
+      }),
+      restoreBackup: async () => ({ restored: true }),
+    },
+  });
+
+  await request(app)
+    .get("/api/backup/export")
+    .set("x-user-id", "user-viewer")
+    .expect(403);
+
+  await request(app)
+    .get("/api/backup/export")
+    .set("x-user-id", "user-default")
+    .expect(200);
+});
+
+test("RBAC permite tema proprio e bloqueia update de role para nao-admin", async () => {
+  const app = createApp({
+    chatClient: createMockChatClient(),
+    ...createMockStore(),
+  });
+
+  await request(app)
+    .patch("/api/users/user-viewer/theme")
+    .set("x-user-id", "user-viewer")
+    .send({ theme: "dark" })
+    .expect(200);
+
+  await request(app)
+    .patch("/api/users/user-operator/role")
+    .set("x-user-id", "user-viewer")
+    .send({ role: "admin" })
+    .expect(403);
+
+  const response = await request(app)
+    .patch("/api/users/user-operator/role")
+    .set("x-user-id", "user-default")
+    .send({ role: "viewer" })
+    .expect(200);
+
+  assert.equal(response.body.user.id, "user-operator");
+  assert.equal(response.body.user.role, "viewer");
 });
 
 test("POST /api/chat injeta prompts de perfil e conversa no payload", async () => {

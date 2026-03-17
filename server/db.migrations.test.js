@@ -20,7 +20,7 @@ test("initDb aplica migrations e define versao esperada", async () => {
     await dbModule.initDb();
 
     const version = await dbModule.getSchemaVersion();
-    assert.equal(version, 9);
+    assert.equal(version, 10);
 
     const chats = await dbModule.listChats();
     assert.equal(
@@ -47,7 +47,7 @@ test("initDb e idempotente com migrations versionadas", async () => {
     await dbModule.initDb();
 
     const version = await dbModule.getSchemaVersion();
-    assert.equal(version, 9);
+    assert.equal(version, 10);
 
     await dbModule.appendMessage("default", "user", "teste de migracao");
     const messages = await dbModule.getMessages("default");
