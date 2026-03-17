@@ -180,6 +180,8 @@ mas o fluxo recomendado e usar `http://localhost:3001` para manter API e UI na m
 - `GET /api/users`: lista perfis locais
 - `POST /api/users`: cria perfil local
 - `PATCH /api/users/:userId`: renomeia perfil local
+- `GET /api/users/:userId/ui-preferences`: consulta preferencias de UI do perfil
+- `PATCH /api/users/:userId/ui-preferences`: persiste preferencias de UI do perfil, como tema (`light`, `dark`, `system`)
 - `DELETE /api/users/:userId`: exclui perfil e seus dados
 - `POST /api/chats/:chatId/duplicate`: duplica aba com historico (suporta `userOnly: true`)
 - `PATCH /api/chats/:chatId`: renomeia aba
@@ -812,6 +814,7 @@ Checklist de atualizacao segura:
 
 - Cada perfil local possui isolamento de abas, historico e documentos RAG.
 - O perfil ativo fica salvo no navegador via `localStorage` (`chatUserId`).
+- O tema da interface tambem pode ser persistido por perfil via `GET/PATCH /api/users/:userId/ui-preferences`.
 - O perfil `padrao` existe por default e nao pode ser excluido.
 - A listagem de abas usa `GET /api/chats?userId=<perfil>`.
 

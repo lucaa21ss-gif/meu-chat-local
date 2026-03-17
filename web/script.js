@@ -192,7 +192,7 @@ function cycleThemeMode() {
 
 async function saveThemeForCurrentUser(theme) {
   if (!state.userId) return;
-  await fetchJson(`/api/users/${encodeURIComponent(state.userId)}/theme`, {
+  await fetchJson(`/api/users/${encodeURIComponent(state.userId)}/ui-preferences`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ theme }),

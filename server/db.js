@@ -443,6 +443,40 @@ export async function setUserTheme(userId, theme) {
   return { id: userId, theme: safeTheme };
 }
 
+export async function getUiPreferences(userId) {
+  await initDb();
+  const row = await db.get(
+    `SELECT id, theme FROM users WHERE id = ?`,
+    [userId],
+  );
+  if (!row) return null;
+  return { theme: row.theme || "system" };
+}
+
+export async function setUiPreferences(userId, prefs = {}) {
+  await initDb();
+  const fields = [];
+  const values = [];
+  if (prefs.theme !== undefined) {
+    const safeTheme = ["light", "dark", "system"].includes(prefs.theme) ? prefs.theme : "system";
+    fields.push("theme = ?");
+    values.push(safeTheme);
+  }
+  if (!fields.length) {
+    const row = await db.get(`SELECT id, theme FROM users WHERE id = ?`, [userId]);
+    if (!row) return null;
+    return { theme: row.theme || "system" };
+  }
+  values.push(userId);
+  const result = await db.run(
+    `UPDATE users SET ${fields.join(", ")}, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+    values,
+  );
+  if (!result.changes) return null;
+  const updated = await db.get(`SELECT id, theme FROM users WHERE id = ?`, [userId]);
+  return { theme: updated?.theme || "system" };
+}
+
 export async function setUserDefaultSystemPrompt(userId, defaultSystemPrompt) {
   await initDb();
   const safePrompt = String(defaultSystemPrompt || "").trim();

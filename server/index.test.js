@@ -587,6 +587,19 @@ function createMockStore() {
                 chats.set(chatId, { ...current, title: text.slice(0, 24) });
             }
         },
+        getUiPreferences: async (userId) => {
+            const user = users.get(userId);
+            if (!user) return null;
+            return { theme: user.theme || "system" };
+        },
+        setUiPreferences: async (userId, prefs = {}) => {
+            if (!users.has(userId)) return null;
+            const safeTheme = ["light", "dark", "system"].includes(prefs.theme)
+                ? prefs.theme
+                : "system";
+            users.set(userId, { ...users.get(userId), theme: safeTheme });
+            return { theme: safeTheme };
+        },
     };
 }
 
@@ -2151,6 +2164,71 @@ test("PATCH /api/users/:userId/theme atualiza tema do perfil", async () => {
 
     assert.equal(response.body.user.id, "user-default");
     assert.equal(response.body.user.theme, "dark");
+});
+
+test("GET /api/users/:userId/ui-preferences retorna preferencias do perfil", async () => {
+    const app = createApp({
+        chatClient: createMockChatClient(),
+        ...createMockStore(),
+    });
+
+    const response = await request(app)
+        .get("/api/users/user-default/ui-preferences")
+        .expect(200);
+
+    assert.equal(response.body.userId, "user-default");
+    assert.equal(response.body.preferences.theme, "system");
+});
+
+test("PATCH /api/users/:userId/ui-preferences atualiza tema via preferencias", async () => {
+    const app = createApp({
+        chatClient: createMockChatClient(),
+        ...createMockStore(),
+    });
+
+    const response = await request(app)
+        .patch("/api/users/user-default/ui-preferences")
+        .send({ theme: "dark" })
+        .expect(200);
+
+    assert.equal(response.body.userId, "user-default");
+    assert.equal(response.body.preferences.theme, "dark");
+});
+
+test("PATCH /api/users/:userId/ui-preferences rejeita tema invalido", async () => {
+    const app = createApp({
+        chatClient: createMockChatClient(),
+        ...createMockStore(),
+    });
+
+    await request(app)
+        .patch("/api/users/user-default/ui-preferences")
+        .send({ theme: "neon" })
+        .expect(400);
+});
+
+test("PATCH /api/users/:userId/ui-preferences rejeita chave desconhecida", async () => {
+    const app = createApp({
+        chatClient: createMockChatClient(),
+        ...createMockStore(),
+    });
+
+    await request(app)
+        .patch("/api/users/user-default/ui-preferences")
+        .send({ color: "blue" })
+        .expect(400);
+});
+
+test("GET /api/users/:userId/ui-preferences bloqueado para viewer de outro perfil", async () => {
+    const app = createApp({
+        chatClient: createMockChatClient(),
+        ...createMockStore(),
+    });
+
+    await request(app)
+        .get("/api/users/user-default/ui-preferences")
+        .set("x-user-id", "user-viewer")
+        .expect(403);
 });
 
 test("PATCH /api/users/:userId/storage-limit atualiza limite por perfil", async () => {

@@ -60,6 +60,7 @@ import {
   getUserById,
   ensureUser,
 } from "./db.js";
+import { getUiPreferences, setUiPreferences } from "./db.js";
 import {
   createBackupArchive,
   restoreBackupArchive,
@@ -364,6 +365,22 @@ function parseTheme(raw) {
     throw new HttpError(400, "Tema invalido: use light, dark ou system");
   }
   return theme;
+}
+
+function parseUiPreferences(body = {}) {
+  const prefs = {};
+  if (body.theme !== undefined) {
+    prefs.theme = parseTheme(body.theme);
+  }
+  const ALLOWED_KEYS = new Set(["theme"]);
+  const unknown = Object.keys(body).filter((k) => !ALLOWED_KEYS.has(k));
+  if (unknown.length) {
+    throw new HttpError(400, `Preferencias desconhecidas: ${unknown.join(", ")}`);
+  }
+  if (!Object.keys(prefs).length) {
+    throw new HttpError(400, "Nenhuma preferencia valida informada");
+  }
+  return prefs;
 }
 
 function parseStorageLimitMb(raw) {
@@ -3004,6 +3021,8 @@ export function createApp(deps = {}) {
     deleteUser: deps.deleteUser || deleteUser,
     getUserById: deps.getUserById || getUserById,
     ensureUser: deps.ensureUser || ensureUser,
+    getUiPreferences: deps.getUiPreferences || getUiPreferences,
+    setUiPreferences: deps.setUiPreferences || setUiPreferences,
     appendMessage: deps.appendMessage || appendMessage,
     resetChat: deps.resetChat || resetChat,
     exportChatMarkdown: deps.exportChatMarkdown || exportChatMarkdown,
@@ -3903,6 +3922,46 @@ export function createApp(deps = {}) {
         },
       });
       return res.json({ user: updated });
+    }),
+  );
+
+  app.get(
+    "/api/users/:userId/ui-preferences",
+    requireAdminOrSelf("userId"),
+    asyncHandler(async (req, res) => {
+      const userId = parseChatId(req.params.userId, "userId");
+      const prefs = await store.getUiPreferences(userId);
+      if (!prefs) throw new HttpError(404, "Perfil nao encontrado");
+      return res.json({ userId, preferences: prefs });
+    }),
+  );
+
+  app.patch(
+    "/api/users/:userId/ui-preferences",
+    requireAdminOrSelf("userId"),
+    asyncHandler(async (req, res) => {
+      assertBodyObject(req.body);
+      const actor = await resolveActor(req);
+      const userId = parseChatId(req.params.userId, "userId");
+      const prefs = parseUiPreferences(req.body);
+      const updated = await store.setUiPreferences(userId, prefs);
+      if (!updated) throw new HttpError(404, "Perfil nao encontrado");
+      if (prefs.theme !== undefined) {
+        await recordConfigVersion({
+          configKey: CONFIG_KEYS.USER_THEME,
+          targetType: "user",
+          targetId: userId,
+          value: prefs.theme,
+          actorUserId: actor.userId,
+          source: "api",
+          meta: { origin: "user.ui-preferences.patch" },
+        });
+      }
+      await recordAudit("user.ui-preferences.updated", userId, {
+        prefs,
+        actorUserId: actor.userId,
+      });
+      return res.json({ userId, preferences: updated });
     }),
   );
 
