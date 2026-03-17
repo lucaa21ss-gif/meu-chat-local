@@ -503,12 +503,12 @@ Endpoints protegidos pela fila:
 
 Variaveis de ambiente de ajuste:
 
-| Variavel                  | Padrao | Descricao                                              |
-|---------------------------|--------|--------------------------------------------------------|
-| `QUEUE_MAX_CONCURRENCY`   | `4`    | Maximo de tarefas em execucao simultanea (1-32)        |
-| `QUEUE_MAX_SIZE`          | `100`  | Tamanho maximo da fila de espera (1-500)               |
-| `QUEUE_TASK_TIMEOUT_MS`   | `30000`| Timeout por tarefa em ms (5000-120000)                 |
-| `QUEUE_REJECT_POLICY`     | `reject`| Politica quando a fila esta cheia (`reject`)          |
+| Variavel                | Padrao   | Descricao                                       |
+| ----------------------- | -------- | ----------------------------------------------- |
+| `QUEUE_MAX_CONCURRENCY` | `4`      | Maximo de tarefas em execucao simultanea (1-32) |
+| `QUEUE_MAX_SIZE`        | `100`    | Tamanho maximo da fila de espera (1-500)        |
+| `QUEUE_TASK_TIMEOUT_MS` | `30000`  | Timeout por tarefa em ms (5000-120000)          |
+| `QUEUE_REJECT_POLICY`   | `reject` | Politica quando a fila esta cheia (`reject`)    |
 
 Observabilidade:
 
@@ -535,10 +535,10 @@ Governanca de configuracao com baseline versionado e deteccao automatica de drif
 
 ### Endpoints
 
-| Metodo | Rota                   | Role minima | Descricao                                         |
-|--------|------------------------|-------------|---------------------------------------------------|
-| GET    | `/api/config/baseline` | operator    | Retorna baseline salvo + drift atual              |
-| POST   | `/api/config/baseline` | operator    | Salva configuracao atual como novo baseline       |
+| Metodo | Rota                   | Role minima | Descricao                                   |
+| ------ | ---------------------- | ----------- | ------------------------------------------- |
+| GET    | `/api/config/baseline` | operator    | Retorna baseline salvo + drift atual        |
+| POST   | `/api/config/baseline` | operator    | Salva configuracao atual como novo baseline |
 
 ### Fluxo de revisao
 
@@ -574,6 +574,63 @@ Governanca de configuracao com baseline versionado e deteccao automatica de drif
 - `GET /api/health` — campo `baseline.status` (`ok|drift|not-configured`) com `driftedKeys` e alerta automatico quando `status === "drift"`
 - `GET /api/diagnostics/export` — snapshot completo de baseline em `payload.baseline`
 - Audit log — eventos `config.baseline.saved` e `config.baseline.reconciled` com `driftedKeys` e `actorUserId`
+
+## Aprovacao auditavel para acoes operacionais criticas
+
+Mecanismo de aprovacao previa para acoes de alto impacto. Exige que um administrador crie e aprove uma solicitacao antes de executar operacoes criticas, com janela de tempo controlada e evidencia completa no audit log.
+
+### Acoes protegidas
+
+| Acao                         | Endpoint protegido                      |
+| ---------------------------- | --------------------------------------- |
+| `backup.restore`             | `POST /api/backup/restore`              |
+| `disaster-recovery.test`     | `POST /api/disaster-recovery/test`      |
+| `incident.runbook.execute`   | `POST /api/incident/runbook/execute`    |
+| `storage.cleanup.execute`    | `POST /api/storage/cleanup` (execute)   |
+
+### Endpoints de aprovacao
+
+| Metodo | Rota                                    | Role minima | Descricao                                        |
+| ------ | --------------------------------------- | ----------- | ------------------------------------------------ |
+| GET    | `/api/approvals`                        | operator    | Lista solicitacoes (filtros: status, page, limit)|
+| POST   | `/api/approvals`                        | operator    | Cria solicitacao de aprovacao                    |
+| POST   | `/api/approvals/:approvalId/decision`   | admin       | Aprova ou nega solicitacao                       |
+
+### Fluxo de uso
+
+1. **Solicitar aprovacao**: `POST /api/approvals` com `action`, `reason` e `windowMinutes` (1-1440).
+2. **Aprovar**: `POST /api/approvals/:id/decision` com `decision: "approve"`. O aprovador registra `approverNote` opcional.
+3. **Executar**: Envie `approvalId` no body do endpoint protegido. A aprovacao e consumida uma unica vez.
+4. **Auditoria**: Cada etapa (criacao, decisao, consumo, bloqueio) gera entrada no audit log com `requestedBy`, `approvedBy`, `action`, `windowEndAt`.
+
+### Exemplo
+
+```bash
+# Criar solicitacao
+curl -s -X POST http://localhost:3000/api/approvals \
+  -H "Content-Type: application/json" \
+  -H "x-user-id: user-operator" \
+  -d '{"action":"backup.restore","reason":"Restauracao de emergencia apos falha","windowMinutes":30}'
+
+# Aprovar (como admin)
+curl -s -X POST http://localhost:3000/api/approvals/<approvalId>/decision \
+  -H "Content-Type: application/json" \
+  -H "x-user-id: user-default" \
+  -d '{"decision":"approve","approverNote":"Confirmado com oncall"}'
+
+# Executar acao protegida
+curl -s -X POST http://localhost:3000/api/backup/restore \
+  -H "Content-Type: application/json" \
+  -d '{"archiveBase64":"...","passphrase":"...","approvalId":"<approvalId>"}'
+```
+
+### Regras de negocio
+
+- Aprovacao deve estar com `status === "approved"` e dentro da janela de tempo (`windowEndAt`)
+- Aprovacao e consumida atomicamente — nao pode ser reutilizada
+- Rejeicao ou expiracao retorna HTTP 403/410 e registra `approval.blocked` no audit log
+- O solicitante nao pode ser o mesmo que aprova
+- Aprovacoes ficam persistidas em `server/artifacts/approvals/operational-approvals.json`
 
 ## Teste automatizado de restauração de desastre (DR)
 

@@ -1,5 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFile as fsReadFile, writeFile as fsWriteFile } from "node:fs/promises";
+import path from "node:path";
 import request from "supertest";
 import { createApp } from "./index.js";
 import { createRoleLimiterQueue } from "./rateLimiter.js";
@@ -1562,6 +1564,7 @@ test("POST /api/disaster-recovery/test executa cenário e retorna RTO/status fin
     const app = createApp({
         chatClient: createMockChatClient(),
         ...createMockStore(),
+        approvalService: { consume: async () => ({ id: "mock", status: "consumed", action: "disaster-recovery.test" }), createRequest: async (d) => d, decide: async (d) => d, list: async () => ({ items: [], page: 1, limit: 20, total: 0, totalPages: 1 }) },
         disasterRecoveryService: {
             runScenario: async () => ({
                 ok: true,
@@ -1582,7 +1585,7 @@ test("POST /api/disaster-recovery/test executa cenário e retorna RTO/status fin
     const response = await request(app)
         .post("/api/disaster-recovery/test")
         .set("x-user-id", "user-default")
-        .send({ scenarioId: "dr-test-ok" })
+        .send({ scenarioId: "dr-test-ok", approvalId: "mock-approval-id" })
         .expect(200);
 
     assert.equal(response.body.ok, true);
@@ -1598,6 +1601,7 @@ test("POST /api/disaster-recovery/test registra falha de restauracao", async () 
     const app = createApp({
         chatClient: createMockChatClient(),
         ...createMockStore(),
+        approvalService: { consume: async () => ({ id: "mock", status: "consumed", action: "disaster-recovery.test" }), createRequest: async (d) => d, decide: async (d) => d, list: async () => ({ items: [], page: 1, limit: 20, total: 0, totalPages: 1 }) },
         disasterRecoveryService: {
             runScenario: async () => ({
                 ok: false,
@@ -1619,7 +1623,7 @@ test("POST /api/disaster-recovery/test registra falha de restauracao", async () 
     const response = await request(app)
         .post("/api/disaster-recovery/test")
         .set("x-user-id", "user-default")
-        .send({ scenarioId: "dr-test-fail" })
+        .send({ scenarioId: "dr-test-fail", approvalId: "mock-approval-id" })
         .expect(200);
 
     assert.equal(response.body.ok, false);
@@ -1842,6 +1846,7 @@ test("POST /api/backup/restore restaura backup valido", async () => {
     const app = createApp({
         chatClient: createMockChatClient(),
         ...createMockStore(),
+        approvalService: { consume: async () => ({ id: "mock", status: "consumed", action: "backup.restore" }), createRequest: async (d) => d, decide: async (d) => d, list: async () => ({ items: [], page: 1, limit: 20, total: 0, totalPages: 1 }) },
         backupService: {
             createBackup: async () => ({
                 fileName: "x.tgz",
@@ -1858,7 +1863,7 @@ test("POST /api/backup/restore restaura backup valido", async () => {
     const payload = Buffer.from("arquivo-valido").toString("base64");
     const response = await request(app)
         .post("/api/backup/restore")
-        .send({ archiveBase64: payload, passphrase: "senha-super-segura" })
+        .send({ archiveBase64: payload, passphrase: "senha-super-segura", approvalId: "mock-approval-id" })
         .expect(200);
 
     assert.equal(response.body.ok, true);
@@ -1872,6 +1877,7 @@ test("POST /api/backup/restore retorna 400 para passphrase invalida", async () =
     const app = createApp({
         chatClient: createMockChatClient(),
         ...createMockStore(),
+        approvalService: { consume: async () => ({ id: "mock", status: "consumed", action: "backup.restore" }), createRequest: async (d) => d, decide: async (d) => d, list: async () => ({ items: [], page: 1, limit: 20, total: 0, totalPages: 1 }) },
         backupService: {
             createBackup: async () => ({
                 fileName: "x.tgz",
@@ -1886,7 +1892,7 @@ test("POST /api/backup/restore retorna 400 para passphrase invalida", async () =
     const payload = Buffer.from("arquivo-valido").toString("base64");
     const response = await request(app)
         .post("/api/backup/restore")
-        .send({ archiveBase64: payload, passphrase: "senha-super-segura" })
+        .send({ archiveBase64: payload, passphrase: "senha-super-segura", approvalId: "mock-approval-id" })
         .expect(400);
 
     assert.equal(response.body.error, "Passphrase invalida para backup criptografado");
@@ -1915,6 +1921,7 @@ test("POST /api/backup/restore rejeita passphrase curta", async () => {
     const app = createApp({
         chatClient: createMockChatClient(),
         ...createMockStore(),
+        approvalService: { consume: async () => ({ id: "mock", status: "consumed", action: "backup.restore" }), createRequest: async (d) => d, decide: async (d) => d, list: async () => ({ items: [], page: 1, limit: 20, total: 0, totalPages: 1 }) },
         backupService: {
             createBackup: async () => ({
                 fileName: "x.tgz",
@@ -1927,7 +1934,7 @@ test("POST /api/backup/restore rejeita passphrase curta", async () => {
     const payload = Buffer.from("arquivo-valido").toString("base64");
     const response = await request(app)
         .post("/api/backup/restore")
-        .send({ archiveBase64: payload, passphrase: "123" })
+        .send({ archiveBase64: payload, passphrase: "123", approvalId: "mock-approval-id" })
         .expect(400);
 
     assert.equal(response.body.error.includes("ao menos 8"), true);
@@ -2199,6 +2206,7 @@ test("POST /api/storage/cleanup dry-run e execute", async () => {
     const app = createApp({
         chatClient: createMockChatClient(),
         ...createMockStore(),
+        approvalService: { consume: async () => ({ id: "mock", status: "consumed", action: "storage.cleanup.execute" }), createRequest: async (d) => d, decide: async (d) => d, list: async () => ({ items: [], page: 1, limit: 20, total: 0, totalPages: 1 }) },
         storageService: {
             getUsage: async () => ({
                 dbBytes: 0,
@@ -2245,6 +2253,7 @@ test("POST /api/storage/cleanup dry-run e execute", async () => {
             target: "backups",
             olderThanDays: 15,
             maxDeleteMb: 100,
+            approvalId: "mock-approval-id",
         })
         .expect(200);
 
@@ -2346,6 +2355,7 @@ test("POST /api/incident/runbook/execute executa triagem+mitigacao e registra ev
     const app = createApp({
         chatClient: createMockChatClient(),
         ...createMockStore(),
+        approvalService: { consume: async () => ({ id: "mock", status: "consumed", action: "incident.runbook.execute" }), createRequest: async (d) => d, decide: async (d) => d, list: async () => ({ items: [], page: 1, limit: 20, total: 0, totalPages: 1 }) },
         healthProviders: {
             checkDb: async () => ({ status: "healthy", latencyMs: 2 }),
             checkModel: async () => ({
@@ -2371,6 +2381,7 @@ test("POST /api/incident/runbook/execute executa triagem+mitigacao e registra ev
             runbookType: "model-offline",
             mode: "execute",
             owner: "oncall-local",
+            approvalId: "mock-approval-id",
         })
         .expect(200);
 
@@ -2396,18 +2407,19 @@ test("POST /api/incident/runbook/execute com rollback retorna estado para normal
     const app = createApp({
         chatClient: createMockChatClient(),
         ...createMockStore(),
+        approvalService: { consume: async () => ({ id: "mock", status: "consumed", action: "incident.runbook.execute" }), createRequest: async (d) => d, decide: async (d) => d, list: async () => ({ items: [], page: 1, limit: 20, total: 0, totalPages: 1 }) },
     });
 
     await request(app)
         .post("/api/incident/runbook/execute")
         .set("x-user-id", "user-default")
-        .send({ runbookType: "db-degraded", mode: "execute" })
+        .send({ runbookType: "db-degraded", mode: "execute", approvalId: "mock-approval-id" })
         .expect(200);
 
     const rollback = await request(app)
         .post("/api/incident/runbook/execute")
         .set("x-user-id", "user-default")
-        .send({ runbookType: "db-degraded", mode: "rollback" })
+        .send({ runbookType: "db-degraded", mode: "rollback", approvalId: "mock-approval-id" })
         .expect(200);
 
     assert.equal(rollback.body.ok, true);
@@ -3131,6 +3143,7 @@ test("seguranca: backup restore rejeita base64 malformado", async () => {
     const app = createApp({
         chatClient: createMockChatClient(),
         ...createMockStore(),
+        approvalService: { consume: async () => ({ id: "mock", status: "consumed", action: "backup.restore" }), createRequest: async (d) => d, decide: async (d) => d, list: async () => ({ items: [], page: 1, limit: 20, total: 0, totalPages: 1 }) },
         backupService: {
             createBackup: async () => ({
                 fileName: "x.tgz",
@@ -3142,7 +3155,7 @@ test("seguranca: backup restore rejeita base64 malformado", async () => {
 
     const response = await request(app)
         .post("/api/backup/restore")
-        .send({ archiveBase64: "@@@###" })
+        .send({ archiveBase64: "@@@###", approvalId: "mock-approval-id" })
         .expect(400);
 
     assert.equal(response.body.error, "Arquivo de backup invalido");
@@ -3209,159 +3222,300 @@ test("upload policy: bloqueios de upload ficam registrados no audit log", async 
     assert.equal(logs.body.logs[0].eventType, "upload.blocked");
     assert.equal(logs.body.logs[0].meta.route, "/api/chats/:chatId/rag/documents");
 
-test("queue service: metricas aparecem em /api/health", async () => {
-    const app = createApp({
-        chatClient: createMockChatClient(),
-        ...createMockStore(),
-        healthProviders: {
-            checkDb: async () => ({ status: "healthy", latencyMs: 1 }),
-            checkModel: async () => ({ status: "healthy", latencyMs: 1, ollama: "online" }),
-            checkDisk: async () => ({ status: "healthy", latencyMs: 1, freePercent: 50 }),
-        },
+    test("queue service: metricas aparecem em /api/health", async () => {
+        const app = createApp({
+            chatClient: createMockChatClient(),
+            ...createMockStore(),
+            healthProviders: {
+                checkDb: async () => ({ status: "healthy", latencyMs: 1 }),
+                checkModel: async () => ({ status: "healthy", latencyMs: 1, ollama: "online" }),
+                checkDisk: async () => ({ status: "healthy", latencyMs: 1, freePercent: 50 }),
+            },
+        });
+
+        const res = await request(app).get("/api/health").expect(200);
+
+        assert.ok(res.body.queue, "queue deve estar no /api/health");
+        assert.equal(res.body.queue.activeCount, 0);
+        assert.equal(res.body.queue.queuedCount, 0);
+        assert.ok("maxConcurrency" in res.body.queue);
+        assert.ok("maxQueueSize" in res.body.queue);
     });
 
-    const res = await request(app).get("/api/health").expect(200);
+    test("queue service: metricas aparecem em /api/diagnostics/export", async () => {
+        const mockStorageService = {
+            getUsage: async () => ({
+                dbBytes: 1024,
+                uploadsBytes: 2048,
+                documentsBytes: 512,
+                backupsBytes: 256,
+                totalBytes: 3840,
+            }),
+            cleanup: async () => ({ mode: "dry-run", files: [], filesCount: 0, estimatedFreedBytes: 0 }),
+        };
 
-    assert.ok(res.body.queue, "queue deve estar no /api/health");
-    assert.equal(res.body.queue.activeCount, 0);
-    assert.equal(res.body.queue.queuedCount, 0);
-    assert.ok("maxConcurrency" in res.body.queue);
-    assert.ok("maxQueueSize" in res.body.queue);
-});
+        const app = createApp({
+            chatClient: createMockChatClient(),
+            ...createMockStore(),
+            storageService: mockStorageService,
+            healthProviders: {
+                checkDb: async () => ({ status: "healthy", latencyMs: 1 }),
+                checkModel: async () => ({ status: "healthy", latencyMs: 1, ollama: "online" }),
+                checkDisk: async () => ({ status: "healthy", latencyMs: 1, freePercent: 50 }),
+            },
+        });
 
-test("queue service: metricas aparecem em /api/diagnostics/export", async () => {
-    const mockStorageService = {
-        getUsage: async () => ({
-            dbBytes: 1024,
-            uploadsBytes: 2048,
-            documentsBytes: 512,
-            backupsBytes: 256,
-            totalBytes: 3840,
-        }),
-        cleanup: async () => ({ mode: "dry-run", files: [], filesCount: 0, estimatedFreedBytes: 0 }),
-    };
+        const res = await request(app)
+            .get("/api/diagnostics/export")
+            .set("x-user-id", "user-default")
+            .expect(200);
 
-    const app = createApp({
-        chatClient: createMockChatClient(),
-        ...createMockStore(),
-        storageService: mockStorageService,
-        healthProviders: {
-            checkDb: async () => ({ status: "healthy", latencyMs: 1 }),
-            checkModel: async () => ({ status: "healthy", latencyMs: 1, ollama: "online" }),
-            checkDisk: async () => ({ status: "healthy", latencyMs: 1, freePercent: 50 }),
-        },
+        assert.ok(res.body.queue, "queue deve estar em /api/diagnostics/export");
+        assert.equal(typeof res.body.queue.activeCount, "number");
+        assert.equal(typeof res.body.queue.rejectedCount, "number");
     });
 
-    const res = await request(app)
-        .get("/api/diagnostics/export")
-        .set("x-user-id", "user-default")
-        .expect(200);
+    test("baseline: GET /api/config/baseline retorna not-configured sem baseline salvo", async () => {
+        const mockBaseline = {
+            check: async () => ({
+                hasSaved: false,
+                status: "not-configured",
+                baseline: null,
+                current: { telemetryEnabled: false, queue: {}, autoHealing: {} },
+                driftedKeys: [],
+                checkedAt: new Date().toISOString(),
+            }),
+            save: async () => ({ config: {}, savedAt: new Date().toISOString() }),
+        };
 
-    assert.ok(res.body.queue, "queue deve estar em /api/diagnostics/export");
-    assert.equal(typeof res.body.queue.activeCount, "number");
-    assert.equal(typeof res.body.queue.rejectedCount, "number");
-});
+        const app = createApp({
+            chatClient: createMockChatClient(),
+            ...createMockStore(),
+            baselineService: mockBaseline,
+            healthProviders: {
+                checkDb: async () => ({ status: "healthy", latencyMs: 1 }),
+                checkModel: async () => ({ status: "healthy", latencyMs: 1, ollama: "online" }),
+                checkDisk: async () => ({ status: "healthy", latencyMs: 1, freePercent: 50 }),
+            },
+        });
 
-test("baseline: GET /api/config/baseline retorna not-configured sem baseline salvo", async () => {
-    const mockBaseline = {
-        check: async () => ({
-            hasSaved: false,
-            status: "not-configured",
-            baseline: null,
-            current: { telemetryEnabled: false, queue: {}, autoHealing: {} },
-            driftedKeys: [],
-            checkedAt: new Date().toISOString(),
-        }),
-        save: async () => ({ config: {}, savedAt: new Date().toISOString() }),
-    };
+        const res = await request(app)
+            .get("/api/config/baseline")
+            .set("x-user-id", "user-default")
+            .expect(200);
 
-    const app = createApp({
-        chatClient: createMockChatClient(),
-        ...createMockStore(),
-        baselineService: mockBaseline,
-        healthProviders: {
-            checkDb: async () => ({ status: "healthy", latencyMs: 1 }),
-            checkModel: async () => ({ status: "healthy", latencyMs: 1, ollama: "online" }),
-            checkDisk: async () => ({ status: "healthy", latencyMs: 1, freePercent: 50 }),
-        },
+        assert.equal(res.body.status, "not-configured");
+        assert.equal(res.body.hasSaved, false);
+        assert.ok(Array.isArray(res.body.driftedKeys));
     });
 
-    const res = await request(app)
-        .get("/api/config/baseline")
-        .set("x-user-id", "user-default")
-        .expect(200);
+    test("baseline: POST /api/config/baseline salva e retorna ok", async () => {
+        const savedConfig = { telemetryEnabled: false, queue: { maxConcurrency: 4 }, autoHealing: { enabled: false } };
+        const mockBaseline = {
+            check: async () => ({
+                hasSaved: false,
+                status: "not-configured",
+                baseline: null,
+                current: savedConfig,
+                driftedKeys: [],
+                checkedAt: new Date().toISOString(),
+            }),
+            save: async () => ({ config: savedConfig, savedAt: new Date().toISOString() }),
+        };
 
-    assert.equal(res.body.status, "not-configured");
-    assert.equal(res.body.hasSaved, false);
-    assert.ok(Array.isArray(res.body.driftedKeys));
-});
+        const app = createApp({
+            chatClient: createMockChatClient(),
+            ...createMockStore(),
+            baselineService: mockBaseline,
+            healthProviders: {
+                checkDb: async () => ({ status: "healthy", latencyMs: 1 }),
+                checkModel: async () => ({ status: "healthy", latencyMs: 1, ollama: "online" }),
+                checkDisk: async () => ({ status: "healthy", latencyMs: 1, freePercent: 50 }),
+            },
+        });
 
-test("baseline: POST /api/config/baseline salva e retorna ok", async () => {
-    const savedConfig = { telemetryEnabled: false, queue: { maxConcurrency: 4 }, autoHealing: { enabled: false } };
-    const mockBaseline = {
-        check: async () => ({
-            hasSaved: false,
-            status: "not-configured",
-            baseline: null,
-            current: savedConfig,
-            driftedKeys: [],
-            checkedAt: new Date().toISOString(),
-        }),
-        save: async () => ({ config: savedConfig, savedAt: new Date().toISOString() }),
-    };
+        const res = await request(app)
+            .post("/api/config/baseline")
+            .set("x-user-id", "user-default")
+            .expect(200);
 
-    const app = createApp({
-        chatClient: createMockChatClient(),
-        ...createMockStore(),
-        baselineService: mockBaseline,
-        healthProviders: {
-            checkDb: async () => ({ status: "healthy", latencyMs: 1 }),
-            checkModel: async () => ({ status: "healthy", latencyMs: 1, ollama: "online" }),
-            checkDisk: async () => ({ status: "healthy", latencyMs: 1, freePercent: 50 }),
-        },
+        assert.equal(res.body.ok, true);
+        assert.equal(res.body.reconciled, false);
+        assert.ok(res.body.baseline);
+        assert.ok(res.body.savedAt);
     });
 
-    const res = await request(app)
-        .post("/api/config/baseline")
-        .set("x-user-id", "user-default")
-        .expect(200);
+    test("baseline: drift aparece em /api/health como alerta", async () => {
+        const mockBaseline = {
+            check: async () => ({
+                hasSaved: true,
+                status: "drift",
+                baseline: { telemetryEnabled: false },
+                current: { telemetryEnabled: true },
+                driftedKeys: ["telemetryEnabled"],
+                savedAt: new Date().toISOString(),
+                checkedAt: new Date().toISOString(),
+            }),
+            save: async () => ({ config: {}, savedAt: new Date().toISOString() }),
+        };
 
-    assert.equal(res.body.ok, true);
-    assert.equal(res.body.reconciled, false);
-    assert.ok(res.body.baseline);
-    assert.ok(res.body.savedAt);
-});
+        const app = createApp({
+            chatClient: createMockChatClient(),
+            ...createMockStore(),
+            baselineService: mockBaseline,
+            healthProviders: {
+                checkDb: async () => ({ status: "healthy", latencyMs: 1 }),
+                checkModel: async () => ({ status: "healthy", latencyMs: 1, ollama: "online" }),
+                checkDisk: async () => ({ status: "healthy", latencyMs: 1, freePercent: 50 }),
+            },
+        });
 
-test("baseline: drift aparece em /api/health como alerta", async () => {
-    const mockBaseline = {
-        check: async () => ({
-            hasSaved: true,
-            status: "drift",
-            baseline: { telemetryEnabled: false },
-            current: { telemetryEnabled: true },
-            driftedKeys: ["telemetryEnabled"],
-            savedAt: new Date().toISOString(),
-            checkedAt: new Date().toISOString(),
-        }),
-        save: async () => ({ config: {}, savedAt: new Date().toISOString() }),
-    };
+        const res = await request(app).get("/api/health").expect(200);
 
-    const app = createApp({
-        chatClient: createMockChatClient(),
-        ...createMockStore(),
-        baselineService: mockBaseline,
-        healthProviders: {
-            checkDb: async () => ({ status: "healthy", latencyMs: 1 }),
-            checkModel: async () => ({ status: "healthy", latencyMs: 1, ollama: "online" }),
-            checkDisk: async () => ({ status: "healthy", latencyMs: 1, freePercent: 50 }),
-        },
+        assert.equal(res.body.baseline.status, "drift");
+        assert.ok(res.body.baseline.driftedKeys.includes("telemetryEnabled"));
+        const alertMsg = res.body.alerts.find((a) => a.includes("Drift de configuracao"));
+        assert.ok(alertMsg, "alerta de drift deve aparecer em alerts");
     });
 
-    const res = await request(app).get("/api/health").expect(200);
+    test("approval: backup restore bloqueado sem aprovacao valida", async () => {
+        let restoreCalled = false;
+        const app = createApp({
+            chatClient: createMockChatClient(),
+            ...createMockStore(),
+            backupService: {
+                createBackup: async () => ({ archiveBuffer: Buffer.from("x"), fileName: "backup.tgz", sizeBytes: 1 }),
+                restoreBackup: async () => {
+                    restoreCalled = true;
+                    return { ok: true, encrypted: false };
+                },
+                validateRecentBackups: async () => ({ checkedAt: new Date().toISOString(), limit: 1, status: "ok", items: [] }),
+            },
+        });
 
-    assert.equal(res.body.baseline.status, "drift");
-    assert.ok(res.body.baseline.driftedKeys.includes("telemetryEnabled"));
-    const alertMsg = res.body.alerts.find((a) => a.includes("Drift de configuracao"));
-    assert.ok(alertMsg, "alerta de drift deve aparecer em alerts");
-});
+        await request(app)
+            .post("/api/backup/restore")
+            .set("x-user-id", "user-default")
+            .send({
+                approvalId: "approval-invalida",
+                archiveBase64: Buffer.from("fake-backup").toString("base64"),
+            })
+            .expect(403);
+
+        assert.equal(restoreCalled, false);
+    });
+
+    test("approval: fluxo aprovado permite acao critica", async () => {
+        let restoreCalled = false;
+        const app = createApp({
+            chatClient: createMockChatClient(),
+            ...createMockStore(),
+            backupService: {
+                createBackup: async () => ({ archiveBuffer: Buffer.from("x"), fileName: "backup.tgz", sizeBytes: 1 }),
+                restoreBackup: async () => {
+                    restoreCalled = true;
+                    return { ok: true, encrypted: false };
+                },
+                validateRecentBackups: async () => ({ checkedAt: new Date().toISOString(), limit: 1, status: "ok", items: [] }),
+            },
+        });
+
+        const reqApproval = await request(app)
+            .post("/api/approvals")
+            .set("x-user-id", "user-operator")
+            .send({ action: "backup.restore", reason: "janela de manutencao", windowMinutes: 10 })
+            .expect(201);
+
+        const approvalId = reqApproval.body.approval.id;
+
+        await request(app)
+            .post(`/api/approvals/${approvalId}/decision`)
+            .set("x-user-id", "user-default")
+            .send({ decision: "approve", reason: "aprovado para manutencao" })
+            .expect(200);
+
+        await request(app)
+            .post("/api/backup/restore")
+            .set("x-user-id", "user-default")
+            .send({
+                approvalId,
+                archiveBase64: Buffer.from("fake-backup").toString("base64"),
+            })
+            .expect(200);
+
+        assert.equal(restoreCalled, true);
+    });
+
+    test("approval: fluxo negado e expirado bloqueiam acao critica", async () => {
+        const app = createApp({
+            chatClient: createMockChatClient(),
+            ...createMockStore(),
+            backupService: {
+                createBackup: async () => ({ archiveBuffer: Buffer.from("x"), fileName: "backup.tgz", sizeBytes: 1 }),
+                restoreBackup: async () => ({ ok: true, encrypted: false }),
+                validateRecentBackups: async () => ({ checkedAt: new Date().toISOString(), limit: 1, status: "ok", items: [] }),
+            },
+        });
+
+        const deniedReq = await request(app)
+            .post("/api/approvals")
+            .set("x-user-id", "user-operator")
+            .send({ action: "backup.restore", reason: "restauracao planejada", windowMinutes: 10 })
+            .expect(201);
+        const deniedId = deniedReq.body.approval.id;
+
+        await request(app)
+            .post(`/api/approvals/${deniedId}/decision`)
+            .set("x-user-id", "user-default")
+            .send({ decision: "deny", reason: "sem justificativa suficiente" })
+            .expect(200);
+
+        await request(app)
+            .post("/api/backup/restore")
+            .set("x-user-id", "user-default")
+            .send({
+                approvalId: deniedId,
+                archiveBase64: Buffer.from("fake-backup").toString("base64"),
+            })
+            .expect(403);
+
+        const expiredReq = await request(app)
+            .post("/api/approvals")
+            .set("x-user-id", "user-operator")
+            .send({ action: "backup.restore", reason: "restauracao emergencial", windowMinutes: 1 })
+            .expect(201);
+        const expiredId = expiredReq.body.approval.id;
+
+        await request(app)
+            .post(`/api/approvals/${expiredId}/decision`)
+            .set("x-user-id", "user-default")
+            .send({ decision: "approve", reason: "aprovado" })
+            .expect(200);
+
+        const approvalsFile = path.join(process.cwd(), "artifacts", "approvals", "operational-approvals.json");
+        const raw = await fsReadFile(approvalsFile, "utf-8");
+        const parsed = JSON.parse(raw);
+        const updated = {
+            ...parsed,
+            approvals: parsed.approvals.map((item) =>
+                item.id === expiredId
+                    ? {
+                        ...item,
+                        status: "approved",
+                        windowEndAt: new Date(Date.now() - 60_000).toISOString(),
+                    }
+                    : item,
+            ),
+        };
+        await fsWriteFile(approvalsFile, JSON.stringify(updated, null, 2), "utf-8");
+
+        await request(app)
+            .post("/api/backup/restore")
+            .set("x-user-id", "user-default")
+            .send({
+                approvalId: expiredId,
+                archiveBase64: Buffer.from("fake-backup").toString("base64"),
+            })
+            .expect(410);
+    });
 });

@@ -87,6 +87,7 @@ const MAX_IMPORT_MESSAGES = 2000;
 const MAX_BACKUP_IMPORT_BYTES = 25 * 1024 * 1024;
 const MAX_BACKUP_PASSPHRASE_LENGTH = 128;
 const MIN_BACKUP_PASSPHRASE_LENGTH = 8;
+const MAX_APPROVAL_REASON_LENGTH = 280;
 const MAX_USER_NAME_LENGTH = 40;
 const MAX_SYSTEM_PROMPT_LENGTH = 2500;
 const USER_ROLES = ["admin", "operator", "viewer"];
@@ -137,6 +138,12 @@ const INCIDENT_RUNBOOK_TYPES = {
   },
 };
 const AUTO_HEALING_POLICIES = ["model-offline", "db-lock"];
+const OPERATIONAL_APPROVAL_ACTIONS = [
+  "backup.restore",
+  "disaster-recovery.test",
+  "incident.runbook.execute",
+  "storage.cleanup.execute",
+];
 const CONFIG_KEYS = {
   CHAT_SYSTEM_PROMPT: "chat.systemPrompt",
   USER_DEFAULT_SYSTEM_PROMPT: "user.defaultSystemPrompt",
@@ -410,6 +417,67 @@ function parseCleanupPreserveValidatedBackups(raw) {
     throw new HttpError(400, "preserveValidatedBackups invalido (use entre 0 e 20)");
   }
   return parsed;
+}
+
+function parseOperationalApprovalAction(raw) {
+  const value = String(raw ?? "")
+    .trim()
+    .toLowerCase();
+  if (!OPERATIONAL_APPROVAL_ACTIONS.includes(value)) {
+    throw new HttpError(
+      400,
+      `action invalida: use ${OPERATIONAL_APPROVAL_ACTIONS.join(", ")}`,
+    );
+  }
+  return value;
+}
+
+function parseOperationalApprovalReason(raw, { required = true } = {}) {
+  const value = String(raw ?? "").trim();
+  if (!value && required) {
+    throw new HttpError(400, "reason obrigatorio");
+  }
+  if (value.length > MAX_APPROVAL_REASON_LENGTH) {
+    throw new HttpError(
+      400,
+      `reason muito longo (max ${MAX_APPROVAL_REASON_LENGTH})`,
+    );
+  }
+  return value || null;
+}
+
+function parseOperationalApprovalWindowMinutes(raw, fallback = 30) {
+  if (raw === undefined || raw === null || raw === "") return fallback;
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isFinite(parsed) || parsed < 1 || parsed > 1440) {
+    throw new HttpError(400, "windowMinutes invalido (use entre 1 e 1440)");
+  }
+  return parsed;
+}
+
+function parseOperationalApprovalId(raw, fieldName = "approvalId") {
+  return parseChatId(raw, fieldName);
+}
+
+function parseOperationalApprovalDecision(raw) {
+  const value = String(raw ?? "")
+    .trim()
+    .toLowerCase();
+  if (!["approve", "deny"].includes(value)) {
+    throw new HttpError(400, "decision invalida: use approve ou deny");
+  }
+  return value;
+}
+
+function parseOperationalApprovalStatus(raw) {
+  const value = String(raw ?? "all")
+    .trim()
+    .toLowerCase();
+  const allowed = ["all", "pending", "approved", "denied", "expired", "consumed"];
+  if (!allowed.includes(value)) {
+    throw new HttpError(400, `status invalido: use ${allowed.join(", ")}`);
+  }
+  return value;
 }
 
 function parseIncidentStatus(raw, fallback = "normal") {
@@ -2033,8 +2101,8 @@ function createQueueService({
     const avgWaitTimeMs =
       waitTimes.length > 0
         ? Math.round(
-            waitTimes.reduce((sum, t) => sum + t, 0) / waitTimes.length,
-          )
+          waitTimes.reduce((sum, t) => sum + t, 0) / waitTimes.length,
+        )
         : 0;
 
     return {
@@ -2154,6 +2222,183 @@ function createBaselineService({ baselinePath, getConfig }) {
   }
 
   return { load, save, check };
+}
+
+function createOperationalApprovalService({ approvalsPath, now = () => Date.now() }) {
+  async function readApprovals() {
+    try {
+      const raw = await fsReadFile(approvalsPath, "utf-8");
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed?.approvals) ? parsed.approvals : [];
+    } catch {
+      return [];
+    }
+  }
+
+  async function writeApprovals(approvals) {
+    await fsMkdir(path.dirname(approvalsPath), { recursive: true });
+    await fsWriteFile(
+      approvalsPath,
+      JSON.stringify({ approvals, updatedAt: new Date(now()).toISOString() }, null, 2),
+      "utf-8",
+    );
+  }
+
+  function applyExpiration(approvals) {
+    const nowIso = new Date(now()).toISOString();
+    let changed = false;
+    const next = approvals.map((item) => {
+      if (item.status === "approved" && item.windowEndAt && new Date(item.windowEndAt).getTime() < now()) {
+        changed = true;
+        return {
+          ...item,
+          status: "expired",
+          result: "expired",
+          updatedAt: nowIso,
+        };
+      }
+      return item;
+    });
+    return { approvals: next, changed };
+  }
+
+  async function createRequest({ action, requestedBy, reason, windowMinutes }) {
+    const approvals = await readApprovals();
+    const timestamp = now();
+    const createdAt = new Date(timestamp).toISOString();
+    const request = {
+      id: `approval-${timestamp}-${Math.random().toString(36).slice(2, 8)}`,
+      action,
+      status: "pending",
+      requestedBy,
+      requestReason: reason,
+      decisionReason: null,
+      approvedBy: null,
+      deniedBy: null,
+      consumedBy: null,
+      result: "pending",
+      windowMinutes,
+      windowStartAt: null,
+      windowEndAt: null,
+      createdAt,
+      decidedAt: null,
+      consumedAt: null,
+      updatedAt: createdAt,
+    };
+    approvals.unshift(request);
+    await writeApprovals(approvals);
+    return request;
+  }
+
+  async function decide({ approvalId, decision, decidedBy, reason }) {
+    const approvals = await readApprovals();
+    const { approvals: withExpiration, changed } = applyExpiration(approvals);
+    const idx = withExpiration.findIndex((item) => item.id === approvalId);
+    if (idx < 0) throw new HttpError(404, "Aprovacao nao encontrada");
+
+    const current = withExpiration[idx];
+    if (current.status !== "pending") {
+      throw new HttpError(409, "Aprovacao nao esta pendente");
+    }
+
+    const decidedAt = new Date(now()).toISOString();
+    if (decision === "approve") {
+      withExpiration[idx] = {
+        ...current,
+        status: "approved",
+        result: "approved",
+        approvedBy: decidedBy,
+        decisionReason: reason,
+        decidedAt,
+        windowStartAt: decidedAt,
+        windowEndAt: new Date(now() + current.windowMinutes * 60 * 1000).toISOString(),
+        updatedAt: decidedAt,
+      };
+    } else {
+      withExpiration[idx] = {
+        ...current,
+        status: "denied",
+        result: "denied",
+        deniedBy: decidedBy,
+        decisionReason: reason,
+        decidedAt,
+        updatedAt: decidedAt,
+      };
+    }
+
+    await writeApprovals(withExpiration);
+    if (changed) {
+      return withExpiration[idx];
+    }
+    return withExpiration[idx];
+  }
+
+  async function consume({ approvalId, action, actorUserId }) {
+    const approvals = await readApprovals();
+    const { approvals: withExpiration } = applyExpiration(approvals);
+    const idx = withExpiration.findIndex((item) => item.id === approvalId);
+    if (idx < 0) throw new HttpError(403, "Aprovacao operacional invalida");
+
+    const approval = withExpiration[idx];
+    if (approval.action !== action) {
+      throw new HttpError(403, "Aprovacao nao corresponde a acao solicitada");
+    }
+    if (approval.status === "expired") {
+      await writeApprovals(withExpiration);
+      throw new HttpError(410, "Aprovacao operacional expirada");
+    }
+    if (approval.status === "denied") {
+      throw new HttpError(403, "Aprovacao operacional negada");
+    }
+    if (approval.status !== "approved") {
+      throw new HttpError(403, "Aprovacao operacional pendente");
+    }
+    if (approval.consumedAt) {
+      throw new HttpError(409, "Aprovacao operacional ja consumida");
+    }
+
+    const consumedAt = new Date(now()).toISOString();
+    withExpiration[idx] = {
+      ...approval,
+      status: "consumed",
+      result: "executed",
+      consumedBy: actorUserId,
+      consumedAt,
+      updatedAt: consumedAt,
+    };
+    await writeApprovals(withExpiration);
+    return withExpiration[idx];
+  }
+
+  async function list({ status = "all", page = 1, limit = 20 } = {}) {
+    const approvals = await readApprovals();
+    const { approvals: withExpiration, changed } = applyExpiration(approvals);
+    if (changed) {
+      await writeApprovals(withExpiration);
+    }
+    const filtered =
+      status === "all"
+        ? withExpiration
+        : withExpiration.filter((item) => item.status === status);
+    const safePage = parsePositiveInt(page, 1, 1, 1000);
+    const safeLimit = parsePositiveInt(limit, 20, 1, 200);
+    const start = (safePage - 1) * safeLimit;
+    const items = filtered.slice(start, start + safeLimit);
+    return {
+      items,
+      page: safePage,
+      limit: safeLimit,
+      total: filtered.length,
+      totalPages: Math.max(1, Math.ceil(filtered.length / safeLimit)),
+    };
+  }
+
+  return {
+    createRequest,
+    decide,
+    consume,
+    list,
+  };
 }
 
 function buildCapacityEmptySummary(reason = "capacity-report-missing") {
@@ -2741,6 +2986,16 @@ export function createApp(deps = {}) {
         },
       }),
     });
+  const approvalService =
+    deps.approvalService ||
+    createOperationalApprovalService({
+      approvalsPath: path.join(
+        serverDir,
+        "artifacts",
+        "approvals",
+        "operational-approvals.json",
+      ),
+    });
 
   const roleLimits = deps.roleLimits ?? {
     admin: { windowMs: requestWindowMs, max: 300, chatMax: 100 },
@@ -2977,6 +3232,36 @@ export function createApp(deps = {}) {
     });
   }
 
+  async function requireOperationalApproval(req, { action, actorUserId }) {
+    const approvalId = parseOperationalApprovalId(
+      req.body?.approvalId || req.get("x-approval-id"),
+      "approvalId",
+    );
+    try {
+      const approval = await approvalService.consume({
+        approvalId,
+        action,
+        actorUserId,
+      });
+      await recordAudit("approval.consumed", actorUserId, {
+        approvalId: approval.id,
+        action,
+        requestedBy: approval.requestedBy,
+        approvedBy: approval.approvedBy,
+        windowStartAt: approval.windowStartAt,
+        windowEndAt: approval.windowEndAt,
+      });
+      return approval;
+    } catch (error) {
+      await recordAudit("approval.blocked", actorUserId || null, {
+        action,
+        approvalId,
+        reason: error?.message || "Aprovacao invalida",
+      });
+      throw error;
+    }
+  }
+
   app.disable("x-powered-by");
   app.use(
     helmet({
@@ -3034,6 +3319,7 @@ export function createApp(deps = {}) {
   app.locals.capacityService = capacityService;
   app.locals.queueService = queueService;
   app.locals.baselineService = baselineService;
+  app.locals.approvalService = approvalService;
 
   app.get("/healthz", (req, res) => {
     req.logger?.info({ uptime: process.uptime() }, "Liveness check");
@@ -3862,6 +4148,11 @@ export function createApp(deps = {}) {
     requireMinimumRole("admin"),
     asyncHandler(async (req, res) => {
       assertBodyObject(req.body);
+      const actor = await resolveActor(req);
+      await requireOperationalApproval(req, {
+        action: "backup.restore",
+        actorUserId: actor.userId,
+      });
       const archiveBuffer = parseBackupPayload(req.body.archiveBase64);
       const passphrase = parseBackupPassphrase(req.body.passphrase);
       let result;
@@ -3991,6 +4282,10 @@ export function createApp(deps = {}) {
     asyncHandler(async (req, res) => {
       assertBodyObject(req.body);
       const actor = await resolveActor(req);
+      await requireOperationalApproval(req, {
+        action: "disaster-recovery.test",
+        actorUserId: actor.userId,
+      });
       const scenarioId = parseDisasterScenarioId(req.body.scenarioId);
       const passphrase = parseBackupPassphrase(req.body.passphrase);
       const result = await disasterRecoveryService.runScenario({
@@ -4059,6 +4354,12 @@ export function createApp(deps = {}) {
 
       const runbookType = parseIncidentRunbookType(req.body.runbookType);
       const mode = parseIncidentRunbookMode(req.body.mode);
+      if (mode !== "dry-run") {
+        await requireOperationalApproval(req, {
+          action: "incident.runbook.execute",
+          actorUserId: actor.userId,
+        });
+      }
       const owner = parseIncidentOwner(req.body.owner) || actor.userId;
       const customSummary = parseIncidentSummary(req.body.summary);
       const customNextUpdateAt = parseIncidentNextUpdateAt(req.body.nextUpdateAt);
@@ -4240,6 +4541,14 @@ export function createApp(deps = {}) {
         req.body.preserveValidatedBackups,
       );
       const backupPassphrase = parseBackupPassphrase(req.body.backupPassphrase);
+      const actor = await resolveActor(req);
+
+      if (mode === "execute") {
+        await requireOperationalApproval(req, {
+          action: "storage.cleanup.execute",
+          actorUserId: actor.userId,
+        });
+      }
 
       const result = await storageService.cleanup({
         target,
@@ -4357,6 +4666,84 @@ export function createApp(deps = {}) {
         baseline: record.config,
         savedAt: record.savedAt,
       });
+    }),
+  );
+
+  app.get(
+    "/api/approvals",
+    requireMinimumRole("operator"),
+    asyncHandler(async (req, res) => {
+      const status = parseOperationalApprovalStatus(req.query?.status);
+      const page = parsePositiveInt(req.query?.page, 1, 1, 1000);
+      const limit = parsePositiveInt(req.query?.limit, 20, 1, 200);
+      const result = await approvalService.list({ status, page, limit });
+      return res.json({
+        approvals: result.items,
+        pagination: {
+          page: result.page,
+          limit: result.limit,
+          total: result.total,
+          totalPages: result.totalPages,
+        },
+      });
+    }),
+  );
+
+  app.post(
+    "/api/approvals",
+    requireMinimumRole("operator"),
+    asyncHandler(async (req, res) => {
+      assertBodyObject(req.body);
+      const actor = await resolveActor(req);
+      const action = parseOperationalApprovalAction(req.body.action);
+      const reason = parseOperationalApprovalReason(req.body.reason, {
+        required: true,
+      });
+      const windowMinutes = parseOperationalApprovalWindowMinutes(
+        req.body.windowMinutes,
+        30,
+      );
+      const approval = await approvalService.createRequest({
+        action,
+        requestedBy: actor.userId,
+        reason,
+        windowMinutes,
+      });
+      await recordAudit("approval.requested", actor.userId, {
+        approvalId: approval.id,
+        action,
+        windowMinutes,
+      });
+      return res.status(201).json({ approval });
+    }),
+  );
+
+  app.post(
+    "/api/approvals/:approvalId/decision",
+    requireMinimumRole("admin"),
+    asyncHandler(async (req, res) => {
+      assertBodyObject(req.body);
+      const actor = await resolveActor(req);
+      const approvalId = parseOperationalApprovalId(
+        req.params.approvalId,
+        "approvalId",
+      );
+      const decision = parseOperationalApprovalDecision(req.body.decision);
+      const reason = parseOperationalApprovalReason(req.body.reason, {
+        required: false,
+      });
+      const approval = await approvalService.decide({
+        approvalId,
+        decision,
+        decidedBy: actor.userId,
+        reason,
+      });
+      await recordAudit("approval.decision", actor.userId, {
+        approvalId,
+        action: approval.action,
+        decision,
+      });
+      return res.json({ approval });
     }),
   );
 
