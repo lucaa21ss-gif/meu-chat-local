@@ -133,6 +133,7 @@ const INCIDENT_RUNBOOK_TYPES = {
     mitigationSummary: "Mitigacao aplicada para alerta de backup",
   },
 };
+const AUTO_HEALING_POLICIES = ["model-offline", "db-lock"];
 const CONFIG_KEYS = {
   CHAT_SYSTEM_PROMPT: "chat.systemPrompt",
   USER_DEFAULT_SYSTEM_PROMPT: "user.defaultSystemPrompt",
@@ -490,6 +491,73 @@ function parseIncidentRunbookMode(raw) {
     throw new HttpError(400, "incident.mode invalido: use dry-run, execute ou rollback");
   }
   return mode;
+}
+
+function parseAutoHealingPolicy(raw) {
+  const policy = String(raw || "")
+    .trim()
+    .toLowerCase();
+  if (!AUTO_HEALING_POLICIES.includes(policy)) {
+    throw new HttpError(
+      400,
+      `autoHealing.policy invalida: use ${AUTO_HEALING_POLICIES.join(", ")}`,
+    );
+  }
+  return policy;
+}
+
+function parseAutoHealingCooldownMs(raw) {
+  if (raw === undefined || raw === null || raw === "") return undefined;
+  const value = Number.parseInt(raw, 10);
+  if (!Number.isFinite(value) || value < 0 || value > 3_600_000) {
+    throw new HttpError(400, "autoHealing.cooldownMs invalido (use entre 0 e 3600000)");
+  }
+  return value;
+}
+
+function parseAutoHealingMaxAttempts(raw) {
+  if (raw === undefined || raw === null || raw === "") return undefined;
+  const value = Number.parseInt(raw, 10);
+  if (!Number.isFinite(value) || value < 1 || value > 20) {
+    throw new HttpError(400, "autoHealing.maxAttempts invalido (use entre 1 e 20)");
+  }
+  return value;
+}
+
+function parseAutoHealingWindowMs(raw) {
+  if (raw === undefined || raw === null || raw === "") return undefined;
+  const value = Number.parseInt(raw, 10);
+  if (!Number.isFinite(value) || value < 1_000 || value > 86_400_000) {
+    throw new HttpError(400, "autoHealing.windowMs invalido (use entre 1000 e 86400000)");
+  }
+  return value;
+}
+
+function parseAutoHealingConfigPatch(body = {}) {
+  const has = (field) => Object.prototype.hasOwnProperty.call(body, field);
+  const patch = {};
+
+  if (has("enabled")) {
+    patch.enabled = parseBooleanLike(body.enabled);
+  }
+  if (has("cooldownMs")) {
+    patch.cooldownMs = parseAutoHealingCooldownMs(body.cooldownMs);
+  }
+  if (has("maxAttempts")) {
+    patch.maxAttempts = parseAutoHealingMaxAttempts(body.maxAttempts);
+  }
+  if (has("windowMs")) {
+    patch.windowMs = parseAutoHealingWindowMs(body.windowMs);
+  }
+  if (has("resetCircuit")) {
+    patch.resetCircuit = parseBooleanLike(body.resetCircuit);
+  }
+
+  if (!Object.keys(patch).length) {
+    throw new HttpError(400, "Body invalido: informe ao menos um campo de auto-healing");
+  }
+
+  return patch;
 }
 
 function parseIncidentUpdatePayload(body = {}) {
@@ -1272,6 +1340,300 @@ function createDefaultIncidentService(config = {}) {
   };
 }
 
+function createDefaultAutoHealingService({
+  healthProviders,
+  store,
+  chatClient,
+  ollamaFallbackModel,
+  ollamaMaxAttempts,
+  ollamaTimeoutMs,
+  ollamaRetryDelays,
+  state: config = {},
+} = {}) {
+  const policyState = {
+    "model-offline": {
+      lastAttemptAt: null,
+      lastOutcome: "idle",
+      lastError: null,
+      trigger: null,
+      failureTimestamps: [],
+      nextAllowedAtMs: 0,
+      details: null,
+    },
+    "db-lock": {
+      lastAttemptAt: null,
+      lastOutcome: "idle",
+      lastError: null,
+      trigger: null,
+      failureTimestamps: [],
+      nextAllowedAtMs: 0,
+      details: null,
+    },
+  };
+
+  const state = {
+    enabled: parseBooleanLike(config.enabled, false),
+    cooldownMs: parsePositiveInt(config.cooldownMs, 30_000, 0, 3_600_000),
+    maxAttempts: parsePositiveInt(config.maxAttempts, 3, 1, 20),
+    windowMs: parsePositiveInt(config.windowMs, 300_000, 1_000, 86_400_000),
+    paused: false,
+    pausedReason: null,
+    lastEvaluation: null,
+    updatedAt: new Date().toISOString(),
+  };
+
+  function pruneFailures(policy, nowMs) {
+    const threshold = nowMs - state.windowMs;
+    policyState[policy].failureTimestamps = policyState[policy].failureTimestamps.filter(
+      (ts) => ts >= threshold,
+    );
+  }
+
+  function getStatus() {
+    return {
+      enabled: state.enabled,
+      cooldownMs: state.cooldownMs,
+      maxAttempts: state.maxAttempts,
+      windowMs: state.windowMs,
+      paused: state.paused,
+      pausedReason: state.pausedReason,
+      updatedAt: state.updatedAt,
+      lastEvaluation: state.lastEvaluation,
+      policies: Object.fromEntries(
+        AUTO_HEALING_POLICIES.map((policy) => {
+          const current = policyState[policy];
+          return [
+            policy,
+            {
+              lastAttemptAt: current.lastAttemptAt,
+              lastOutcome: current.lastOutcome,
+              lastError: current.lastError,
+              trigger: current.trigger,
+              recentFailures: current.failureTimestamps.length,
+              nextAllowedAt:
+                current.nextAllowedAtMs > 0
+                  ? new Date(current.nextAllowedAtMs).toISOString()
+                  : null,
+              details: current.details,
+            },
+          ];
+        }),
+      ),
+    };
+  }
+
+  function patchConfig(patch = {}) {
+    if (patch.enabled !== undefined) state.enabled = !!patch.enabled;
+    if (patch.cooldownMs !== undefined) state.cooldownMs = patch.cooldownMs;
+    if (patch.maxAttempts !== undefined) state.maxAttempts = patch.maxAttempts;
+    if (patch.windowMs !== undefined) state.windowMs = patch.windowMs;
+    if (patch.resetCircuit) {
+      state.paused = false;
+      state.pausedReason = null;
+      for (const policy of AUTO_HEALING_POLICIES) {
+        policyState[policy].failureTimestamps = [];
+      }
+    }
+    state.updatedAt = new Date().toISOString();
+    return getStatus();
+  }
+
+  async function runPolicyAction(policy) {
+    if (policy === "model-offline") {
+      const { modelUsed, attempt } = await executeWithModelRecovery({
+        primaryModel: "meu-llama3",
+        fallbackModel: ollamaFallbackModel,
+        maxAttempts: ollamaMaxAttempts,
+        timeoutMs: Math.min(ollamaTimeoutMs, 10_000),
+        retryDelays: ollamaRetryDelays,
+        logger,
+        run: (model) =>
+          chatClient.chat({
+            model,
+            stream: false,
+            messages: [{ role: "user", content: "auto-healing ping" }],
+            options: { temperature: 0, num_ctx: 256 },
+          }),
+      });
+      return { modelUsed, attempt };
+    }
+
+    if (policy === "db-lock") {
+      await store.listChats("user-default", { limit: 1 });
+      return { dbProbe: "listChats" };
+    }
+
+    throw new HttpError(400, "Politica de auto-healing nao suportada");
+  }
+
+  async function executePolicy(policy, { trigger = "manual", healthChecks = null } = {}) {
+    const current = policyState[policy];
+    const nowMs = Date.now();
+
+    if (!state.enabled) {
+      const result = {
+        executed: false,
+        policy,
+        outcome: "skipped",
+        reason: "disabled",
+        at: new Date(nowMs).toISOString(),
+      };
+      state.lastEvaluation = result;
+      return result;
+    }
+
+    if (state.paused) {
+      const result = {
+        executed: false,
+        policy,
+        outcome: "skipped",
+        reason: "circuit-open",
+        at: new Date(nowMs).toISOString(),
+      };
+      state.lastEvaluation = result;
+      return result;
+    }
+
+    if (nowMs < current.nextAllowedAtMs) {
+      const result = {
+        executed: false,
+        policy,
+        outcome: "skipped",
+        reason: "cooldown",
+        nextAllowedAt: new Date(current.nextAllowedAtMs).toISOString(),
+        at: new Date(nowMs).toISOString(),
+      };
+      state.lastEvaluation = result;
+      return result;
+    }
+
+    pruneFailures(policy, nowMs);
+    if (current.failureTimestamps.length >= state.maxAttempts) {
+      state.paused = true;
+      state.pausedReason = `${policy}: limite de tentativas excedido`;
+      const result = {
+        executed: false,
+        policy,
+        outcome: "skipped",
+        reason: "circuit-open",
+        at: new Date(nowMs).toISOString(),
+      };
+      state.lastEvaluation = result;
+      return result;
+    }
+
+    let isFailing = true;
+    if (healthChecks) {
+      if (policy === "model-offline") {
+        isFailing = healthChecks.model?.status !== HEALTH_STATUS.HEALTHY;
+      }
+      if (policy === "db-lock") {
+        isFailing = healthChecks.db?.status !== HEALTH_STATUS.HEALTHY;
+      }
+    }
+
+    if (!isFailing) {
+      const result = {
+        executed: false,
+        policy,
+        outcome: "skipped",
+        reason: "no-failure-detected",
+        at: new Date(nowMs).toISOString(),
+      };
+      state.lastEvaluation = result;
+      return result;
+    }
+
+    current.lastAttemptAt = new Date(nowMs).toISOString();
+    current.nextAllowedAtMs = nowMs + state.cooldownMs;
+    current.trigger = trigger;
+
+    try {
+      const details = await runPolicyAction(policy);
+      current.lastOutcome = "success";
+      current.lastError = null;
+      current.details = details;
+      const result = {
+        executed: true,
+        policy,
+        outcome: "success",
+        details,
+        at: current.lastAttemptAt,
+      };
+      state.lastEvaluation = result;
+      return result;
+    } catch (error) {
+      current.failureTimestamps.push(nowMs);
+      pruneFailures(policy, nowMs);
+      current.lastOutcome = "failed";
+      current.lastError = String(error?.message || error);
+      current.details = null;
+
+      if (current.failureTimestamps.length >= state.maxAttempts) {
+        state.paused = true;
+        state.pausedReason = `${policy}: limite de tentativas excedido`;
+      }
+
+      const result = {
+        executed: true,
+        policy,
+        outcome: "failed",
+        error: current.lastError,
+        paused: state.paused,
+        at: current.lastAttemptAt,
+      };
+      state.lastEvaluation = result;
+      return result;
+    }
+  }
+
+  async function evaluate({ healthChecks = null } = {}) {
+    if (!state.enabled) {
+      const now = new Date().toISOString();
+      const result = {
+        executed: false,
+        policy: null,
+        outcome: "skipped",
+        reason: "disabled",
+        at: now,
+      };
+      state.lastEvaluation = result;
+      return result;
+    }
+
+    const checks =
+      healthChecks ||
+      {
+        db: await healthProviders.checkDb(),
+        model: await healthProviders.checkModel(),
+      };
+
+    if (checks.model?.status !== HEALTH_STATUS.HEALTHY) {
+      return executePolicy("model-offline", { trigger: "auto", healthChecks: checks });
+    }
+    if (checks.db?.status !== HEALTH_STATUS.HEALTHY) {
+      return executePolicy("db-lock", { trigger: "auto", healthChecks: checks });
+    }
+
+    const result = {
+      executed: false,
+      policy: null,
+      outcome: "skipped",
+      reason: "no-failure-detected",
+      at: new Date().toISOString(),
+    };
+    state.lastEvaluation = result;
+    return result;
+  }
+
+  return {
+    getStatus,
+    patchConfig,
+    executePolicy,
+    evaluate,
+  };
+}
+
 function buildTriageRecommendations({
   health,
   slo,
@@ -1625,6 +1987,18 @@ export function createApp(deps = {}) {
       chatClient,
       dbPath,
     });
+  const autoHealingService =
+    deps.autoHealingService ||
+    createDefaultAutoHealingService({
+      healthProviders,
+      store,
+      chatClient,
+      ollamaFallbackModel,
+      ollamaMaxAttempts,
+      ollamaTimeoutMs,
+      ollamaRetryDelays,
+      state: deps.autoHealingState,
+    });
 
   const roleLimits = deps.roleLimits ?? {
     admin: { windowMs: requestWindowMs, max: 300, chatMax: 100 },
@@ -1955,6 +2329,9 @@ export function createApp(deps = {}) {
       ]);
 
       const checks = { db, model, disk };
+      const autoHealingExecution = await autoHealingService.evaluate({
+        healthChecks: checks,
+      });
       const status = buildOverallHealthStatus(checks);
       const telemetry = getTelemetryStats().slice(0, 8).map((item) => ({
         ...item,
@@ -1973,6 +2350,14 @@ export function createApp(deps = {}) {
         alerts.push("Espaco em disco baixo");
       }
 
+      if (autoHealingExecution.executed) {
+        await recordAudit("autohealing.auto.execute", null, {
+          policy: autoHealingExecution.policy,
+          outcome: autoHealingExecution.outcome,
+          reason: autoHealingExecution.reason || null,
+        });
+      }
+
       res.json({
         status,
         generatedAt: new Date().toISOString(),
@@ -1982,6 +2367,7 @@ export function createApp(deps = {}) {
           topRoutes: telemetry,
         },
         slo,
+        autoHealing: autoHealingService.getStatus(),
         rateLimiter: roleLimiter.getMetrics(),
         alerts,
         // Compatibilidade com frontend legado.
@@ -2780,6 +3166,60 @@ export function createApp(deps = {}) {
     }),
   );
 
+  app.get(
+    "/api/auto-healing/status",
+    requireMinimumRole("operator"),
+    asyncHandler(async (_req, res) => {
+      return res.json({ autoHealing: autoHealingService.getStatus() });
+    }),
+  );
+
+  app.patch(
+    "/api/auto-healing/status",
+    requireMinimumRole("admin"),
+    asyncHandler(async (req, res) => {
+      assertBodyObject(req.body);
+      const actor = await resolveActor(req);
+      const patch = parseAutoHealingConfigPatch(req.body);
+      const updated = autoHealingService.patchConfig(patch);
+
+      await recordAudit("autohealing.config.update", actor.userId, {
+        enabled: updated.enabled,
+        cooldownMs: updated.cooldownMs,
+        maxAttempts: updated.maxAttempts,
+        windowMs: updated.windowMs,
+        resetCircuit: !!patch.resetCircuit,
+      });
+
+      return res.json({ autoHealing: updated });
+    }),
+  );
+
+  app.post(
+    "/api/auto-healing/execute",
+    requireMinimumRole("admin"),
+    asyncHandler(async (req, res) => {
+      assertBodyObject(req.body);
+      const actor = await resolveActor(req);
+      const policy = parseAutoHealingPolicy(req.body.policy);
+      const execution = await autoHealingService.executePolicy(policy, {
+        trigger: "manual",
+      });
+
+      await recordAudit("autohealing.execute", actor.userId, {
+        policy,
+        outcome: execution.outcome,
+        reason: execution.reason || null,
+      });
+
+      return res.json({
+        ok: execution.outcome !== "failed",
+        execution,
+        autoHealing: autoHealingService.getStatus(),
+      });
+    }),
+  );
+
   app.post(
     "/api/incident/runbook/execute",
     requireMinimumRole("admin"),
@@ -3270,6 +3710,7 @@ export function createApp(deps = {}) {
           enabled: isTelemetryEnabled(),
           topRoutes: telemetry,
         },
+        autoHealing: autoHealingService.getStatus(),
         storage: storageSnapshot,
         backupValidation: backupValidationSnapshot,
         slo: sloSnapshot,

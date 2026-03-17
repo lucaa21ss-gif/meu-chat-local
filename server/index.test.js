@@ -1311,6 +1311,134 @@ test("GET /api/health retorna unhealthy quando DB falha", async () => {
     const response = await request(app).get("/api/health").expect(200);
     assert.equal(response.body.status, "unhealthy");
     assert.equal(response.body.checks.db.status, "unhealthy");
+    assert.ok(response.body.autoHealing);
+});
+
+test("POST /api/auto-healing/execute usa fallback quando modelo principal falha", async () => {
+    const app = createApp({
+        ...createMockStore(),
+        autoHealingState: {
+            enabled: true,
+            cooldownMs: 0,
+            maxAttempts: 3,
+            windowMs: 60_000,
+        },
+        ollamaFallbackModel: "mistral",
+        ollamaMaxAttempts: 2,
+        healthProviders: {
+            checkDb: async () => ({ status: "healthy", latencyMs: 2 }),
+            checkModel: async () => ({
+                status: "degraded",
+                latencyMs: 10,
+                ollama: "offline",
+            }),
+            checkDisk: async () => ({
+                status: "healthy",
+                latencyMs: 1,
+                totalBytes: 1000,
+                freeBytes: 700,
+                freePercent: 70,
+            }),
+        },
+        chatClient: {
+            chat: async ({ model }) => {
+                if (model === "meu-llama3") {
+                    throw new Error("modelo principal indisponivel");
+                }
+                return { message: { content: "ok" } };
+            },
+        },
+    });
+
+    const response = await request(app)
+        .post("/api/auto-healing/execute")
+        .set("x-user-id", "user-default")
+        .send({ policy: "model-offline" })
+        .expect(200);
+
+    assert.equal(response.body.execution.executed, true);
+    assert.equal(response.body.execution.outcome, "success");
+    assert.equal(response.body.execution.details.modelUsed, "mistral");
+});
+
+test("POST /api/auto-healing/execute interrompe com circuito aberto apos falhas", async () => {
+    const app = createApp({
+        ...createMockStore(),
+        autoHealingState: {
+            enabled: true,
+            cooldownMs: 0,
+            maxAttempts: 2,
+            windowMs: 60_000,
+        },
+        healthProviders: {
+            checkDb: async () => ({ status: "healthy", latencyMs: 2 }),
+            checkModel: async () => ({
+                status: "degraded",
+                latencyMs: 10,
+                ollama: "offline",
+            }),
+            checkDisk: async () => ({
+                status: "healthy",
+                latencyMs: 1,
+                totalBytes: 1000,
+                freeBytes: 700,
+                freePercent: 70,
+            }),
+        },
+        chatClient: {
+            chat: async () => {
+                throw new Error("falha transitoria");
+            },
+        },
+    });
+
+    const first = await request(app)
+        .post("/api/auto-healing/execute")
+        .set("x-user-id", "user-default")
+        .send({ policy: "model-offline" })
+        .expect(200);
+    assert.equal(first.body.execution.outcome, "failed");
+
+    const second = await request(app)
+        .post("/api/auto-healing/execute")
+        .set("x-user-id", "user-default")
+        .send({ policy: "model-offline" })
+        .expect(200);
+    assert.equal(second.body.execution.outcome, "failed");
+
+    const third = await request(app)
+        .post("/api/auto-healing/execute")
+        .set("x-user-id", "user-default")
+        .send({ policy: "model-offline" })
+        .expect(200);
+
+    assert.equal(third.body.execution.executed, false);
+    assert.equal(third.body.execution.reason, "circuit-open");
+    assert.equal(third.body.autoHealing.paused, true);
+});
+
+test("PATCH /api/auto-healing/status atualiza configuracao e bloqueia viewer", async () => {
+    const app = createApp({
+        chatClient: createMockChatClient(),
+        ...createMockStore(),
+    });
+
+    await request(app)
+        .patch("/api/auto-healing/status")
+        .set("x-user-id", "user-viewer")
+        .send({ enabled: false })
+        .expect(403);
+
+    const updated = await request(app)
+        .patch("/api/auto-healing/status")
+        .set("x-user-id", "user-default")
+        .send({ enabled: false, cooldownMs: 2000, maxAttempts: 4, windowMs: 120000 })
+        .expect(200);
+
+    assert.equal(updated.body.autoHealing.enabled, false);
+    assert.equal(updated.body.autoHealing.cooldownMs, 2000);
+    assert.equal(updated.body.autoHealing.maxAttempts, 4);
+    assert.equal(updated.body.autoHealing.windowMs, 120000);
 });
 
 test("GET /api/slo retorna snapshot com rotas avaliadas", async () => {
@@ -2652,6 +2780,37 @@ test("diagnostics: recentErrors presente no pacote forense", async () => {
 
     const payload = JSON.parse(res.text);
     assert.ok(Array.isArray(payload.recentErrors), "recentErrors deve ser array");
+});
+
+test("diagnostics: autoHealing presente no pacote forense", async () => {
+    const app = createApp({
+        chatClient: createMockChatClient(),
+        ...createMockStore(),
+        healthProviders: {
+            checkDb: async () => ({ status: "healthy", latencyMs: 2 }),
+            checkModel: async () => ({
+                status: "healthy",
+                latencyMs: 2,
+                ollama: "online",
+            }),
+            checkDisk: async () => ({
+                status: "healthy",
+                latencyMs: 1,
+                totalBytes: 1000,
+                freeBytes: 500,
+                freePercent: 50,
+            }),
+        },
+    });
+
+    const res = await request(app)
+        .get("/api/diagnostics/export")
+        .set("x-user-id", "user-default")
+        .expect(200);
+
+    const payload = JSON.parse(res.text);
+    assert.ok(payload.autoHealing, "autoHealing deve estar presente");
+    assert.equal(typeof payload.autoHealing.enabled, "boolean");
 });
 
 test("observabilidade: GET /api/diagnostics/export bloqueado para viewer", async () => {

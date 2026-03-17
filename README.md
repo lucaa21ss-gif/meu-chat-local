@@ -198,6 +198,9 @@ mas o fluxo recomendado e usar `http://localhost:3001` para manter API e UI na m
 - `GET /api/incident/status`: consulta o estado operacional atual do incidente (operator/admin)
 - `PATCH /api/incident/status`: atualiza estado operacional do incidente (somente admin)
 - `POST /api/incident/runbook/execute`: executa runbook operacional por tipo (somente admin)
+- `GET /api/auto-healing/status`: consulta estado e politicas de auto-healing (operator/admin)
+- `PATCH /api/auto-healing/status`: atualiza modo/limites de auto-healing (somente admin)
+- `POST /api/auto-healing/execute`: executa politica de auto-healing sob demanda (somente admin)
 - `GET /api/diagnostics/export`: exporta pacote de diagnostico forense (somente admin); inclui estado de saude, SLO, storage, erros recentes, checklist de triagem e audit logs
 
 ## Backup criptografado opcional
@@ -236,6 +239,7 @@ Campos do pacote (versao 2):
 | `health`               | Status geral e checks individuais (db, model, disk)                   |
 | `rateLimiter`          | Metricas de rate limiting por perfil                                  |
 | `telemetry`            | Status de telemetria e top rotas por latencia/erros                   |
+| `autoHealing`          | Estado do auto-healing (modo, limites, circuito e ultimo resultado)   |
 | `storage`              | Consumo atual por tipo (db, uploads, documents, backups)              |
 | `backupValidation`     | Validacao recente de backups com status operacional                   |
 | `slo`                  | Snapshot de SLO com avaliacao por rota critica                        |
@@ -361,6 +365,54 @@ Rollback operacional para retornar ao estado normal:
 ```bash
 npm run incident:runbook -- --type model-offline --mode rollback
 ```
+
+## Auto-healing local para falhas transitorias
+
+Politicas disponiveis:
+
+- `model-offline`: tenta recuperar indisponibilidade momentanea do modelo usando fallback/retry seguro.
+- `db-lock`: executa sonda de banco para falhas transitorias de acesso.
+
+Regras de seguranca operacional:
+
+- cooldown configuravel entre tentativas (`cooldownMs`)
+- limite de tentativas em janela (`maxAttempts` + `windowMs`)
+- circuito aberto automatico para evitar loops infinitos
+
+Consultar estado atual:
+
+```bash
+curl -H "x-user-id: user-operator" http://localhost:3001/api/auto-healing/status
+```
+
+Habilitar e ajustar limites (admin):
+
+```bash
+curl -X PATCH http://localhost:3001/api/auto-healing/status \
+  -H "Content-Type: application/json" \
+  -H "x-user-id: user-default" \
+  -d '{
+    "enabled": true,
+    "cooldownMs": 30000,
+    "maxAttempts": 3,
+    "windowMs": 300000
+  }'
+```
+
+Executar politica manualmente (admin):
+
+```bash
+curl -X POST http://localhost:3001/api/auto-healing/execute \
+  -H "Content-Type: application/json" \
+  -H "x-user-id: user-default" \
+  -d '{"policy":"model-offline"}'
+```
+
+Eventos de auditoria gerados:
+
+- `autohealing.config.update`
+- `autohealing.execute`
+- `autohealing.auto.execute`
 
 ## Suite de caos local e recuperacao
 
