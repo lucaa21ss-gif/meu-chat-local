@@ -14,6 +14,10 @@ function resolveDbPath() {
   return process.env.CHAT_DB_PATH || defaultDbPath;
 }
 
+export function getDbPath() {
+  return resolveDbPath();
+}
+
 function titleFromText(text = "") {
   const normalized = String(text).trim().replace(/\s+/g, " ");
   if (!normalized) return "Nova conversa";
@@ -257,6 +261,16 @@ export async function closeDb() {
   if (!db) return;
   await db.close();
   db = undefined;
+}
+
+export async function createDbSnapshot(snapshotPath) {
+  await initDb();
+  const target = String(snapshotPath || "").trim();
+  if (!target) {
+    throw new Error("snapshotPath obrigatorio");
+  }
+  const escapedTarget = target.replace(/'/g, "''");
+  await db.exec(`VACUUM INTO '${escapedTarget}'`);
 }
 
 export async function ensureUser(id, name) {

@@ -9,6 +9,9 @@ import { client } from "./ollama.js";
 import logger, { createHttpLogger } from "./logger.js";
 import {
   initDb,
+  closeDb,
+  getDbPath,
+  createDbSnapshot,
   listChats,
   createChat,
   duplicateChat,
@@ -40,6 +43,10 @@ import {
   getUserById,
   ensureUser,
 } from "./db.js";
+import {
+  createBackupArchive,
+  restoreBackupArchive,
+} from "./backup.js";
 import {
   isEnabled as isTelemetryEnabled,
   setEnabled as setTelemetryEnabled,
@@ -482,6 +489,101 @@ function parseOriginList(raw) {
     .filter(Boolean);
 }
 
+function parseDirList(raw) {
+  if (Array.isArray(raw)) {
+    return raw.map((item) => String(item || "").trim()).filter(Boolean);
+  }
+  if (typeof raw !== "string") return [];
+  return raw
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function parseBackupPayload(raw) {
+  const value = String(raw ?? "").trim();
+  if (!value) {
+    throw new HttpError(400, "archiveBase64 obrigatorio");
+  }
+  const normalized = value.includes(",") ? value.split(",").pop() : value;
+  try {
+    const buffer = Buffer.from(normalized, "base64");
+    if (!buffer.length) {
+      throw new Error("arquivo vazio");
+    }
+    return buffer;
+  } catch {
+    throw new HttpError(400, "Arquivo de backup invalido");
+  }
+}
+
+async function pruneBackups(backupRoot, maxFiles) {
+  if (!Number.isFinite(maxFiles) || maxFiles < 1) return;
+  const fs = await import("node:fs/promises");
+  let entries = [];
+  try {
+    entries = await fs.readdir(backupRoot, { withFileTypes: true });
+  } catch {
+    return;
+  }
+
+  const files = await Promise.all(
+    entries
+      .filter(
+        (entry) =>
+          entry.isFile() &&
+          entry.name.startsWith("meu-chat-local-backup-") &&
+          entry.name.endsWith(".tgz"),
+      )
+      .map(async (entry) => {
+        const fullPath = path.join(backupRoot, entry.name);
+        const stat = await fs.stat(fullPath);
+        return { fullPath, mtimeMs: stat.mtimeMs };
+      }),
+  );
+
+  files
+    .sort((a, b) => b.mtimeMs - a.mtimeMs)
+    .slice(maxFiles)
+    .forEach(async (item) => {
+      try {
+        await fs.rm(item.fullPath, { force: true });
+      } catch {
+        // Ignore pruning failures.
+      }
+    });
+}
+
+function createDefaultBackupService(config = {}) {
+  const dbPath = config.dbPath || getDbPath();
+  const backupRoot =
+    config.backupRoot || path.join(path.dirname(dbPath), "backups");
+  const includeDirs = parseDirList(config.includeDirs || ["uploads", "documents"]);
+  const backupKeep = parsePositiveInt(config.backupKeep, 10, 1, 100);
+
+  return {
+    async createBackup() {
+      const info = await createBackupArchive({
+        dbPath,
+        includeDirs,
+        backupRoot,
+        createDbSnapshot,
+      });
+      await pruneBackups(backupRoot, backupKeep);
+      return info;
+    },
+    async restoreBackup(buffer) {
+      return restoreBackupArchive({
+        archiveBuffer: buffer,
+        dbPath,
+        includeDirs,
+        closeDb,
+        initDb,
+      });
+    },
+  };
+}
+
 function buildCorsOriginValidator(configuredOrigin) {
   if (configuredOrigin === true || configuredOrigin === false) {
     return configuredOrigin;
@@ -585,6 +687,18 @@ export function createApp(deps = {}) {
   const ollamaRetryDelays = Array.isArray(deps.ollamaRetryDelays)
     ? deps.ollamaRetryDelays
     : DEFAULT_RETRY_DELAYS_MS;
+  const backupService =
+    deps.backupService ||
+    createDefaultBackupService({
+      dbPath: deps.dbPath || getDbPath(),
+      backupRoot:
+        deps.backupRoot ||
+        process.env.BACKUP_DIR ||
+        path.join(serverDir, "backups"),
+      includeDirs:
+        deps.backupIncludeDirs || process.env.BACKUP_INCLUDE_DIRS || "uploads,documents",
+      backupKeep: deps.backupKeep || process.env.BACKUP_KEEP,
+    });
 
   const apiLimiter = rateLimit({
     windowMs: Number.isFinite(requestWindowMs)
@@ -612,7 +726,7 @@ export function createApp(deps = {}) {
     }),
   );
   app.use(cors({ origin: corsOrigin }));
-  app.use(express.json({ limit: process.env.JSON_LIMIT || "8mb" }));
+  app.use(express.json({ limit: process.env.JSON_LIMIT || "32mb" }));
 
   // Response compression for JSON and text
   app.use(compression());
@@ -637,6 +751,8 @@ export function createApp(deps = {}) {
   app.use("/api", apiLimiter);
   app.use("/api/chat", chatLimiter);
   app.use("/api/chat-stream", chatLimiter);
+
+  app.locals.backupService = backupService;
 
   app.get("/healthz", (req, res) => {
     req.logger?.info({ uptime: process.uptime() }, "Liveness check");
@@ -1210,6 +1326,29 @@ export function createApp(deps = {}) {
     }),
   );
 
+  app.get(
+    "/api/backup/export",
+    asyncHandler(async (_req, res) => {
+      const backup = await backupService.createBackup();
+      res.setHeader("Content-Type", "application/gzip");
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename="${backup.fileName}"`,
+      );
+      return res.send(backup.archiveBuffer);
+    }),
+  );
+
+  app.post(
+    "/api/backup/restore",
+    asyncHandler(async (req, res) => {
+      assertBodyObject(req.body);
+      const archiveBuffer = parseBackupPayload(req.body.archiveBase64);
+      const result = await backupService.restoreBackup(archiveBuffer);
+      return res.json({ ok: true, restore: result });
+    }),
+  );
+
   app.post("/api/chat-stream", async (req, res) => {
     try {
       assertBodyObject(req.body);
@@ -1355,6 +1494,33 @@ export function createApp(deps = {}) {
 export async function startServer(port = 3001) {
   await initDb();
   const app = createApp();
+  const intervalMinutes = parsePositiveInt(
+    process.env.BACKUP_INTERVAL_MINUTES,
+    0,
+    0,
+    24 * 60,
+  );
+
+  if (intervalMinutes > 0 && app?.locals?.backupService?.createBackup) {
+    const intervalMs = intervalMinutes * 60 * 1000;
+    const timer = setInterval(async () => {
+      try {
+        const backup = await app.locals.backupService.createBackup();
+        logger.info(
+          { fileName: backup.fileName, sizeBytes: backup.sizeBytes },
+          "Backup agendado concluido",
+        );
+      } catch (error) {
+        logger.error({ error: error.message }, "Falha no backup agendado");
+      }
+    }, intervalMs);
+    timer.unref();
+    logger.info(
+      { intervalMinutes },
+      "Backup agendado habilitado por BACKUP_INTERVAL_MINUTES",
+    );
+  }
+
   const server = app.listen(port, () => {
     logger.info(`API rodando em http://localhost:${port}`);
   });

@@ -1132,6 +1132,79 @@ test("GET /api/chats/:chatId/export?format=json exporta conversa estruturada", a
   assert.equal(res.body.chat.messages.length >= 1, true);
 });
 
+test("GET /api/backup/export retorna arquivo compactado", async () => {
+  const app = createApp({
+    chatClient: createMockChatClient(),
+    ...createMockStore(),
+    backupService: {
+      createBackup: async () => ({
+        fileName: "meu-chat-local-backup-test.tgz",
+        archiveBuffer: Buffer.from("backup-teste"),
+      }),
+      restoreBackup: async () => ({ restored: true }),
+    },
+  });
+
+  const response = await request(app).get("/api/backup/export").expect(200);
+  assert.equal(response.headers["content-type"].includes("application/gzip"), true);
+  assert.equal(
+    response.headers["content-disposition"].includes("meu-chat-local-backup-test.tgz"),
+    true,
+  );
+  const bodyText = Buffer.isBuffer(response.body)
+    ? response.body.toString("utf8")
+    : String(response.text || "");
+  assert.equal(bodyText.includes("backup-teste"), true);
+});
+
+test("POST /api/backup/restore restaura backup valido", async () => {
+  let capturedBuffer = null;
+  const app = createApp({
+    chatClient: createMockChatClient(),
+    ...createMockStore(),
+    backupService: {
+      createBackup: async () => ({
+        fileName: "x.tgz",
+        archiveBuffer: Buffer.from("x"),
+      }),
+      restoreBackup: async (buffer) => {
+        capturedBuffer = buffer;
+        return { restored: true };
+      },
+    },
+  });
+
+  const payload = Buffer.from("arquivo-valido").toString("base64");
+  const response = await request(app)
+    .post("/api/backup/restore")
+    .send({ archiveBase64: payload })
+    .expect(200);
+
+  assert.equal(response.body.ok, true);
+  assert.equal(response.body.restore.restored, true);
+  assert.equal(Buffer.isBuffer(capturedBuffer), true);
+  assert.equal(capturedBuffer.toString("utf8"), "arquivo-valido");
+});
+
+test("POST /api/backup/restore rejeita payload invalido", async () => {
+  const app = createApp({
+    chatClient: createMockChatClient(),
+    ...createMockStore(),
+    backupService: {
+      createBackup: async () => ({
+        fileName: "x.tgz",
+        archiveBuffer: Buffer.from("x"),
+      }),
+      restoreBackup: async () => ({ restored: true }),
+    },
+  });
+
+  await request(app)
+    .post("/api/backup/restore")
+    .send({ archiveBase64: "" })
+    .expect(400);
+});
+
 test("POST /api/chats/import importa conversa e GET lista nova aba", async () => {
   const app = createApp({
     chatClient: createMockChatClient(),
