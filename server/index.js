@@ -702,6 +702,18 @@ export function createApp(deps = {}) {
     res.status(404).json({ error: "Endpoint nao encontrado" });
   });
 
+  app.get("/app", (_req, res) => {
+    res.sendFile(path.join(webDir, "index.html"));
+  });
+
+  app.get("/produto", (_req, res) => {
+    res.sendFile(path.join(webDir, "produto.html"));
+  });
+
+  app.get("/guia", (_req, res) => {
+    res.sendFile(path.join(webDir, "guia.html"));
+  });
+
   app.get("/", (_req, res) => {
     res.sendFile(path.join(webDir, "index.html"));
   });

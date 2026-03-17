@@ -286,6 +286,22 @@ test("CORS bloqueia origem nao permitida por padrao", async () => {
   );
 });
 
+test("GET /produto e /guia entregam paginas estaticas para usuario final", async () => {
+  const app = createApp({
+    chatClient: createMockChatClient(),
+    ...createMockStore(),
+  });
+
+  const produto = await request(app).get("/produto").expect(200);
+  const guia = await request(app).get("/guia").expect(200);
+  const appPage = await request(app).get("/app").expect(200);
+
+  assert.equal(produto.text.includes("Meu Chat Local"), true);
+  assert.equal(produto.text.includes("Privacidade local"), true);
+  assert.equal(guia.text.includes("Guia rapido"), true);
+  assert.equal(appPage.text.includes("Assistente Inteligente"), true);
+});
+
 test("GET /api/chats/:chatId/search retorna matches por conteudo", async () => {
   const app = createApp({
     chatClient: createMockChatClient(),

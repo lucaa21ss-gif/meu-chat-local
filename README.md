@@ -14,6 +14,12 @@ Projeto de chat local com frontend moderno, streaming em tempo real, persistenci
 - Exportacao de conversa em Markdown
 - Recursos extras: voz (Web Speech API), anexo de imagem para modelos multimodais, copiar resposta
 
+Pontos de entrada para usuario final:
+
+- `/`: aplicacao de chat
+- `/produto`: pagina de produto com proposta de valor e recursos
+- `/guia`: guia rapido com setup, primeiros passos e troubleshooting enxuto
+
 ## Arquitetura
 
 Fluxo principal da aplicacao:
@@ -80,6 +86,8 @@ docker compose up --build
 2. Abra a UI:
 
 - [http://localhost:3001](http://localhost:3001) para acessar a interface web
+- [http://localhost:3001/produto](http://localhost:3001/produto) para a pagina de produto
+- [http://localhost:3001/guia](http://localhost:3001/guia) para o guia rapido do usuario
 - [http://localhost:3001/api/chats](http://localhost:3001/api/chats) para validar a API
 
 ## Setup local (sem Docker para frontend/server)

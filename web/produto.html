@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Meu Chat Local | Privacidade local, IA pronta para uso</title>
+    <link rel="icon" type="image/svg+xml" href="assets/logo-chat-local.svg" />
+    <link rel="stylesheet" href="output.css" />
+  </head>
+  <body class="min-h-screen bg-gradient-to-br from-amber-50 via-white to-teal-50 text-slate-900">
+    <div class="mx-auto flex min-h-screen max-w-7xl flex-col px-4 py-6 sm:px-6 lg:px-8">
+      <header class="rounded-[2rem] border border-white/70 bg-white/80 px-6 py-5 shadow-xl shadow-slate-200/60 backdrop-blur">
+        <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div class="flex items-center gap-4">
+            <div class="brand-emblem w-14 overflow-hidden rounded-2xl">
+              <img src="assets/logo-chat-local.svg" alt="Logo Meu Chat Local" class="block h-full w-full" />
+            </div>
+            <div>
+              <p class="text-xs font-semibold uppercase tracking-[0.25em] text-teal-700">Meu Chat Local</p>
+              <h1 class="mt-1 text-2xl font-black tracking-tight sm:text-3xl">IA privada, operando no seu ambiente</h1>
+            </div>
+          </div>
+          <nav class="flex flex-wrap gap-2">
+            <a href="/app" class="rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-700">Abrir app</a>
+            <a href="/guia" class="rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100">Guia rapido</a>
+          </nav>
+        </div>
+      </header>
+
+      <main class="mt-6 grid flex-1 gap-6 lg:grid-cols-[1.15fr_0.85fr]">
+        <section class="rounded-[2rem] bg-[radial-gradient(circle_at_top_left,_rgba(20,184,166,0.22),_transparent_35%),linear-gradient(135deg,_#0f172a,_#134e4a)] px-6 py-8 text-white shadow-2xl shadow-teal-900/20 sm:px-8 sm:py-10">
+          <span class="inline-flex rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.25em] text-teal-100">Pronto para times, laboratorios e uso pessoal</span>
+          <h2 class="mt-5 max-w-3xl text-4xl font-black leading-tight sm:text-5xl">Converse com modelos locais sem enviar dados para terceiros.</h2>
+          <p class="mt-4 max-w-2xl text-base leading-7 text-slate-200 sm:text-lg">
+            Meu Chat Local combina interface de produto, streaming em tempo real, historico persistente e operacao local com Ollama.
+            O resultado e uma experiencia de IA usavel no dia a dia com mais controle sobre custo, privacidade e disponibilidade.
+          </p>
+
+          <div class="mt-8 grid gap-3 sm:grid-cols-3">
+            <article class="rounded-2xl border border-white/15 bg-white/10 p-4">
+              <p class="text-xs font-semibold uppercase tracking-[0.2em] text-teal-100">Privacidade</p>
+              <p class="mt-2 text-sm text-slate-100">Historico local em SQLite, API local e integracao direta com Ollama.</p>
+            </article>
+            <article class="rounded-2xl border border-white/15 bg-white/10 p-4">
+              <p class="text-xs font-semibold uppercase tracking-[0.2em] text-teal-100">Produtividade</p>
+              <p class="mt-2 text-sm text-slate-100">Streaming, busca no historico, duplicacao de abas, exportacao e voz.</p>
+            </article>
+            <article class="rounded-2xl border border-white/15 bg-white/10 p-4">
+              <p class="text-xs font-semibold uppercase tracking-[0.2em] text-teal-100">Operacao</p>
+              <p class="mt-2 text-sm text-slate-100">Docker Compose, health checks, testes automatizados e fallback de modelo.</p>
+            </article>
+          </div>
+
+          <div class="mt-8 flex flex-wrap gap-3">
+            <a href="/app" class="rounded-2xl bg-white px-5 py-3 text-sm font-bold text-slate-900 transition hover:bg-slate-100">Entrar no chat</a>
+            <a href="/guia" class="rounded-2xl border border-white/20 px-5 py-3 text-sm font-bold text-white transition hover:bg-white/10">Ver primeiros passos</a>
+          </div>
+        </section>
+
+        <section class="grid gap-6">
+          <article class="rounded-[2rem] border border-slate-200 bg-white/85 p-6 shadow-xl shadow-slate-200/60 backdrop-blur">
+            <p class="text-xs font-semibold uppercase tracking-[0.25em] text-amber-600">Por que este produto existe</p>
+            <h3 class="mt-3 text-2xl font-black tracking-tight text-slate-900">Uma experiencia de IA local que nao parece prototipo.</h3>
+            <p class="mt-3 text-sm leading-7 text-slate-600">
+              O foco nao e apenas rodar modelo local. E permitir uso continuo: conversa com contexto, organizacao por abas,
+              exportacao, busca e onboarding para reduzir atrito na primeira sessao.
+            </p>
+          </article>
+
+          <article class="rounded-[2rem] border border-slate-200 bg-white/85 p-6 shadow-xl shadow-slate-200/60 backdrop-blur">
+            <p class="text-xs font-semibold uppercase tracking-[0.25em] text-teal-700">Recursos principais</p>
+            <ul class="mt-4 grid gap-3 text-sm leading-7 text-slate-700 sm:grid-cols-2">
+              <li class="rounded-2xl bg-slate-50 px-4 py-3">Streaming token a token para respostas mais fluidas.</li>
+              <li class="rounded-2xl bg-slate-50 px-4 py-3">Multimodal com envio de ate 4 imagens por mensagem.</li>
+              <li class="rounded-2xl bg-slate-50 px-4 py-3">Busca no historico com filtros por role, data e paginacao.</li>
+              <li class="rounded-2xl bg-slate-50 px-4 py-3">Fallback, timeout e retry para falhas do modelo principal.</li>
+              <li class="rounded-2xl bg-slate-50 px-4 py-3">Exportacao Markdown e duplicacao parcial ou completa de conversas.</li>
+              <li class="rounded-2xl bg-slate-50 px-4 py-3">Voz no navegador para entrada e leitura de respostas.</li>
+            </ul>
+          </article>
+
+          <article class="rounded-[2rem] border border-slate-200 bg-white/85 p-6 shadow-xl shadow-slate-200/60 backdrop-blur">
+            <p class="text-xs font-semibold uppercase tracking-[0.25em] text-rose-600">Para quem</p>
+            <div class="mt-4 grid gap-3 text-sm text-slate-700">
+              <div class="rounded-2xl border border-slate-200 px-4 py-3">Times que precisam testar prompts e fluxos internos sem dependencia de SaaS.</div>
+              <div class="rounded-2xl border border-slate-200 px-4 py-3">Analistas e desenvolvedores que querem contexto local e historico pesquisavel.</div>
+              <div class="rounded-2xl border border-slate-200 px-4 py-3">Usuarios que valorizam um setup simples com Docker e acesso por navegador.</div>
+            </div>
+          </article>
+        </section>
+      </main>
+    </div>
+  </body>
+</html>
