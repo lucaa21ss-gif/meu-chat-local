@@ -375,11 +375,18 @@ function buildModelAttemptPlan(primaryModel, fallbackModel, maxAttempts) {
   return attempts.slice(0, maxAttempts);
 }
 
+const DEFAULT_RETRY_DELAYS_MS = [500, 1000, 2000];
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 async function executeWithModelRecovery({
   primaryModel,
   fallbackModel,
   maxAttempts,
   timeoutMs,
+  retryDelays = DEFAULT_RETRY_DELAYS_MS,
   logger,
   run,
 }) {
@@ -411,6 +418,11 @@ async function executeWithModelRecovery({
         },
         "Tentativa de inferencia falhou",
       );
+
+      if (idx < attemptPlan.length - 1) {
+        const delayMs = retryDelays[idx] ?? retryDelays[retryDelays.length - 1] ?? 1000;
+        if (delayMs > 0) await sleep(delayMs);
+      }
     }
   }
 
@@ -520,6 +532,9 @@ export function createApp(deps = {}) {
   const ollamaFallbackModel = String(
     deps.ollamaFallbackModel ?? process.env.OLLAMA_FALLBACK_MODEL ?? "",
   ).trim();
+  const ollamaRetryDelays = Array.isArray(deps.ollamaRetryDelays)
+    ? deps.ollamaRetryDelays
+    : DEFAULT_RETRY_DELAYS_MS;
 
   const apiLimiter = rateLimit({
     windowMs: Number.isFinite(requestWindowMs)
@@ -602,6 +617,23 @@ export function createApp(deps = {}) {
     }),
   );
 
+  app.get(
+    "/api/health",
+    asyncHandler(async (req, res) => {
+      const start = Date.now();
+      try {
+        await withTimeout(
+          chatClient.list(),
+          5_000,
+          "Ollama nao respondeu no prazo",
+        );
+        res.json({ ollama: "online", latencyMs: Date.now() - start });
+      } catch (_err) {
+        res.json({ ollama: "offline", latencyMs: Date.now() - start });
+      }
+    }),
+  );
+
   app.post(
     "/api/chat",
     asyncHandler(async (req, res) => {
@@ -649,6 +681,7 @@ export function createApp(deps = {}) {
         fallbackModel: ollamaFallbackModel,
         maxAttempts: ollamaMaxAttempts,
         timeoutMs: ollamaTimeoutMs,
+        retryDelays: ollamaRetryDelays,
         logger: req.logger,
         run: (model) => chatClient.chat({ ...payload, model }),
       });
@@ -1047,6 +1080,7 @@ export function createApp(deps = {}) {
         fallbackModel: ollamaFallbackModel,
         maxAttempts: ollamaMaxAttempts,
         timeoutMs: ollamaTimeoutMs,
+        retryDelays: ollamaRetryDelays,
         logger: req.logger,
         run: (model) => chatClient.chat({ ...payload, model }),
       });

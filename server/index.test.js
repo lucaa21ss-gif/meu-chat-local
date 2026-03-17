@@ -767,6 +767,7 @@ test("POST /api/chat usa fallback quando modelo primario falha", async () => {
     ...createMockStore(),
     ollamaFallbackModel: "mistral",
     ollamaMaxAttempts: 2,
+    ollamaRetryDelays: [0, 0],
     chatClient: {
       chat: async ({ model }) => {
         if (model === "meu-llama3") {
@@ -790,6 +791,7 @@ test("POST /api/chat-stream usa fallback quando modelo primario falha", async ()
     ...createMockStore(),
     ollamaFallbackModel: "mistral",
     ollamaMaxAttempts: 2,
+    ollamaRetryDelays: [0, 0],
     chatClient: {
       chat: async ({ model, stream }) => {
         if (model === "meu-llama3") {
@@ -951,6 +953,29 @@ test("GET /api/chats/:chatId/search valida query curta", async () => {
     ),
     true,
   );
+});
+
+test("GET /api/health retorna status do Ollama", async () => {
+  const appOnline = createApp({
+    ...createMockStore(),
+    chatClient: { list: async () => ({ models: [] }) },
+  });
+
+  const online = await request(appOnline).get("/api/health").expect(200);
+  assert.equal(online.body.ollama, "online");
+  assert.equal(typeof online.body.latencyMs, "number");
+
+  const appOffline = createApp({
+    ...createMockStore(),
+    chatClient: {
+      list: async () => {
+        throw new Error("connection refused");
+      },
+    },
+  });
+
+  const offline = await request(appOffline).get("/api/health").expect(200);
+  assert.equal(offline.body.ollama, "offline");
 });
 
 test("POST /api/chat-stream retorna erro padrao quando servico externo falha", async () => {
