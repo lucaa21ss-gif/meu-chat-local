@@ -4,7 +4,8 @@
   "type": "module",
   "scripts": {
     "start": "node index.js",
-    "test": "node --test"
+    "test": "node --test",
+    "test:chaos": "node --test chaos.test.js"
   },
   "dependencies": {
     "compression": "^1.8.1",

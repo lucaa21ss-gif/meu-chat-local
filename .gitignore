@@ -37,3 +37,4 @@ build/
 # Testing
 coverage/
 .nyc_output/
+server/artifacts/

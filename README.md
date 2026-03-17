@@ -327,6 +327,26 @@ curl -X PATCH http://localhost:3001/api/incident/status \
   }'
 ```
 
+## Suite de caos local e recuperacao
+
+Execucao por comando unico:
+
+```bash
+cd server
+npm run test:chaos
+```
+
+Cenarios cobertos na suite `chaos-local-v1`:
+
+- disco cheio (impacto em `health` e `diagnostics`)
+- modelo indisponivel (alerta em `SLO` e recomendacoes no `diagnostics`)
+- DB degradado + recuperacao (transicao de `unhealthy` para `healthy`)
+
+Evidencias automaticas por execucao:
+
+- arquivo JSON em `server/artifacts/chaos/chaos-report.json`
+- resultado por cenario (`passed|failed`) e evidencias coletadas
+
 ## Governanca de dependencias
 
 O pipeline de CI executa verificacao de cadeia de dependencias em tres alvos:
