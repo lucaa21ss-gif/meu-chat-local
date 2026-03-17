@@ -202,6 +202,8 @@ mas o fluxo recomendado e usar `http://localhost:3001` para manter API e UI na m
 - `PATCH /api/auto-healing/status`: atualiza modo/limites de auto-healing (somente admin)
 - `POST /api/auto-healing/execute`: executa politica de auto-healing sob demanda (somente admin)
 - `POST /api/disaster-recovery/test`: executa cenário automatizado de desastre e restauração (somente admin)
+- `GET /api/integrity/status`: consulta integridade de artefatos críticos em runtime (operator/admin)
+- `POST /api/integrity/verify`: força verificação de integridade e registra auditoria (somente admin)
 - `GET /api/diagnostics/export`: exporta pacote de diagnostico forense (somente admin); inclui estado de saude, SLO, storage, erros recentes, checklist de triagem e audit logs
 
 ## Backup criptografado opcional
@@ -238,6 +240,7 @@ Campos do pacote (versao 2):
 | `traceId`              | ID de rastreamento correlacionavel com logs do servidor               |
 | `app`                  | Versao do Node.js, plataforma, uptime, consumo de memoria             |
 | `health`               | Status geral e checks individuais (db, model, disk)                   |
+| `integrity`            | Integridade de artefatos críticos em runtime (mismatches/missing)     |
 | `rateLimiter`          | Metricas de rate limiting por perfil                                  |
 | `telemetry`            | Status de telemetria e top rotas por latencia/erros                   |
 | `autoHealing`          | Estado do auto-healing (modo, limites, circuito e ultimo resultado)   |
@@ -486,6 +489,31 @@ npm run dr:test -- --scenario dr-release-01 --server http://localhost:3001 --act
 Evento de auditoria gerado:
 
 - `disaster.recovery.test`
+
+## Observabilidade de integridade em runtime
+
+Consultar snapshot atual:
+
+```bash
+curl -H "x-user-id: user-operator" http://localhost:3001/api/integrity/status
+```
+
+Forçar verificação manual e registrar auditoria (admin):
+
+```bash
+curl -X POST http://localhost:3001/api/integrity/verify \
+  -H "x-user-id: user-default"
+```
+
+Comportamento operacional:
+
+- O `GET /api/health` inclui o campo `integrity`.
+- Divergências de hash ou arquivos críticos ausentes geram alerta no `health`.
+- O pacote `GET /api/diagnostics/export` inclui snapshot de `integrity`.
+
+Evento de auditoria gerado:
+
+- `integrity.verify`
 
 ## Suite de caos local e recuperacao
 

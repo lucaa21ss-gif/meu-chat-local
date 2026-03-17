@@ -1441,6 +1441,65 @@ test("PATCH /api/auto-healing/status atualiza configuracao e bloqueia viewer", a
     assert.equal(updated.body.autoHealing.windowMs, 120000);
 });
 
+test("GET /api/integrity/status retorna snapshot e bloqueia viewer", async () => {
+    const app = createApp({
+        chatClient: createMockChatClient(),
+        ...createMockStore(),
+        integrityService: {
+            getOrRefresh: async () => ({
+                status: "ok",
+                reason: "integrity-verified",
+                checkedFiles: ["scripts/install.sh"],
+                mismatches: [],
+                missingFiles: [],
+                lastCheckedAt: new Date().toISOString(),
+                staleAfterMs: 30000,
+            }),
+        },
+    });
+
+    await request(app)
+        .get("/api/integrity/status")
+        .set("x-user-id", "user-viewer")
+        .expect(403);
+
+    const response = await request(app)
+        .get("/api/integrity/status")
+        .set("x-user-id", "user-operator")
+        .expect(200);
+
+    assert.equal(response.body.integrity.status, "ok");
+    assert.equal(Array.isArray(response.body.integrity.checkedFiles), true);
+});
+
+test("POST /api/integrity/verify retorna ok false com divergencia", async () => {
+    const app = createApp({
+        chatClient: createMockChatClient(),
+        ...createMockStore(),
+        integrityService: {
+            getOrRefresh: async () => ({
+                status: "failed",
+                reason: "integrity-divergence-detected",
+                checkedFiles: ["scripts/install.sh"],
+                mismatches: [{ file: "scripts/install.sh", reason: "hash-mismatch" }],
+                missingFiles: [],
+                lastCheckedAt: new Date().toISOString(),
+                staleAfterMs: 30000,
+            }),
+        },
+    });
+
+    const response = await request(app)
+        .post("/api/integrity/verify")
+        .set("x-user-id", "user-default")
+        .send({})
+        .expect(200);
+
+    assert.equal(response.body.ok, false);
+    assert.equal(response.body.integrity.status, "failed");
+    assert.equal(response.body.integrity.mismatches.length, 1);
+});
+
 test("POST /api/disaster-recovery/test executa cenário e retorna RTO/status final", async () => {
     const app = createApp({
         chatClient: createMockChatClient(),

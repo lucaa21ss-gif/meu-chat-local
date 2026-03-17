@@ -11,6 +11,7 @@ import {
   mkdir as fsMkdir,
   writeFile as fsWriteFile,
 } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import helmet from "helmet";
 import { client } from "./ollama.js";
 import { createRoleLimiterQueue } from "./rateLimiter.js";
@@ -502,6 +503,24 @@ function parseDisasterScenarioId(raw) {
     throw new HttpError(400, "scenarioId invalido");
   }
   return value;
+}
+
+function parseIntegrityManifest(content = "") {
+  const lines = String(content || "")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  const entries = [];
+  for (const line of lines) {
+    const match = line.match(/^([a-f0-9]{64})\s+\*?(.+)$/i);
+    if (!match) continue;
+    const hash = String(match[1] || "").toLowerCase();
+    const file = String(match[2] || "").trim();
+    if (!file) continue;
+    entries.push({ hash, file });
+  }
+  return entries;
 }
 
 function parseAutoHealingPolicy(raw) {
@@ -1788,6 +1807,132 @@ function createDefaultDisasterRecoveryService({
   };
 }
 
+export function createIntegrityRuntimeService({
+  baseDir,
+  manifestPath,
+  targets = [],
+  staleAfterMs = 30_000,
+} = {}) {
+  const state = {
+    lastCheckedAt: null,
+    status: "unknown",
+    mismatches: [],
+    missingFiles: [],
+    checkedFiles: [],
+    reason: "integrity-check-not-run",
+    staleAfterMs,
+  };
+
+  async function computeSha256(filePath) {
+    const content = await fsReadFile(filePath);
+    return createHash("sha256").update(content).digest("hex");
+  }
+
+  async function runCheck() {
+    const now = new Date().toISOString();
+    const resolvedTargets = [...new Set(targets.map((item) => String(item || "").trim()).filter(Boolean))];
+
+    if (!manifestPath) {
+      state.lastCheckedAt = now;
+      state.status = "unknown";
+      state.reason = "manifest-path-not-configured";
+      state.checkedFiles = [];
+      state.mismatches = [];
+      state.missingFiles = [];
+      return getStatus();
+    }
+
+    let manifestEntries = [];
+    try {
+      const manifestContent = await fsReadFile(manifestPath, "utf8");
+      manifestEntries = parseIntegrityManifest(manifestContent);
+    } catch {
+      state.lastCheckedAt = now;
+      state.status = "unknown";
+      state.reason = "manifest-not-found";
+      state.checkedFiles = [];
+      state.mismatches = [];
+      state.missingFiles = [];
+      return getStatus();
+    }
+
+    const manifestMap = new Map(manifestEntries.map((entry) => [entry.file, entry.hash]));
+    const filesToCheck = resolvedTargets.length ? resolvedTargets : Array.from(manifestMap.keys());
+
+    const mismatches = [];
+    const missingFiles = [];
+    const checkedFiles = [];
+
+    for (const relativePath of filesToCheck) {
+      const expectedHash = manifestMap.get(relativePath) || null;
+      if (!expectedHash) {
+        mismatches.push({
+          file: relativePath,
+          reason: "missing-from-manifest",
+        });
+        continue;
+      }
+
+      const fullPath = path.join(baseDir, relativePath);
+      try {
+        const actualHash = await computeSha256(fullPath);
+        checkedFiles.push(relativePath);
+        if (actualHash !== expectedHash) {
+          mismatches.push({
+            file: relativePath,
+            reason: "hash-mismatch",
+          });
+        }
+      } catch {
+        missingFiles.push(relativePath);
+      }
+    }
+
+    state.lastCheckedAt = now;
+    state.checkedFiles = checkedFiles;
+    state.mismatches = mismatches;
+    state.missingFiles = missingFiles;
+
+    if (mismatches.length || missingFiles.length) {
+      state.status = "failed";
+      state.reason = "integrity-divergence-detected";
+    } else {
+      state.status = "ok";
+      state.reason = "integrity-verified";
+    }
+
+    return getStatus();
+  }
+
+  function getStatus() {
+    return {
+      status: state.status,
+      reason: state.reason,
+      lastCheckedAt: state.lastCheckedAt,
+      staleAfterMs: state.staleAfterMs,
+      checkedFiles: [...state.checkedFiles],
+      mismatches: [...state.mismatches],
+      missingFiles: [...state.missingFiles],
+    };
+  }
+
+  async function getOrRefresh({ force = false } = {}) {
+    if (!force && state.lastCheckedAt) {
+      const ageMs = Date.now() - new Date(state.lastCheckedAt).getTime();
+      if (ageMs <= state.staleAfterMs) {
+        return getStatus();
+      }
+    }
+    return runCheck();
+  }
+
+  return {
+    runCheck,
+    getStatus,
+    getOrRefresh,
+  };
+}
+
 function buildTriageRecommendations({
   health,
   slo,
@@ -2161,6 +2306,24 @@ export function createApp(deps = {}) {
       healthProviders,
       artifactsDir: path.join(serverDir, "artifacts", "dr"),
     });
+  const integrityService =
+    deps.integrityService ||
+    createIntegrityRuntimeService({
+      baseDir: path.resolve(serverDir, ".."),
+      manifestPath: path.resolve(serverDir, "..", ".integrity-manifest.sha256"),
+      targets: [
+        "docker-compose.yml",
+        "server/package.json",
+        "server/package-lock.json",
+        "web/package.json",
+        "web/package-lock.json",
+        "scripts/install.sh",
+        "scripts/start.sh",
+        "scripts/stop.sh",
+        "scripts/uninstall.sh",
+      ],
+      staleAfterMs: 30_000,
+    });
 
   const roleLimits = deps.roleLimits ?? {
     admin: { windowMs: requestWindowMs, max: 300, chatMax: 100 },
@@ -2491,6 +2654,7 @@ export function createApp(deps = {}) {
       ]);
 
       const checks = { db, model, disk };
+      const integrityStatus = await integrityService.getOrRefresh();
       const autoHealingExecution = await autoHealingService.evaluate({
         healthChecks: checks,
       });
@@ -2511,6 +2675,9 @@ export function createApp(deps = {}) {
       if (disk.status !== HEALTH_STATUS.HEALTHY) {
         alerts.push("Espaco em disco baixo");
       }
+      if (integrityStatus.status === "failed") {
+        alerts.push("Divergencia de integridade detectada em artefatos criticos");
+      }
 
       if (autoHealingExecution.executed) {
         await recordAudit("autohealing.auto.execute", null, {
@@ -2528,6 +2695,7 @@ export function createApp(deps = {}) {
           enabled: isTelemetryEnabled(),
           topRoutes: telemetry,
         },
+        integrity: integrityStatus,
         slo,
         autoHealing: autoHealingService.getStatus(),
         rateLimiter: roleLimiter.getMetrics(),
@@ -3410,6 +3578,34 @@ export function createApp(deps = {}) {
     }),
   );
 
+  app.get(
+    "/api/integrity/status",
+    requireMinimumRole("operator"),
+    asyncHandler(async (req, res) => {
+      const refresh = parseBooleanLike(req.query?.refresh, false);
+      const integrity = await integrityService.getOrRefresh({ force: refresh });
+      return res.json({ integrity });
+    }),
+  );
+
+  app.post(
+    "/api/integrity/verify",
+    requireMinimumRole("admin"),
+    asyncHandler(async (req, res) => {
+      const actor = await resolveActor(req);
+      const integrity = await integrityService.getOrRefresh({ force: true });
+      await recordAudit("integrity.verify", actor.userId, {
+        status: integrity.status,
+        mismatches: integrity.mismatches.length,
+        missingFiles: integrity.missingFiles.length,
+      });
+      return res.json({
+        ok: integrity.status === "ok",
+        integrity,
+      });
+    }),
+  );
+
   app.post(
     "/api/incident/runbook/execute",
     requireMinimumRole("admin"),
@@ -3852,6 +4048,7 @@ export function createApp(deps = {}) {
           items: [],
           error: String(error?.message || "Falha ao validar backups"),
         }));
+      const integritySnapshot = await integrityService.getOrRefresh();
       const sloSnapshot = buildSloSnapshot(
         getTelemetryStats().map((item) => ({
           ...item,
@@ -3900,6 +4097,7 @@ export function createApp(deps = {}) {
           enabled: isTelemetryEnabled(),
           topRoutes: telemetry,
         },
+        integrity: integritySnapshot,
         autoHealing: autoHealingService.getStatus(),
         storage: storageSnapshot,
         backupValidation: backupValidationSnapshot,
