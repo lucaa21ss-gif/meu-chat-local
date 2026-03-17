@@ -1277,9 +1277,8 @@ function buildTriageRecommendations({
     recommendations.push({
       type: "manual",
       severity: incidentStatus.severity || "medium",
-      action: `Incidente em ${incidentStatus.status}; manter atualizacao em ${
-        incidentStatus.nextUpdateAt || "janela curta"
-      } e registrar decisoes no runbook`,
+      action: `Incidente em ${incidentStatus.status}; manter atualizacao em ${incidentStatus.nextUpdateAt || "janela curta"
+        } e registrar decisoes no runbook`,
     });
   }
 
@@ -1579,9 +1578,9 @@ export function createApp(deps = {}) {
     });
 
   const roleLimits = deps.roleLimits ?? {
-    admin:    { windowMs: requestWindowMs, max: 300, chatMax: 100 },
-    operator: { windowMs: requestWindowMs, max: 150, chatMax:  50 },
-    viewer:   { windowMs: requestWindowMs, max:  60, chatMax:  20 },
+    admin: { windowMs: requestWindowMs, max: 300, chatMax: 100 },
+    operator: { windowMs: requestWindowMs, max: 150, chatMax: 50 },
+    viewer: { windowMs: requestWindowMs, max: 60, chatMax: 20 },
   };
   const roleLimiter = deps.roleLimiter ?? createRoleLimiterQueue({
     roleLimits,
