@@ -111,6 +111,53 @@ jobs:
           echo "Falha no npm audit para ${{ matrix.target }} (nivel high/critical)."
           exit 1
 
+  sbom:
+    name: SBOM
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: root
+            workingDirectory: .
+            lockfile: package-lock.json
+          - target: server
+            workingDirectory: server
+            lockfile: server/package-lock.json
+          - target: web
+            workingDirectory: web
+            lockfile: web/package-lock.json
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: ${{ matrix.lockfile }}
+
+      - name: Install dependencies (${{ matrix.target }})
+        working-directory: ${{ matrix.workingDirectory }}
+        run: npm ci
+
+      - name: Generate SBOM (${{ matrix.target }})
+        run: |
+          npx --yes @cyclonedx/cyclonedx-npm \
+            --output-format json \
+            --output-file "${{ github.workspace }}/sbom-${{ matrix.target }}.json" \
+            --package-lock-only
+        working-directory: ${{ matrix.workingDirectory }}
+
+      - name: Upload SBOM (${{ matrix.target }})
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-${{ matrix.target }}
+          path: sbom-${{ matrix.target }}.json
+
   backend-test:
     name: Backend Tests
     runs-on: ubuntu-latest
@@ -190,3 +237,35 @@ jobs:
           file: server/Dockerfile
           push: false
           tags: meu-chat-local-server:ci
+
+  supply-chain-artifacts:
+    name: Supply Chain Artifacts
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install root tooling
+        run: npm ci
+
+      - name: Build distribution package
+        run: npm run dist:package
+
+      - name: Upload distribution integrity artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist-integrity
+          path: |
+            dist/*.tar.gz
+            dist/CHECKSUMS.txt
+            dist/CHECKSUMS.txt.sig
+            dist/CHECKSUMS.txt.pub

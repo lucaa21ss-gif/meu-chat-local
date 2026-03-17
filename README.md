@@ -108,6 +108,19 @@ cd meu-chat-local
 bash scripts/install.sh
 ```
 
+Verificacao manual de integridade (recomendada antes do `tar -xzf`):
+
+```bash
+sha256sum -c CHECKSUMS.txt
+openssl dgst -sha256 -verify CHECKSUMS.txt.pub -signature CHECKSUMS.txt.sig CHECKSUMS.txt
+```
+
+Observacoes de supply chain:
+
+- O CI publica SBOM para `root`, `server` e `web` como artifacts.
+- O CI publica `CHECKSUMS.txt`, `CHECKSUMS.txt.sig` e `CHECKSUMS.txt.pub` junto do pacote de distribuicao.
+- O `scripts/install.sh` valida assinatura e checksums locais do manifesto de integridade antes de subir os servicos.
+
 Comandos operacionais do pacote:
 
 - `bash scripts/start.sh`: inicia servicos
@@ -213,25 +226,25 @@ O endpoint `GET /api/diagnostics/export` (somente `admin`) gera um pacote JSON v
 
 Campos do pacote (versao 2):
 
-| Campo                  | Descricao                                                    |
-| ---------------------- | ------------------------------------------------------------ |
-| `version`              | Versao do schema do pacote (atualmente `2`)                  |
-| `generatedAt`          | Timestamp ISO 8601 de geracao                                |
-| `traceId`              | ID de rastreamento correlacionavel com logs do servidor      |
-| `app`                  | Versao do Node.js, plataforma, uptime, consumo de memoria    |
-| `health`               | Status geral e checks individuais (db, model, disk)          |
-| `rateLimiter`          | Metricas de rate limiting por perfil                         |
-| `telemetry`            | Status de telemetria e top rotas por latencia/erros          |
-| `storage`              | Consumo atual por tipo (db, uploads, documents, backups)     |
-| `backupValidation`     | Validacao recente de backups com status operacional          |
-| `slo`                  | Snapshot de SLO com avaliacao por rota critica               |
+| Campo                  | Descricao                                                             |
+| ---------------------- | --------------------------------------------------------------------- |
+| `version`              | Versao do schema do pacote (atualmente `2`)                           |
+| `generatedAt`          | Timestamp ISO 8601 de geracao                                         |
+| `traceId`              | ID de rastreamento correlacionavel com logs do servidor               |
+| `app`                  | Versao do Node.js, plataforma, uptime, consumo de memoria             |
+| `health`               | Status geral e checks individuais (db, model, disk)                   |
+| `rateLimiter`          | Metricas de rate limiting por perfil                                  |
+| `telemetry`            | Status de telemetria e top rotas por latencia/erros                   |
+| `storage`              | Consumo atual por tipo (db, uploads, documents, backups)              |
+| `backupValidation`     | Validacao recente de backups com status operacional                   |
+| `slo`                  | Snapshot de SLO com avaliacao por rota critica                        |
 | `incidentStatus`       | Estado operacional atual do incidente (status, severidade, historico) |
-| `recentErrors`         | Ultimos eventos bloqueados ou de erro dos audit logs         |
-| `recentAuditLogs`      | Ultimos 50 eventos de auditoria                              |
-| `recentConfigVersions` | Ultimas 50 versoes de configuracao                           |
-| `environment`          | Dados nao-sensiveis do processo (NODE_ENV, pid, arch)        |
-| `triageChecklist`      | Checklist versionado com passos recomendados para o operador |
-| `securityNote`         | Declaracao explicita do que foi excluido do pacote           |
+| `recentErrors`         | Ultimos eventos bloqueados ou de erro dos audit logs                  |
+| `recentAuditLogs`      | Ultimos 50 eventos de auditoria                                       |
+| `recentConfigVersions` | Ultimas 50 versoes de configuracao                                    |
+| `environment`          | Dados nao-sensiveis do processo (NODE_ENV, pid, arch)                 |
+| `triageChecklist`      | Checklist versionado com passos recomendados para o operador          |
+| `securityNote`         | Declaracao explicita do que foi excluido do pacote                    |
 
 Garantias de privacidade e seguranca:
 

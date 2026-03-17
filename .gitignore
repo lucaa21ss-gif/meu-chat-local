@@ -38,3 +38,6 @@ build/
 coverage/
 .nyc_output/
 server/artifacts/
+.integrity-manifest.sha256
+.integrity-manifest.sig
+.integrity-manifest.pub
