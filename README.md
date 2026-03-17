@@ -179,6 +179,31 @@ mas o fluxo recomendado e usar `http://localhost:3001` para manter API e UI na m
 - `POST /api/chats/:chatId/reset`: limpa uma aba
 - `GET /api/chats/:chatId/export`: exporta conversa em Markdown
 
+## Governanca de dependencias
+
+O pipeline de CI executa verificacao de cadeia de dependencias em tres alvos:
+
+- raiz do repositorio (`package-lock.json`)
+- backend (`server/package-lock.json`)
+- frontend (`web/package-lock.json`)
+
+Politica aplicada:
+
+- `npm audit --audit-level=high`
+- falha de pipeline para vulnerabilidades `high` ou `critical`
+- relatorio JSON publicado como artifact em cada alvo
+
+Checklist de atualizacao segura:
+
+1. Executar auditoria local por alvo:
+  - `npm audit --audit-level=high`
+  - `cd server && npm audit --audit-level=high`
+  - `cd web && npm audit --audit-level=high`
+2. Priorizar atualizacoes `patch` e `minor` antes de `major`.
+3. Para atualizacoes com breaking change, abrir PR dedicado com plano de rollback.
+4. Reexecutar suite completa (`npm test` no backend + checks de CI locais).
+5. Registrar no changelog qualquer excecao aceita temporariamente.
+
 ## Como usar
 
 1. Crie uma nova aba em `+ Nova aba`
@@ -264,6 +289,8 @@ Cobertura atual da suite:
 Pipeline automatizado em [ .github/workflows/ci.yml ](.github/workflows/ci.yml):
 
 - executa quality gate com lint e format check
+- executa auditoria de dependencias (`npm audit --audit-level=high`) em raiz, backend e frontend
+- publica reports JSON de auditoria como artifacts do workflow
 - executa testes do backend com Node 20
 - valida checks basicos de frontend (`npm run build:css` + sintaxe de `web/script.js` + validacao de IDs essenciais da UI)
 - valida `docker compose config`
@@ -293,6 +320,14 @@ npm run format:check
 cd server
 npm ci
 npm test
+```
+
+- `Dependency Audit` falhou:
+
+```bash
+npm ci && npm audit --audit-level=high
+cd server && npm ci && npm audit --audit-level=high
+cd ../web && npm ci && npm audit --audit-level=high
 ```
 
 - `Frontend Checks` falhou:
