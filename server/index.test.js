@@ -14,13 +14,17 @@ function createMockStore() {
         isFavorite: false,
         archivedAt: null,
         tags: [],
+        systemPrompt: "",
       },
     ],
   ]);
   const messages = new Map([["default", []]]);
   const ragDocumentsByChat = new Map();
   const users = new Map([
-    ["user-default", { id: "user-default", name: "padrao" }],
+    [
+      "user-default",
+      { id: "user-default", name: "padrao", defaultSystemPrompt: "" },
+    ],
   ]);
 
   const ensureMessages = (chatId) => {
@@ -40,7 +44,7 @@ function createMockStore() {
       if ([...users.values()].some((u) => u.name === name)) {
         throw new Error("Nome de perfil ja existe");
       }
-      const user = { id, name };
+      const user = { id, name, defaultSystemPrompt: "" };
       users.set(id, user);
       return user;
     },
@@ -85,12 +89,13 @@ function createMockStore() {
               )
             : true,
         )
-        .map(({ id, title, isFavorite, archivedAt, tags }) => ({
+        .map(({ id, title, isFavorite, archivedAt, tags, systemPrompt }) => ({
           id,
           title,
           isFavorite: !!isFavorite,
           archivedAt: archivedAt || null,
           tags: Array.isArray(tags) ? tags : [],
+          systemPrompt: systemPrompt || "",
         }));
     },
     createChat: async (id, title, userId = "user-default") => {
@@ -101,6 +106,7 @@ function createMockStore() {
         isFavorite: false,
         archivedAt: null,
         tags: [],
+        systemPrompt: "",
       };
       chats.set(id, chat);
       ensureMessages(id);
@@ -110,6 +116,7 @@ function createMockStore() {
         isFavorite: false,
         archivedAt: null,
         tags: [],
+        systemPrompt: "",
       };
     },
     duplicateChat: async (sourceChatId, targetChatId, title, options = {}) => {
@@ -157,6 +164,38 @@ function createMockStore() {
         tags: Array.isArray(tags) ? tags : [],
       });
       return { id: chatId, tags: Array.isArray(tags) ? tags : [] };
+    },
+    setChatSystemPrompt: async (chatId, systemPrompt) => {
+      if (!chats.has(chatId)) return null;
+      chats.set(chatId, {
+        ...chats.get(chatId),
+        systemPrompt: String(systemPrompt || ""),
+      });
+      return { id: chatId, systemPrompt: String(systemPrompt || "") };
+    },
+    getChatSystemPrompts: async (chatId) => {
+      if (!chats.has(chatId)) return null;
+      const chat = chats.get(chatId);
+      const user = users.get(chat.userId || "user-default") || {
+        defaultSystemPrompt: "",
+      };
+      return {
+        id: chat.id,
+        userId: chat.userId || "user-default",
+        systemPrompt: chat.systemPrompt || "",
+        defaultSystemPrompt: user.defaultSystemPrompt || "",
+      };
+    },
+    setUserDefaultSystemPrompt: async (userId, defaultSystemPrompt) => {
+      if (!users.has(userId)) return null;
+      users.set(userId, {
+        ...users.get(userId),
+        defaultSystemPrompt: String(defaultSystemPrompt || ""),
+      });
+      return {
+        id: userId,
+        defaultSystemPrompt: String(defaultSystemPrompt || ""),
+      };
     },
     ensureChat: async (chatId, title, userId = "user-default") => {
       if (!chats.has(chatId)) {
@@ -1170,9 +1209,85 @@ test("GET /api/chats/export retorna lote JSON por userId", async () => {
     .get("/api/chats/export?userId=user-default")
     .expect(200);
 
-  assert.equal(response.headers["content-type"].includes("application/json"), true);
+  assert.equal(
+    response.headers["content-type"].includes("application/json"),
+    true,
+  );
   assert.equal(response.body.version, 1);
   assert.equal(response.body.userId, "user-default");
   assert.equal(Array.isArray(response.body.chats), true);
-  assert.equal(response.body.chats.some((chat) => chat.id === "chat-lote-1"), true);
+  assert.equal(
+    response.body.chats.some((chat) => chat.id === "chat-lote-1"),
+    true,
+  );
+});
+
+test("PATCH/GET /api/chats/:chatId/system-prompt atualiza prompt da conversa", async () => {
+  const app = createApp({
+    chatClient: createMockChatClient(),
+    ...createMockStore(),
+  });
+
+  await request(app)
+    .patch("/api/chats/default/system-prompt")
+    .send({ systemPrompt: "Responda sempre em bullets." })
+    .expect(200);
+
+  const response = await request(app)
+    .get("/api/chats/default/system-prompt")
+    .expect(200);
+
+  assert.equal(response.body.chatId, "default");
+  assert.equal(response.body.systemPrompt, "Responda sempre em bullets.");
+});
+
+test("PATCH /api/users/:userId/system-prompt-default atualiza prompt padrao", async () => {
+  const app = createApp({
+    chatClient: createMockChatClient(),
+    ...createMockStore(),
+  });
+
+  const response = await request(app)
+    .patch("/api/users/user-default/system-prompt-default")
+    .send({ defaultSystemPrompt: "Fale em portugues do Brasil." })
+    .expect(200);
+
+  assert.equal(response.body.user.id, "user-default");
+  assert.equal(
+    response.body.user.defaultSystemPrompt,
+    "Fale em portugues do Brasil.",
+  );
+});
+
+test("POST /api/chat injeta prompts de perfil e conversa no payload", async () => {
+  let capturedMessages = [];
+  const app = createApp({
+    ...createMockStore(),
+    chatClient: {
+      chat: async ({ messages }) => {
+        capturedMessages = messages;
+        return { message: { content: "ok" } };
+      },
+    },
+  });
+
+  await request(app)
+    .patch("/api/users/user-default/system-prompt-default")
+    .send({ defaultSystemPrompt: "Prompt padrao perfil" })
+    .expect(200);
+
+  await request(app)
+    .patch("/api/chats/default/system-prompt")
+    .send({ systemPrompt: "Prompt da conversa" })
+    .expect(200);
+
+  await request(app)
+    .post("/api/chat")
+    .send({ chatId: "default", message: "Teste" })
+    .expect(200);
+
+  assert.equal(capturedMessages[0]?.role, "system");
+  assert.equal(capturedMessages[0]?.content, "Prompt padrao perfil");
+  assert.equal(capturedMessages[1]?.role, "system");
+  assert.equal(capturedMessages[1]?.content, "Prompt da conversa");
 });

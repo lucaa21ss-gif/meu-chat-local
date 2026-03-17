@@ -6,7 +6,7 @@ import { open } from "sqlite";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const defaultDbPath = path.join(__dirname, "chat.db");
-const DB_SCHEMA_VERSION = 5;
+const DB_SCHEMA_VERSION = 6;
 
 let db;
 
@@ -213,6 +213,15 @@ async function runMigrations(connection) {
         `);
       },
     },
+    {
+      version: 6,
+      up: async () => {
+        await connection.exec(`
+          ALTER TABLE chats ADD COLUMN system_prompt TEXT NOT NULL DEFAULT '';
+          ALTER TABLE users ADD COLUMN default_system_prompt TEXT NOT NULL DEFAULT '';
+        `);
+      },
+    },
   ];
 
   let currentVersion = await getCurrentSchemaVersion(connection);
@@ -254,7 +263,10 @@ export async function ensureUser(id, name) {
 export async function listUsers() {
   await initDb();
   return db.all(
-    `SELECT id, name, created_at AS createdAt, updated_at AS updatedAt
+    `SELECT id, name,
+            default_system_prompt AS defaultSystemPrompt,
+            created_at AS createdAt,
+            updated_at AS updatedAt
      FROM users
      ORDER BY name ASC`,
   );
@@ -272,7 +284,7 @@ export async function createUser(id, name) {
     }
     throw err;
   }
-  return { id, name: safeName };
+  return { id, name: safeName, defaultSystemPrompt: "" };
 }
 
 export async function renameUser(userId, name) {
@@ -291,7 +303,25 @@ export async function renameUser(userId, name) {
     }
     throw err;
   }
-  return { id: userId, name: safeName };
+  const row = await db.get(
+    `SELECT id, name, default_system_prompt AS defaultSystemPrompt
+     FROM users WHERE id = ?`,
+    [userId],
+  );
+  return row || null;
+}
+
+export async function setUserDefaultSystemPrompt(userId, defaultSystemPrompt) {
+  await initDb();
+  const safePrompt = String(defaultSystemPrompt || "").trim();
+  const result = await db.run(
+    `UPDATE users
+     SET default_system_prompt = ?, updated_at = CURRENT_TIMESTAMP
+     WHERE id = ?`,
+    [safePrompt, userId],
+  );
+  if (!result.changes) return null;
+  return { id: userId, defaultSystemPrompt: safePrompt };
 }
 
 export async function deleteUser(userId) {
@@ -321,7 +351,10 @@ export async function deleteUser(userId) {
 export async function getUserById(userId) {
   await initDb();
   const row = await db.get(
-    "SELECT id, name, created_at AS createdAt FROM users WHERE id = ?",
+    `SELECT id, name,
+            default_system_prompt AS defaultSystemPrompt,
+            created_at AS createdAt
+     FROM users WHERE id = ?`,
     [userId],
   );
   return row || null;
@@ -371,6 +404,7 @@ export async function listChats(userId, opts = {}) {
             is_favorite AS isFavorite,
             archived_at AS archivedAt,
             tags,
+          system_prompt AS systemPrompt,
             created_at AS createdAt,
             updated_at AS updatedAt
      FROM chats
@@ -410,7 +444,36 @@ export async function createChat(id, title, userId = "user-default") {
     isFavorite: false,
     archivedAt: null,
     tags: [],
+    systemPrompt: "",
   };
+}
+
+export async function setChatSystemPrompt(chatId, systemPrompt) {
+  await initDb();
+  const safePrompt = String(systemPrompt || "").trim();
+  const result = await db.run(
+    `UPDATE chats
+     SET system_prompt = ?, updated_at = CURRENT_TIMESTAMP
+     WHERE id = ?`,
+    [safePrompt, chatId],
+  );
+  if (!result.changes) return null;
+  return { id: chatId, systemPrompt: safePrompt };
+}
+
+export async function getChatSystemPrompts(chatId) {
+  await initDb();
+  const row = await db.get(
+    `SELECT c.id,
+            c.system_prompt AS systemPrompt,
+            c.user_id AS userId,
+            u.default_system_prompt AS defaultSystemPrompt
+     FROM chats c
+     LEFT JOIN users u ON u.id = c.user_id
+     WHERE c.id = ?`,
+    [chatId],
+  );
+  return row || null;
 }
 
 export async function setChatFavorite(chatId, isFavorite) {
@@ -457,17 +520,25 @@ export async function duplicateChat(
   await initDb();
 
   const source = await db.get(
-    "SELECT id, title, user_id AS userId FROM chats WHERE id = ?",
+    `SELECT id, title,
+            user_id AS userId,
+            system_prompt AS systemPrompt
+     FROM chats WHERE id = ?`,
     [sourceChatId],
   );
   if (!source) return null;
 
   const targetTitle = titleFromText(title || `${source.title} (copia)`);
-  await db.run(`INSERT INTO chats (id, title, user_id) VALUES (?, ?, ?)`, [
-    targetChatId,
-    targetTitle,
-    source.userId || "user-default",
-  ]);
+  await db.run(
+    `INSERT INTO chats (id, title, user_id, system_prompt)
+     VALUES (?, ?, ?, ?)`,
+    [
+      targetChatId,
+      targetTitle,
+      source.userId || "user-default",
+      source.systemPrompt || "",
+    ],
+  );
 
   await db.run(
     options.userOnly
@@ -712,7 +783,8 @@ export async function exportChatJson(chatId) {
   await initDb();
   const chat = await db.get(
     `SELECT id, title, user_id AS userId,
-            is_favorite AS isFavoriteRaw, archived_at AS archivedAt, tags AS tagsRaw
+          is_favorite AS isFavoriteRaw, archived_at AS archivedAt,
+          tags AS tagsRaw, system_prompt AS systemPrompt
      FROM chats WHERE id = ?`,
     [chatId],
   );
@@ -730,6 +802,7 @@ export async function exportChatJson(chatId) {
       isFavorite: !!chat.isFavoriteRaw,
       archivedAt: chat.archivedAt || null,
       tags: safeParseJsonArray(chat.tagsRaw),
+      systemPrompt: chat.systemPrompt || "",
       messages: messages.map(({ role, content, images, createdAt }) => ({
         role,
         content,
@@ -751,6 +824,7 @@ export async function importChatJson(payload, opts = {}) {
   const userId = String(chat.userId || "user-default").trim() || "user-default";
   const isFavorite = chat.isFavorite ? 1 : 0;
   const archivedAt = chat.archivedAt || null;
+  const systemPrompt = String(chat.systemPrompt || "").trim();
   const tags = JSON.stringify(
     Array.isArray(chat.tags)
       ? chat.tags.map(String).filter(Boolean).slice(0, 10)
@@ -767,9 +841,10 @@ export async function importChatJson(payload, opts = {}) {
       : rawId;
 
   await db.run(
-    `INSERT INTO chats (id, title, user_id, is_favorite, archived_at, tags)
-     VALUES (?, ?, ?, ?, ?, ?)`,
-    [chatId, title, userId, isFavorite, archivedAt, tags],
+    `INSERT INTO chats
+       (id, title, user_id, is_favorite, archived_at, tags, system_prompt)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [chatId, title, userId, isFavorite, archivedAt, tags, systemPrompt],
   );
 
   for (const msg of messages.slice(0, 2000)) {
@@ -792,7 +867,6 @@ export async function importChatJson(payload, opts = {}) {
 
   return { id: chatId, title, userId };
 }
-
 
 export async function upsertRagDocument(chatId, name, content) {
   await initDb();

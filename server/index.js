@@ -17,6 +17,8 @@ import {
   setChatFavorite,
   setChatArchived,
   setChatTags,
+  setChatSystemPrompt,
+  getChatSystemPrompts,
   ensureChat,
   getMessages,
   searchMessages,
@@ -32,6 +34,7 @@ import {
   listUsers,
   createUser,
   renameUser,
+  setUserDefaultSystemPrompt,
   deleteUser,
   getUserById,
   ensureUser,
@@ -53,6 +56,7 @@ const MAX_RAG_DOCS_PER_UPLOAD = 6;
 const MAX_RAG_DOC_NAME_LENGTH = 140;
 const MAX_RAG_DOC_CONTENT_LENGTH = 120_000;
 const MAX_USER_NAME_LENGTH = 40;
+const MAX_SYSTEM_PROMPT_LENGTH = 2500;
 
 class HttpError extends Error {
   constructor(status, message) {
@@ -182,6 +186,17 @@ function parseTags(raw) {
     .filter(Boolean)
     .map((tag) => tag.slice(0, 30));
   return [...new Set(tags)].slice(0, 10);
+}
+
+function parseSystemPrompt(raw) {
+  const prompt = String(raw ?? "").trim();
+  if (prompt.length > MAX_SYSTEM_PROMPT_LENGTH) {
+    throw new HttpError(
+      400,
+      `System prompt muito longo (max ${MAX_SYSTEM_PROMPT_LENGTH})`,
+    );
+  }
+  return prompt;
 }
 
 function parseChatListFilters(query = {}) {
@@ -336,6 +351,22 @@ function buildRagSystemMessage(chunks = []) {
   ].join("\n");
 }
 
+function buildSystemMessages({
+  defaultSystemPrompt = "",
+  chatSystemPrompt = "",
+  ragSystemMessage = "",
+}) {
+  const messages = [];
+  const defaultPrompt = String(defaultSystemPrompt || "").trim();
+  const chatPrompt = String(chatSystemPrompt || "").trim();
+  const ragPrompt = String(ragSystemMessage || "").trim();
+
+  if (defaultPrompt) messages.push({ role: "system", content: defaultPrompt });
+  if (chatPrompt) messages.push({ role: "system", content: chatPrompt });
+  if (ragPrompt) messages.push({ role: "system", content: ragPrompt });
+  return messages;
+}
+
 function parsePositiveInt(
   raw,
   fallback,
@@ -486,6 +517,8 @@ export function createApp(deps = {}) {
     setChatFavorite: deps.setChatFavorite || setChatFavorite,
     setChatArchived: deps.setChatArchived || setChatArchived,
     setChatTags: deps.setChatTags || setChatTags,
+    setChatSystemPrompt: deps.setChatSystemPrompt || setChatSystemPrompt,
+    getChatSystemPrompts: deps.getChatSystemPrompts || getChatSystemPrompts,
     ensureChat: deps.ensureChat || ensureChat,
     getMessages: deps.getMessages || getMessages,
     searchMessages: deps.searchMessages || searchMessages,
@@ -495,6 +528,8 @@ export function createApp(deps = {}) {
     listUsers: deps.listUsers || listUsers,
     createUser: deps.createUser || createUser,
     renameUser: deps.renameUser || renameUser,
+    setUserDefaultSystemPrompt:
+      deps.setUserDefaultSystemPrompt || setUserDefaultSystemPrompt,
     deleteUser: deps.deleteUser || deleteUser,
     getUserById: deps.getUserById || getUserById,
     ensureUser: deps.ensureUser || ensureUser,
@@ -658,6 +693,7 @@ export function createApp(deps = {}) {
         ? await store.searchDocumentChunks(chatId, message, { limit: rag.topK })
         : [];
       const ragSystemMessage = buildRagSystemMessage(ragChunks);
+      const promptContext = (await store.getChatSystemPrompts(chatId)) || {};
 
       const messagesPayload = history.map((item) => ({
         role: item.role,
@@ -665,8 +701,13 @@ export function createApp(deps = {}) {
         ...(item.images?.length ? { images: item.images } : {}),
       }));
 
-      if (ragSystemMessage) {
-        messagesPayload.unshift({ role: "system", content: ragSystemMessage });
+      const systemMessages = buildSystemMessages({
+        defaultSystemPrompt: promptContext.defaultSystemPrompt,
+        chatSystemPrompt: promptContext.systemPrompt,
+        ragSystemMessage,
+      });
+      if (systemMessages.length) {
+        messagesPayload.unshift(...systemMessages);
       }
 
       const payload = {
@@ -829,6 +870,23 @@ export function createApp(deps = {}) {
     }),
   );
 
+  app.patch(
+    "/api/users/:userId/system-prompt-default",
+    asyncHandler(async (req, res) => {
+      assertBodyObject(req.body);
+      const userId = parseChatId(req.params.userId, "userId");
+      const defaultSystemPrompt = parseSystemPrompt(
+        req.body.defaultSystemPrompt,
+      );
+      const updated = await store.setUserDefaultSystemPrompt(
+        userId,
+        defaultSystemPrompt,
+      );
+      if (!updated) throw new HttpError(404, "Perfil nao encontrado");
+      return res.json({ user: updated });
+    }),
+  );
+
   app.delete(
     "/api/users/:userId",
     asyncHandler(async (req, res) => {
@@ -950,6 +1008,32 @@ export function createApp(deps = {}) {
     }),
   );
 
+  app.get(
+    "/api/chats/:chatId/system-prompt",
+    asyncHandler(async (req, res) => {
+      const chatId = parseChatId(req.params.chatId, "chatId");
+      const promptContext = await store.getChatSystemPrompts(chatId);
+      if (!promptContext) throw new HttpError(404, "Chat nao encontrado");
+      res.json({
+        chatId,
+        systemPrompt: promptContext.systemPrompt || "",
+        defaultSystemPrompt: promptContext.defaultSystemPrompt || "",
+      });
+    }),
+  );
+
+  app.patch(
+    "/api/chats/:chatId/system-prompt",
+    asyncHandler(async (req, res) => {
+      assertBodyObject(req.body);
+      const chatId = parseChatId(req.params.chatId, "chatId");
+      const systemPrompt = parseSystemPrompt(req.body.systemPrompt);
+      const updated = await store.setChatSystemPrompt(chatId, systemPrompt);
+      if (!updated) throw new HttpError(404, "Chat nao encontrado");
+      return res.json({ chat: updated });
+    }),
+  );
+
   app.delete(
     "/api/chats/:chatId",
     asyncHandler(async (req, res) => {
@@ -1059,7 +1143,8 @@ export function createApp(deps = {}) {
         tag: null,
       });
       const chats = [...activeChats, ...archivedChats].filter(
-        (chat, idx, arr) => arr.findIndex((item) => item.id === chat.id) === idx,
+        (chat, idx, arr) =>
+          arr.findIndex((item) => item.id === chat.id) === idx,
       );
       const exported = [];
       for (const chat of chats) {
@@ -1125,6 +1210,7 @@ export function createApp(deps = {}) {
         ? await store.searchDocumentChunks(chatId, message, { limit: rag.topK })
         : [];
       const ragSystemMessage = buildRagSystemMessage(ragChunks);
+      const promptContext = (await store.getChatSystemPrompts(chatId)) || {};
 
       const messagesPayload = history.map((item) => ({
         role: item.role,
@@ -1132,8 +1218,13 @@ export function createApp(deps = {}) {
         ...(item.images?.length ? { images: item.images } : {}),
       }));
 
-      if (ragSystemMessage) {
-        messagesPayload.unshift({ role: "system", content: ragSystemMessage });
+      const systemMessages = buildSystemMessages({
+        defaultSystemPrompt: promptContext.defaultSystemPrompt,
+        chatSystemPrompt: promptContext.systemPrompt,
+        ragSystemMessage,
+      });
+      if (systemMessages.length) {
+        messagesPayload.unshift(...systemMessages);
       }
 
       const payload = {
