@@ -708,6 +708,92 @@ export async function exportChatMarkdown(chatId) {
   return lines.join("\n");
 }
 
+export async function exportChatJson(chatId) {
+  await initDb();
+  const chat = await db.get(
+    `SELECT id, title, user_id AS userId,
+            is_favorite AS isFavoriteRaw, archived_at AS archivedAt, tags AS tagsRaw
+     FROM chats WHERE id = ?`,
+    [chatId],
+  );
+  if (!chat) return null;
+
+  const messages = await getMessages(chatId);
+
+  return {
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    chat: {
+      id: chat.id,
+      title: chat.title,
+      userId: chat.userId || "user-default",
+      isFavorite: !!chat.isFavoriteRaw,
+      archivedAt: chat.archivedAt || null,
+      tags: safeParseJsonArray(chat.tagsRaw),
+      messages: messages.map(({ role, content, images, createdAt }) => ({
+        role,
+        content,
+        images: images ?? [],
+        createdAt,
+      })),
+    },
+  };
+}
+
+export async function importChatJson(payload, opts = {}) {
+  await initDb();
+
+  const chat = payload?.chat;
+  if (!chat || typeof chat !== "object") throw new Error("Payload invalido");
+
+  const rawId = String(chat.id || "").trim();
+  const title = titleFromText(chat.title || "Conversa importada");
+  const userId = String(chat.userId || "user-default").trim() || "user-default";
+  const isFavorite = chat.isFavorite ? 1 : 0;
+  const archivedAt = chat.archivedAt || null;
+  const tags = JSON.stringify(
+    Array.isArray(chat.tags)
+      ? chat.tags.map(String).filter(Boolean).slice(0, 10)
+      : [],
+  );
+  const messages = Array.isArray(chat.messages) ? chat.messages : [];
+
+  const existingRow = rawId
+    ? await db.get("SELECT id FROM chats WHERE id = ?", [rawId])
+    : null;
+  const chatId =
+    !rawId || existingRow || opts.forceNew
+      ? `chat-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
+      : rawId;
+
+  await db.run(
+    `INSERT INTO chats (id, title, user_id, is_favorite, archived_at, tags)
+     VALUES (?, ?, ?, ?, ?, ?)`,
+    [chatId, title, userId, isFavorite, archivedAt, tags],
+  );
+
+  for (const msg of messages.slice(0, 2000)) {
+    const role = msg.role === "assistant" ? "assistant" : "user";
+    const content = String(msg.content || "").trim();
+    if (!content) continue;
+    const imgs = Array.isArray(msg.images) ? msg.images : [];
+    await db.run(
+      `INSERT INTO messages (chat_id, role, content, images_json, created_at)
+       VALUES (?, ?, ?, ?, ?)`,
+      [
+        chatId,
+        role,
+        content,
+        imgs.length ? JSON.stringify(imgs) : null,
+        msg.createdAt || new Date().toISOString(),
+      ],
+    );
+  }
+
+  return { id: chatId, title, userId };
+}
+
+
 export async function upsertRagDocument(chatId, name, content) {
   await initDb();
   await ensureChat(chatId, "Nova conversa", "user-default");

@@ -23,6 +23,8 @@ import {
   appendMessage,
   resetChat,
   exportChatMarkdown,
+  exportChatJson,
+  importChatJson,
   renameChatFromFirstMessage,
   upsertRagDocument,
   listRagDocuments,
@@ -420,7 +422,8 @@ async function executeWithModelRecovery({
       );
 
       if (idx < attemptPlan.length - 1) {
-        const delayMs = retryDelays[idx] ?? retryDelays[retryDelays.length - 1] ?? 1000;
+        const delayMs =
+          retryDelays[idx] ?? retryDelays[retryDelays.length - 1] ?? 1000;
         if (delayMs > 0) await sleep(delayMs);
       }
     }
@@ -498,6 +501,8 @@ export function createApp(deps = {}) {
     appendMessage: deps.appendMessage || appendMessage,
     resetChat: deps.resetChat || resetChat,
     exportChatMarkdown: deps.exportChatMarkdown || exportChatMarkdown,
+    exportChatJson: deps.exportChatJson || exportChatJson,
+    importChatJson: deps.importChatJson || importChatJson,
     renameChatFromFirstMessage:
       deps.renameChatFromFirstMessage || renameChatFromFirstMessage,
   };
@@ -1015,17 +1020,86 @@ export function createApp(deps = {}) {
     "/api/chats/:chatId/export",
     asyncHandler(async (req, res) => {
       const chatId = parseChatId(req.params.chatId, "chatId");
-      const markdown = await store.exportChatMarkdown(chatId);
-      if (!markdown) {
-        throw new HttpError(404, "Chat nao encontrado");
+      const format = String(req.query.format || "md").toLowerCase();
+
+      if (format === "json") {
+        const payload = await store.exportChatJson(chatId);
+        if (!payload) throw new HttpError(404, "Chat nao encontrado");
+        res.setHeader("Content-Type", "application/json; charset=utf-8");
+        res.setHeader(
+          "Content-Disposition",
+          `attachment; filename="chat-${chatId}.json"`,
+        );
+        return res.send(JSON.stringify(payload, null, 2));
       }
 
+      const markdown = await store.exportChatMarkdown(chatId);
+      if (!markdown) throw new HttpError(404, "Chat nao encontrado");
       res.setHeader("Content-Type", "text/markdown; charset=utf-8");
       res.setHeader(
         "Content-Disposition",
         `attachment; filename="chat-${chatId}.md"`,
       );
       return res.send(markdown);
+    }),
+  );
+
+  app.get(
+    "/api/chats/export",
+    asyncHandler(async (req, res) => {
+      const userId = parseUserId(req.query?.userId);
+      const activeChats = await store.listChats(userId, {
+        favoriteOnly: false,
+        showArchived: false,
+        tag: null,
+      });
+      const archivedChats = await store.listChats(userId, {
+        favoriteOnly: false,
+        showArchived: true,
+        tag: null,
+      });
+      const chats = [...activeChats, ...archivedChats].filter(
+        (chat, idx, arr) => arr.findIndex((item) => item.id === chat.id) === idx,
+      );
+      const exported = [];
+      for (const chat of chats) {
+        const payload = await store.exportChatJson(chat.id);
+        if (payload?.chat) exported.push(payload.chat);
+      }
+
+      res.setHeader("Content-Type", "application/json; charset=utf-8");
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename="chats-${userId}.json"`,
+      );
+      return res.send(
+        JSON.stringify(
+          {
+            version: 1,
+            exportedAt: new Date().toISOString(),
+            userId,
+            chats: exported,
+          },
+          null,
+          2,
+        ),
+      );
+    }),
+  );
+
+  app.post(
+    "/api/chats/import",
+    asyncHandler(async (req, res) => {
+      assertBodyObject(req.body);
+
+      const payload = req.body;
+      if (!payload?.chat || typeof payload.chat !== "object") {
+        throw new HttpError(400, "Payload invalido: campo chat obrigatorio");
+      }
+
+      const forceNew = parseBooleanLike(req.query.forceNew, false);
+      const result = await store.importChatJson(payload, { forceNew });
+      return res.status(201).json({ chat: result });
     }),
   );
 

@@ -301,6 +301,58 @@ function createMockStore() {
       }
       return parts.join("\n");
     },
+    exportChatJson: async (chatId) => {
+      if (!chats.has(chatId)) return null;
+      const chat = chats.get(chatId);
+      return {
+        version: 1,
+        exportedAt: new Date().toISOString(),
+        chat: {
+          id: chat.id,
+          title: chat.title,
+          userId: chat.userId || "user-default",
+          isFavorite: !!chat.isFavorite,
+          archivedAt: chat.archivedAt || null,
+          tags: chat.tags || [],
+          messages: ensureMessages(chatId).map((m) => ({
+            role: m.role,
+            content: m.content,
+            images: m.images || [],
+            createdAt: m.createdAt || new Date().toISOString(),
+          })),
+        },
+      };
+    },
+    importChatJson: async (payload, opts = {}) => {
+      const chat = payload?.chat;
+      if (!chat) throw new Error("Payload invalido");
+      const rawId = String(chat.id || "").trim();
+      const chatId =
+        !rawId || chats.has(rawId) || opts.forceNew
+          ? `chat-imp-${Date.now()}`
+          : rawId;
+      chats.set(chatId, {
+        id: chatId,
+        title: chat.title || "Importada",
+        userId: chat.userId || "user-default",
+        isFavorite: !!chat.isFavorite,
+        archivedAt: chat.archivedAt || null,
+        tags: chat.tags || [],
+      });
+      messages.set(
+        chatId,
+        (chat.messages || []).map((m) => ({
+          role: m.role,
+          content: m.content,
+          images: m.images || [],
+        })),
+      );
+      return {
+        id: chatId,
+        title: chat.title || "Importada",
+        userId: chat.userId || "user-default",
+      };
+    },
     renameChatFromFirstMessage: async (chatId, text) => {
       if (!chats.has(chatId)) return;
       const current = chats.get(chatId);
@@ -1000,4 +1052,127 @@ test("POST /api/chat-stream retorna erro padrao quando servico externo falha", a
     ),
     true,
   );
+});
+
+test("GET /api/chats/:chatId/export?format=json exporta conversa estruturada", async () => {
+  const app = createApp({
+    chatClient: createMockChatClient(),
+    ...createMockStore(),
+  });
+
+  await request(app)
+    .post("/api/chat")
+    .send({ chatId: "default", message: "ola exportacao json" })
+    .expect(200);
+
+  const res = await request(app)
+    .get("/api/chats/default/export?format=json")
+    .expect(200);
+
+  assert.equal(res.headers["content-type"].includes("application/json"), true);
+  assert.equal(res.body.version, 1);
+  assert.ok(res.body.exportedAt);
+  assert.equal(res.body.chat.id, "default");
+  assert.equal(Array.isArray(res.body.chat.messages), true);
+  assert.equal(res.body.chat.messages.length >= 1, true);
+});
+
+test("POST /api/chats/import importa conversa e GET lista nova aba", async () => {
+  const app = createApp({
+    chatClient: createMockChatClient(),
+    ...createMockStore(),
+  });
+
+  const payload = {
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    chat: {
+      id: "chat-import-test",
+      title: "Conversa Importada",
+      userId: "user-default",
+      isFavorite: false,
+      archivedAt: null,
+      tags: ["teste"],
+      messages: [
+        {
+          role: "user",
+          content: "mensagem importada",
+          images: [],
+          createdAt: new Date().toISOString(),
+        },
+        {
+          role: "assistant",
+          content: "resposta importada",
+          images: [],
+          createdAt: new Date().toISOString(),
+        },
+      ],
+    },
+  };
+
+  const imported = await request(app)
+    .post("/api/chats/import")
+    .send(payload)
+    .expect(201);
+
+  assert.ok(imported.body.chat.id);
+  assert.equal(imported.body.chat.title, "Conversa Importada");
+
+  const msgs = await request(app)
+    .get(`/api/chats/${imported.body.chat.id}/messages`)
+    .expect(200);
+
+  assert.equal(Array.isArray(msgs.body.messages), true);
+  assert.equal(msgs.body.messages.length, 2);
+  assert.equal(msgs.body.messages[0].content, "mensagem importada");
+});
+
+test("POST /api/chats/import com id duplicado gera novo id", async () => {
+  const app = createApp({
+    chatClient: createMockChatClient(),
+    ...createMockStore(),
+  });
+
+  const payload = {
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    chat: {
+      id: "default",
+      title: "Tentativa de sobrescrever",
+      userId: "user-default",
+      isFavorite: false,
+      archivedAt: null,
+      tags: [],
+      messages: [],
+    },
+  };
+
+  const res = await request(app)
+    .post("/api/chats/import")
+    .send(payload)
+    .expect(201);
+
+  assert.notEqual(res.body.chat.id, "default");
+});
+
+test("GET /api/chats/export retorna lote JSON por userId", async () => {
+  const app = createApp({
+    chatClient: createMockChatClient(),
+    ...createMockStore(),
+  });
+
+  await request(app)
+    .post("/api/chats")
+    .send({ id: "chat-lote-1", title: "Lote 1", userId: "user-default" })
+    .expect(201);
+
+  const response = await request(app)
+    .get("/api/chats/export?userId=user-default")
+    .expect(200);
+
+  assert.equal(response.headers["content-type"].includes("application/json"), true);
+  assert.equal(response.body.version, 1);
+  assert.equal(response.body.userId, "user-default");
+  assert.equal(Array.isArray(response.body.chats), true);
+  assert.equal(response.body.chats.some((chat) => chat.id === "chat-lote-1"), true);
 });
