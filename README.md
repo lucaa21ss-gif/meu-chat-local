@@ -810,6 +810,22 @@ Checklist de atualizacao segura:
 9. Exporte a conversa por `Exportar Markdown`
 10. Use `Renomear aba` e `Excluir aba` para organizar suas conversas
 
+## Atalhos de teclado
+
+- `Shift+?`: abre o painel de ajuda de atalhos.
+- `Alt+Shift+N`: cria uma nova conversa.
+- `Alt+Shift+F`: foca a busca no historico.
+- `Alt+Shift+M`: foca a caixa de mensagem.
+- `Alt+Shift+ArrowUp`: navega para a aba anterior.
+- `Alt+Shift+ArrowDown`: navega para a proxima aba.
+- `Alt+Shift+D`: duplica a aba ativa.
+- `Esc`: fecha o modal aberto.
+
+Observacoes:
+
+- Os atalhos globais ficam desativados quando um `input`, `textarea` ou area editavel esta em foco.
+- O modal `Atalhos ?` usa o mesmo mapa centralizado de atalhos do frontend para evitar divergencia entre UI e comportamento.
+
 ## Perfis multiusuario locais
 
 - Cada perfil local possui isolamento de abas, historico e documentos RAG.

@@ -45,6 +45,7 @@ const userPromptBtnEl = document.getElementById("userPromptBtn");
 const shortcutsHelpBtnEl = document.getElementById("shortcutsHelpBtn");
 const shortcutsModalEl = document.getElementById("shortcutsModal");
 const shortcutsCloseBtnEl = document.getElementById("shortcutsCloseBtn");
+const shortcutsListEl = document.getElementById("shortcutsList");
 const userSelectEl = document.getElementById("userSelect");
 const darkModeBtnEl = document.getElementById("darkModeBtn");
 const sunIconEl = document.getElementById("sunIcon");
@@ -120,6 +121,61 @@ const state = {
     alerts: [],
   },
 };
+
+const SHORTCUT_DEFINITIONS = [
+  {
+    keys: "Shift+?",
+    description: "Abrir a ajuda de atalhos",
+    match: (event) =>
+      !event.altKey &&
+      !event.ctrlKey &&
+      !event.metaKey &&
+      event.shiftKey &&
+      (event.key === "?" || event.code === "Slash"),
+    run: () => openShortcutsModal(),
+  },
+  {
+    keys: "Alt+Shift+N",
+    description: "Criar nova conversa",
+    match: (event) => isAltShiftShortcut(event, "n"),
+    run: () => createNewChat().catch(console.error),
+  },
+  {
+    keys: "Alt+Shift+F",
+    description: "Focar a busca no historico",
+    match: (event) => isAltShiftShortcut(event, "f"),
+    run: () => focusSearchField(),
+  },
+  {
+    keys: "Alt+Shift+M",
+    description: "Focar a caixa de mensagem",
+    match: (event) => isAltShiftShortcut(event, "m"),
+    run: () => focusComposerField(),
+  },
+  {
+    keys: "Alt+Shift+ArrowUp",
+    description: "Ir para a aba anterior",
+    match: (event) => isAltShiftShortcut(event, "arrowup"),
+    run: () => navigateRelativeTab(-1),
+  },
+  {
+    keys: "Alt+Shift+ArrowDown",
+    description: "Ir para a proxima aba",
+    match: (event) => isAltShiftShortcut(event, "arrowdown"),
+    run: () => navigateRelativeTab(1),
+  },
+  {
+    keys: "Alt+Shift+D",
+    description: "Duplicar a aba ativa",
+    match: (event) => isAltShiftShortcut(event, "d"),
+    run: () => duplicateActiveChat().catch(console.error),
+  },
+  {
+    keys: "Esc",
+    description: "Fechar o modal aberto",
+    helpOnly: true,
+  },
+];
 
 function escapeRegExp(value) {
   return String(value || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -2668,6 +2724,22 @@ function isTextInputLike(element) {
   );
 }
 
+function isAltShiftShortcut(event, expectedKey) {
+  return (
+    event.altKey &&
+    event.shiftKey &&
+    !event.ctrlKey &&
+    !event.metaKey &&
+    String(event.key || "").toLowerCase() === expectedKey
+  );
+}
+
+function focusComposerField() {
+  if (!inputEl) return;
+  inputEl.focus();
+  inputEl.select?.();
+}
+
 function focusSearchField() {
   const searchInput = document.getElementById("searchInput");
   if (!searchInput) return;
@@ -2692,18 +2764,58 @@ function isShortcutsModalOpen() {
   return shortcutsModalEl && !shortcutsModalEl.classList.contains("hidden");
 }
 
-function navigateToTabByNumber(numericShortcut) {
-  const index = numericShortcut - 1;
-  if (index < 0 || index > 8) return;
-  const chat = state.chats[index];
+function isModalVisible(element) {
+  return !!element && !element.classList.contains("hidden");
+}
+
+function hasBlockingModalOpen() {
+  return (
+    isShortcutsModalOpen() ||
+    isModalVisible(duplicateModalEl) ||
+    isModalVisible(confirmModalEl) ||
+    isModalVisible(voiceHistoryModalEl) ||
+    isModalVisible(onboardingModalEl)
+  );
+}
+
+function navigateRelativeTab(step) {
+  const totalChats = state.chats.length;
+  if (!totalChats) return;
+
+  const currentIndex = state.chats.findIndex(
+    (chat) => chat.id === state.activeChatId,
+  );
+  const baseIndex = currentIndex >= 0 ? currentIndex : 0;
+  const nextIndex = (baseIndex + step + totalChats) % totalChats;
+  const chat = state.chats[nextIndex];
   if (!chat?.id) return;
   switchChat(chat.id).catch(console.error);
 }
 
-function handleGlobalShortcuts(event) {
-  const key = String(event.key || "").toLowerCase();
-  const usesCtrl = event.ctrlKey || event.metaKey;
+function renderShortcutsHelp() {
+  if (!shortcutsListEl) return;
 
+  shortcutsListEl.innerHTML = "";
+  SHORTCUT_DEFINITIONS.forEach((shortcut) => {
+    const item = document.createElement("li");
+    item.className =
+      "flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/70";
+
+    const description = document.createElement("span");
+    description.className = "text-sm text-slate-700 dark:text-slate-200";
+    description.textContent = shortcut.description;
+
+    const keys = document.createElement("kbd");
+    keys.className =
+      "rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs font-semibold text-slate-700 shadow-sm dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200";
+    keys.textContent = shortcut.keys;
+
+    item.append(description, keys);
+    shortcutsListEl.appendChild(item);
+  });
+}
+
+function handleGlobalShortcuts(event) {
   if (event.key === "Escape") {
     if (isShortcutsModalOpen()) {
       event.preventDefault();
@@ -2732,42 +2844,17 @@ function handleGlobalShortcuts(event) {
     return;
   }
 
-  if (!usesCtrl) {
-    if (event.key === "?" && !isTextInputLike(event.target)) {
-      event.preventDefault();
-      openShortcutsModal();
-    }
+  if (isTextInputLike(event.target) || hasBlockingModalOpen()) {
     return;
   }
 
-  if (key === "k" || key === "f") {
-    event.preventDefault();
-    focusSearchField();
-    return;
-  }
+  const shortcut = SHORTCUT_DEFINITIONS.find(
+    (entry) => !entry.helpOnly && entry.match?.(event),
+  );
+  if (!shortcut) return;
 
-  if (key === "n") {
-    event.preventDefault();
-    createNewChat();
-    return;
-  }
-
-  if (key === "d") {
-    event.preventDefault();
-    duplicateActiveChat().catch(console.error);
-    return;
-  }
-
-  if (key === "w") {
-    event.preventDefault();
-    deleteActiveChat().catch(console.error);
-    return;
-  }
-
-  if (/^[1-9]$/.test(key)) {
-    event.preventDefault();
-    navigateToTabByNumber(Number.parseInt(key, 10));
-  }
+  event.preventDefault();
+  shortcut.run?.();
 }
 
 function setupDragAndDrop() {
@@ -2811,6 +2898,8 @@ function loadDarkMode() {
       }
     });
 }
+
+renderShortcutsHelp();
 
 inputEl.addEventListener("input", updateSendButtonState);
 
