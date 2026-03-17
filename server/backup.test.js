@@ -6,6 +6,7 @@ import fsp from "node:fs/promises";
 import {
   createBackupArchive,
   restoreBackupArchive,
+  validateBackupArchive,
 } from "./backup.js";
 
 async function withTempDir(callback) {
@@ -142,6 +143,56 @@ test("backup criptografado exige passphrase no restore", async () => {
           includeDirs: [],
           closeDb: async () => {},
           initDb: async () => {},
+        }),
+      /Backup criptografado: informe a passphrase/,
+    );
+  });
+});
+
+test("validacao de backup legado retorna status valido", async () => {
+  await withTempDir(async (rootDir) => {
+    const dbPath = path.join(rootDir, "chat.db");
+    const backupRoot = path.join(rootDir, "backups");
+
+    const backup = await createBackupArchive({
+      dbPath,
+      includeDirs: [],
+      backupRoot,
+      createDbSnapshot: async (snapshotPath) => {
+        await fsp.writeFile(snapshotPath, "db-valido", "utf8");
+      },
+    });
+
+    const result = await validateBackupArchive({
+      archiveBuffer: backup.archiveBuffer,
+    });
+
+    assert.equal(result.valid, true);
+    assert.equal(result.encrypted, false);
+    assert.equal(result.manifest.version, 1);
+    assert.ok(Array.isArray(result.manifest.includes));
+  });
+});
+
+test("validacao de backup criptografado exige passphrase", async () => {
+  await withTempDir(async (rootDir) => {
+    const dbPath = path.join(rootDir, "chat.db");
+    const backupRoot = path.join(rootDir, "backups");
+
+    const backup = await createBackupArchive({
+      dbPath,
+      includeDirs: [],
+      backupRoot,
+      passphrase: "senha-super-segura",
+      createDbSnapshot: async (snapshotPath) => {
+        await fsp.writeFile(snapshotPath, "db-seguro", "utf8");
+      },
+    });
+
+    await assert.rejects(
+      () =>
+        validateBackupArchive({
+          archiveBuffer: backup.archiveBuffer,
         }),
       /Backup criptografado: informe a passphrase/,
     );

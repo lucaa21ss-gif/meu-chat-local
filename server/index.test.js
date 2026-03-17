@@ -1606,6 +1606,61 @@ test("POST /api/backup/restore rejeita passphrase curta", async () => {
   assert.equal(response.body.error.includes("ao menos 8"), true);
 });
 
+test("GET /api/backup/validate retorna snapshot de validacao", async () => {
+  let capturedOptions = null;
+  const app = createApp({
+    chatClient: createMockChatClient(),
+    ...createMockStore(),
+    backupService: {
+      createBackup: async () => ({ fileName: "x.tgz", archiveBuffer: Buffer.from("x") }),
+      restoreBackup: async () => ({ restored: true }),
+      validateRecentBackups: async (options = {}) => {
+        capturedOptions = options;
+        return {
+          checkedAt: "2026-03-17T00:00:00.000Z",
+          limit: 2,
+          status: "alerta",
+          items: [
+            {
+              fileName: "meu-chat-local-backup-1.tgz.enc",
+              status: "alerta",
+              error: "Backup criptografado: informe a passphrase para restauracao",
+            },
+          ],
+        };
+      },
+    },
+  });
+
+  const response = await request(app)
+    .get("/api/backup/validate?limit=2")
+    .set("x-user-id", "user-default")
+    .expect(200);
+
+  assert.equal(capturedOptions.limit, 2);
+  assert.equal(capturedOptions.passphrase, null);
+  assert.equal(response.body.ok, false);
+  assert.equal(response.body.validation.status, "alerta");
+  assert.ok(Array.isArray(response.body.validation.items));
+});
+
+test("GET /api/backup/validate bloqueado para viewer", async () => {
+  const app = createApp({
+    chatClient: createMockChatClient(),
+    ...createMockStore(),
+    backupService: {
+      createBackup: async () => ({ fileName: "x.tgz", archiveBuffer: Buffer.from("x") }),
+      restoreBackup: async () => ({ restored: true }),
+      validateRecentBackups: async () => ({ checkedAt: new Date().toISOString(), status: "ok", limit: 3, items: [] }),
+    },
+  });
+
+  await request(app)
+    .get("/api/backup/validate")
+    .set("x-user-id", "user-viewer")
+    .expect(403);
+});
+
 test("POST /api/chats/import importa conversa e GET lista nova aba", async () => {
   const app = createApp({
     chatClient: createMockChatClient(),
@@ -2287,6 +2342,8 @@ test("observabilidade: GET /api/diagnostics/export retorna pacote com campos obr
   // Novos campos do pacote forense (#40)
   assert.ok(payload.storage, "storage obrigatorio no pacote forense");
   assert.equal(typeof payload.storage.totalBytes, "number", "storage.totalBytes deve ser numero");
+  assert.ok(payload.backupValidation, "backupValidation obrigatorio no pacote forense");
+  assert.ok(["ok", "alerta", "falha"].includes(payload.backupValidation.status));
   assert.ok(payload.slo, "slo obrigatorio no pacote forense");
   assert.ok(typeof payload.slo.status === "string", "slo.status deve ser string");
   assert.ok(Array.isArray(payload.slo.evaluatedRoutes), "slo.evaluatedRoutes deve ser array");

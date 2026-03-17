@@ -3,7 +3,12 @@ import cors from "cors";
 import compression from "compression";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
-import { statfs } from "node:fs/promises";
+import {
+  statfs,
+  readdir as fsReaddir,
+  stat as fsStat,
+  readFile as fsReadFile,
+} from "node:fs/promises";
 import helmet from "helmet";
 import { client } from "./ollama.js";
 import { createRoleLimiterQueue } from "./rateLimiter.js";
@@ -55,6 +60,7 @@ import {
 import {
   createBackupArchive,
   restoreBackupArchive,
+  validateBackupArchive,
 } from "./backup.js";
 import { createStorageService } from "./storage.js";
 import {
@@ -908,6 +914,13 @@ function createDefaultBackupService(config = {}) {
   const includeDirs = parseDirList(config.includeDirs || ["uploads", "documents"]);
   const backupKeep = parsePositiveInt(config.backupKeep, 10, 1, 100);
 
+  function summarizeValidationStatus(items = []) {
+    if (!items.length) return "alerta";
+    if (items.some((item) => item.status === "falha")) return "falha";
+    if (items.some((item) => item.status === "alerta")) return "alerta";
+    return "ok";
+  }
+
   return {
     async createBackup(options = {}) {
       const info = await createBackupArchive({
@@ -929,6 +942,98 @@ function createDefaultBackupService(config = {}) {
         initDb,
         passphrase: options.passphrase,
       });
+    },
+    async validateRecentBackups(options = {}) {
+      const limit = parsePositiveInt(options.limit, 3, 1, 20);
+      const passphrase = String(options.passphrase || "").trim() || null;
+
+      let entries = [];
+      try {
+        entries = await fsReaddir(backupRoot, { withFileTypes: true });
+      } catch {
+        return {
+          checkedAt: new Date().toISOString(),
+          status: "alerta",
+          reason: "Diretorio de backups indisponivel",
+          limit,
+          items: [],
+        };
+      }
+
+      const candidates = await Promise.all(
+        entries
+          .filter((entry) => entry.isFile())
+          .filter((entry) => {
+            const name = entry.name;
+            return (
+              name.startsWith("meu-chat-local-backup-") &&
+              (name.endsWith(".tgz") || name.endsWith(".tgz.enc"))
+            );
+          })
+          .map(async (entry) => {
+            const fullPath = path.join(backupRoot, entry.name);
+            const stats = await fsStat(fullPath);
+            return {
+              fileName: entry.name,
+              fullPath,
+              mtimeMs: stats.mtimeMs,
+              sizeBytes: stats.size,
+            };
+          }),
+      );
+
+      const selected = candidates
+        .sort((a, b) => b.mtimeMs - a.mtimeMs)
+        .slice(0, limit);
+
+      if (!selected.length) {
+        return {
+          checkedAt: new Date().toISOString(),
+          status: "alerta",
+          reason: "Nenhum arquivo de backup encontrado",
+          limit,
+          items: [],
+        };
+      }
+
+      const items = [];
+      for (const candidate of selected) {
+        try {
+          const archiveBuffer = await fsReadFile(candidate.fullPath);
+          const result = await validateBackupArchive({
+            archiveBuffer,
+            passphrase,
+          });
+          items.push({
+            fileName: candidate.fileName,
+            sizeBytes: candidate.sizeBytes,
+            mtime: new Date(candidate.mtimeMs).toISOString(),
+            status: "ok",
+            encrypted: !!result.encrypted,
+            manifest: result.manifest,
+          });
+        } catch (error) {
+          const message = String(error?.message || "Falha ao validar backup");
+          const lower = message.toLowerCase();
+          const missingPassphrase =
+            lower.includes("passphrase") &&
+            lower.includes("informe");
+          items.push({
+            fileName: candidate.fileName,
+            sizeBytes: candidate.sizeBytes,
+            mtime: new Date(candidate.mtimeMs).toISOString(),
+            status: missingPassphrase ? "alerta" : "falha",
+            error: message,
+          });
+        }
+      }
+
+      return {
+        checkedAt: new Date().toISOString(),
+        limit,
+        status: summarizeValidationStatus(items),
+        items,
+      };
     },
   };
 }
@@ -2263,6 +2368,29 @@ export function createApp(deps = {}) {
   );
 
   app.get(
+    "/api/backup/validate",
+    requireMinimumRole("admin"),
+    asyncHandler(async (req, res) => {
+      const limit = parsePositiveInt(req.query?.limit, 3, 1, 20);
+      const passphrase = parseBackupPassphrase(req.headers["x-backup-passphrase"]);
+      const validation = await backupService.validateRecentBackups({
+        limit,
+        passphrase,
+      });
+
+      await recordAudit("backup.validate", null, {
+        status: validation.status,
+        checked: Array.isArray(validation.items) ? validation.items.length : 0,
+      });
+
+      return res.json({
+        ok: validation.status === "ok",
+        validation,
+      });
+    }),
+  );
+
+  app.get(
     "/api/storage/usage",
     asyncHandler(async (req, res) => {
       const userId = parseUserId(req.query?.userId);
@@ -2540,6 +2668,15 @@ export function createApp(deps = {}) {
       }));
       const rateLimiterMetrics = roleLimiter.getMetrics();
       const storageSnapshot = await storageService.getUsage().catch(() => null);
+      const backupValidationSnapshot = await backupService
+        .validateRecentBackups({ limit: 3 })
+        .catch((error) => ({
+          checkedAt: new Date().toISOString(),
+          limit: 3,
+          status: "falha",
+          items: [],
+          error: String(error?.message || "Falha ao validar backups"),
+        }));
       const sloSnapshot = buildSloSnapshot(
         getTelemetryStats().map((item) => ({
           ...item,
@@ -2574,6 +2711,7 @@ export function createApp(deps = {}) {
           topRoutes: telemetry,
         },
         storage: storageSnapshot,
+        backupValidation: backupValidationSnapshot,
         slo: sloSnapshot,
         recentErrors,
         recentAuditLogs: auditPage.items,

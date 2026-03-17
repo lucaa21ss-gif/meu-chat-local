@@ -337,3 +337,62 @@ export async function restoreBackupArchive({
     await safeRm(workDir);
   }
 }
+
+export async function validateBackupArchive({ archiveBuffer, passphrase }) {
+  if (!Buffer.isBuffer(archiveBuffer) || archiveBuffer.length === 0) {
+    throw new Error("Arquivo de backup invalido");
+  }
+
+  const normalizedArchive = decodeBackupArchive(archiveBuffer, passphrase);
+  const workDir = await fsp.mkdtemp(path.join(os.tmpdir(), "chat-validate-"));
+
+  try {
+    const archivePath = path.join(workDir, `${randomUUID()}.tgz`);
+    const extractDir = path.join(workDir, "extract");
+    await fsp.mkdir(extractDir, { recursive: true });
+
+    await fsp.writeFile(archivePath, normalizedArchive.archiveBuffer);
+    await tar.extract({
+      cwd: extractDir,
+      file: archivePath,
+      gzip: true,
+      strict: true,
+    });
+
+    const restoredDb = path.join(extractDir, "chat.db");
+    const restoredManifest = path.join(extractDir, "manifest.json");
+
+    if (!fs.existsSync(restoredDb) || !fs.existsSync(restoredManifest)) {
+      throw new Error("Backup invalido: estrutura obrigatoria ausente");
+    }
+
+    const manifestRaw = await fsp.readFile(restoredManifest, "utf8");
+    let manifest = null;
+    try {
+      manifest = JSON.parse(manifestRaw);
+    } catch {
+      throw new Error("Backup invalido: manifest corrompido");
+    }
+
+    if (
+      !manifest ||
+      manifest.version !== 1 ||
+      !Array.isArray(manifest.includes)
+    ) {
+      throw new Error("Backup invalido: manifest inconsistente");
+    }
+
+    return {
+      valid: true,
+      encrypted: normalizedArchive.encrypted,
+      manifest: {
+        version: manifest.version,
+        createdAt: manifest.createdAt || null,
+        includes: manifest.includes,
+      },
+      validatedAt: new Date().toISOString(),
+    };
+  } finally {
+    await safeRm(workDir);
+  }
+}
