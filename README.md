@@ -90,6 +90,38 @@ docker compose up --build
 - [http://localhost:3001/guia](http://localhost:3001/guia) para o guia rapido do usuario
 - [http://localhost:3001/api/chats](http://localhost:3001/api/chats) para validar a API
 
+## Distribuicao para usuario final
+
+Fluxo recomendado para empacotar e distribuir:
+
+```bash
+npm run dist:package
+```
+
+Isso gera um pacote em `dist/meu-chat-local-<versao>.tar.gz`.
+
+No ambiente de destino:
+
+```bash
+tar -xzf meu-chat-local-<versao>.tar.gz
+cd meu-chat-local
+bash scripts/install.sh
+```
+
+Comandos operacionais do pacote:
+
+- `bash scripts/start.sh`: inicia servicos
+- `bash scripts/stop.sh`: pausa servicos
+- `bash scripts/uninstall.sh`: remove containers/rede e preserva dados
+- `bash scripts/uninstall.sh --purge`: remove containers/rede e volumes
+
+Tambem disponivel via npm na raiz do projeto:
+
+- `npm run dist:install`
+- `npm run dist:start`
+- `npm run dist:stop`
+- `npm run dist:uninstall`
+
 ## Setup local (sem Docker para frontend/server)
 
 ### Backend
