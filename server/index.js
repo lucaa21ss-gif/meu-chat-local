@@ -589,9 +589,6 @@ export function createApp(deps = {}) {
 
       const history = await store.getMessages(chatId);
 
-      res.setHeader("Content-Type", "text/plain; charset=utf-8");
-      res.setHeader("Transfer-Encoding", "chunked");
-
       let fullReply = "";
 
       const payload = {
@@ -617,6 +614,9 @@ export function createApp(deps = {}) {
       });
 
       req.logger?.info({ modelUsed, attempt }, "Streaming iniciado");
+
+      res.setHeader("Content-Type", "text/plain; charset=utf-8");
+      res.setHeader("Transfer-Encoding", "chunked");
 
       for await (const part of stream) {
         const chunk = part.message?.content ?? part.delta?.content ?? "";

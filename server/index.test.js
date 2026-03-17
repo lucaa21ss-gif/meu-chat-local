@@ -331,3 +331,64 @@ test("POST /api/chat-stream usa fallback quando modelo primario falha", async ()
 
   assert.equal(response.text.includes('stream fallback'), true);
 });
+
+test("POST /api/chat retorna 504 quando inferencia excede timeout", async () => {
+  const app = createApp({
+    ...createMockStore(),
+    ollamaTimeoutMs: 25,
+    ollamaMaxAttempts: 1,
+    chatClient: {
+      chat: async () => new Promise(() => {}),
+    },
+  });
+
+  const response = await request(app)
+    .post('/api/chat')
+    .send({ chatId: 'default', message: 'timeout test', model: 'meu-llama3' })
+    .expect(504);
+
+  assert.equal(
+    String(response.body?.error || response.text || '').includes('Tempo limite excedido'),
+    true,
+  );
+});
+
+test("GET /api/chats/:chatId/search valida query curta", async () => {
+  const app = createApp({
+    chatClient: createMockChatClient(),
+    ...createMockStore(),
+  });
+
+  const response = await request(app)
+    .get('/api/chats/default/search?q=a')
+    .expect(400);
+
+  assert.equal(
+    String(response.body?.error || response.text || '').includes(
+      'Parametro q deve ter pelo menos 2 caracteres',
+    ),
+    true,
+  );
+});
+
+test("POST /api/chat-stream retorna erro padrao quando servico externo falha", async () => {
+  const app = createApp({
+    ...createMockStore(),
+    ollamaMaxAttempts: 1,
+    chatClient: {
+      chat: async () => {
+        throw new Error('ollama indisponivel');
+      },
+    },
+  });
+
+  const response = await request(app)
+    .post('/api/chat-stream')
+    .send({ chatId: 'default', message: 'falha externa', model: 'meu-llama3' })
+    .expect(500);
+
+  assert.equal(
+    String(response.body?.error || response.text || '').includes('Erro no streaming'),
+    true,
+  );
+});
