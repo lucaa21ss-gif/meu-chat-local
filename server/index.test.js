@@ -1901,11 +1901,15 @@ test("POST /api/storage/cleanup dry-run e execute", async () => {
       target: "backups",
       olderThanDays: 15,
       maxDeleteMb: 100,
+      preserveValidatedBackups: 3,
+      backupPassphrase: "senha-para-validacao",
     })
     .expect(200);
 
   assert.equal(dryRun.body.cleanup.mode, "dry-run");
   assert.equal(calls[0].execute, false);
+  assert.equal(calls[0].preserveValidatedBackups, 3);
+  assert.equal(calls[0].backupPassphrase, "senha-para-validacao");
 
   const execute = await request(app)
     .post("/api/storage/cleanup")
@@ -1919,6 +1923,45 @@ test("POST /api/storage/cleanup dry-run e execute", async () => {
 
   assert.equal(execute.body.cleanup.mode, "execute");
   assert.equal(calls[1].execute, true);
+});
+
+test("POST /api/storage/cleanup rejeita preserveValidatedBackups invalido", async () => {
+  const app = createApp({
+    chatClient: createMockChatClient(),
+    ...createMockStore(),
+    storageService: {
+      getUsage: async () => ({
+        dbBytes: 0,
+        uploadsBytes: 0,
+        documentsBytes: 0,
+        backupsBytes: 0,
+        totalBytes: 0,
+      }),
+      cleanup: async () => ({
+        mode: "dry-run",
+        target: "backups",
+        olderThanDays: 15,
+        files: [],
+        filesCount: 0,
+        estimatedFreedBytes: 0,
+      }),
+    },
+  });
+
+  const response = await request(app)
+    .post("/api/storage/cleanup")
+    .send({
+      mode: "dry-run",
+      target: "backups",
+      olderThanDays: 15,
+      preserveValidatedBackups: 99,
+    })
+    .expect(400);
+
+  assert.equal(
+    response.body.error.includes("preserveValidatedBackups invalido"),
+    true,
+  );
 });
 
 test("GET /api/audit/logs suporta paginacao e filtros", async () => {

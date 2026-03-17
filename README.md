@@ -181,6 +181,7 @@ mas o fluxo recomendado e usar `http://localhost:3001` para manter API e UI na m
 - `GET /api/backup/export`: exporta backup completo (`.tgz` legado ou `.tgz.enc` protegido por passphrase)
 - `POST /api/backup/restore`: restaura backup completo com deteccao automatica de formato legado/criptografado
 - `GET /api/backup/validate?limit=3`: valida os ultimos backups e retorna status operacional (`ok|alerta|falha`)
+- `POST /api/storage/cleanup`: executa simulacao (`dry-run`) ou limpeza real (`execute`) com retencao inteligente para backups
 - `GET /api/diagnostics/export`: exporta pacote de diagnostico forense (somente admin); inclui estado de saude, SLO, storage, erros recentes, checklist de triagem e audit logs
 
 ## Backup criptografado opcional
@@ -220,7 +221,7 @@ Campos do pacote (versao 2):
 | `rateLimiter`          | Metricas de rate limiting por perfil                         |
 | `telemetry`            | Status de telemetria e top rotas por latencia/erros          |
 | `storage`              | Consumo atual por tipo (db, uploads, documents, backups)     |
-| `backupValidation`     | Validacao recente de backups com status operacional           |
+| `backupValidation`     | Validacao recente de backups com status operacional          |
 | `slo`                  | Snapshot de SLO com avaliacao por rota critica               |
 | `recentErrors`         | Ultimos eventos bloqueados ou de erro dos audit logs         |
 | `recentAuditLogs`      | Ultimos 50 eventos de auditoria                              |
@@ -248,6 +249,33 @@ Resposta esperada:
 - `ok`: todos os backups analisados estao integros.
 - `alerta`: ha condicao de atencao (ex.: backup criptografado sem passphrase na validacao).
 - `falha`: pelo menos um backup invalido/corrompido.
+
+## Retencao inteligente de backups
+
+A limpeza de `backups` em `POST /api/storage/cleanup` usa politica versionada `backup-layered-v1`:
+
+- curto prazo (`shortTermDays=7`): preserva todos os backups recentes.
+- medio prazo (`mediumTermDays=30`): preserva 1 backup por dia.
+- longo prazo (acima de 30 dias): preserva 1 backup por semana.
+- protecao adicional: preserva os ultimos `N` backups validados (`preserveValidatedBackups`, padrao `2`).
+
+Exemplo de simulacao (dry-run):
+
+```bash
+curl -X POST http://localhost:3001/api/storage/cleanup \
+  -H "Content-Type: application/json" \
+  -H "x-user-id: user-default" \
+  -d '{
+    "mode": "dry-run",
+    "target": "backups",
+    "olderThanDays": 30,
+    "maxDeleteMb": 1024,
+    "preserveValidatedBackups": 3,
+    "backupPassphrase": "senha-opcional-para-validar-.enc"
+  }'
+```
+
+O retorno inclui previsao de impacto (`estimatedFreedBytes`), lista de candidatos (`files`) e arquivos preservados (`skipped`) com o motivo da preservacao.
 
 ## Governanca de dependencias
 

@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import fs from "node:fs/promises";
 import { createStorageService } from "./storage.js";
+import { createBackupArchive } from "./backup.js";
 
 async function touchFile(filePath, content, mtimeMsOffset = 0) {
   await fs.mkdir(path.dirname(filePath), { recursive: true });
@@ -46,15 +47,20 @@ test("storage service cleanup respeita olderThanDays e maxDeleteMb", async () =>
     const dbPath = path.join(tempDir, "chat.db");
     await touchFile(dbPath, "db");
 
-    // Arquivo antigo: 40 dias atras
+    // Backups antigos no mesmo periodo (candidatos a rotacao)
     await touchFile(
-      path.join(tempDir, "backups", "old.tgz"),
+      path.join(tempDir, "backups", "meu-chat-local-backup-old-a.tgz"),
       "1234567890",
       -40 * 24 * 60 * 60 * 1000,
     );
-    // Arquivo recente: 1 dia atras
     await touchFile(
-      path.join(tempDir, "backups", "new.tgz"),
+      path.join(tempDir, "backups", "meu-chat-local-backup-old-b.tgz"),
+      "1234567890",
+      -42 * 24 * 60 * 60 * 1000,
+    );
+    // Arquivo recente: 1 dia atras (deve ser preservado por curto prazo)
+    await touchFile(
+      path.join(tempDir, "backups", "meu-chat-local-backup-new.tgz"),
       "1234567890",
       -1 * 24 * 60 * 60 * 1000,
     );
@@ -70,7 +76,7 @@ test("storage service cleanup respeita olderThanDays e maxDeleteMb", async () =>
 
     assert.equal(dryRun.mode, "dry-run");
     assert.equal(dryRun.filesCount, 1);
-    assert.equal(dryRun.files[0].name, "old.tgz");
+    assert.equal(dryRun.files[0].name.includes("old-"), true);
 
     const execute = await service.cleanup({
       target: "backups",
@@ -83,8 +89,61 @@ test("storage service cleanup respeita olderThanDays e maxDeleteMb", async () =>
     assert.equal(execute.filesCount, 1);
 
     const remaining = await fs.readdir(path.join(tempDir, "backups"));
-    assert.equal(remaining.includes("new.tgz"), true);
-    assert.equal(remaining.includes("old.tgz"), false);
+    assert.equal(remaining.includes("meu-chat-local-backup-new.tgz"), true);
+    assert.equal(
+      remaining.some((name) => name.includes("old-a") || name.includes("old-b")),
+      true,
+    );
+  } finally {
+    await fs.rm(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("storage service cleanup protege ultimos backups validados", async () => {
+  const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "storage-clean-validated-"));
+  try {
+    const dbPath = path.join(tempDir, "chat.db");
+    await touchFile(dbPath, "db");
+    const backupDir = path.join(tempDir, "backups");
+
+    async function createValidBackup(fileName, mtimeOffsetDays) {
+      const backup = await createBackupArchive({
+        dbPath,
+        includeDirs: [],
+        backupRoot: backupDir,
+        createDbSnapshot: async (snapshotPath) => {
+          await fs.writeFile(snapshotPath, `db-${fileName}`, "utf8");
+        },
+      });
+
+      const targetPath = path.join(backupDir, fileName);
+      await fs.writeFile(targetPath, backup.archiveBuffer);
+      const targetDate = new Date(Date.now() - mtimeOffsetDays * 24 * 60 * 60 * 1000);
+      await fs.utimes(targetPath, targetDate, targetDate);
+      await fs.rm(backup.archivePath, { force: true });
+    }
+
+    await createValidBackup("meu-chat-local-backup-v1.tgz", 50);
+    await createValidBackup("meu-chat-local-backup-v2.tgz", 51);
+    await createValidBackup("meu-chat-local-backup-v3.tgz", 52);
+    await createValidBackup("meu-chat-local-backup-v4.tgz", 53);
+
+    const service = createStorageService({ baseDir: tempDir, dbPath });
+
+    const dryRun = await service.cleanup({
+      target: "backups",
+      olderThanDays: 30,
+      maxDeleteMb: 10,
+      preserveValidatedBackups: 2,
+      execute: false,
+    });
+
+    assert.equal(dryRun.retention.protectedValidatedCount >= 1, true);
+    assert.equal(Array.isArray(dryRun.skipped), true);
+    assert.equal(
+      dryRun.skipped.some((item) => item.reason === "validated-recent"),
+      true,
+    );
   } finally {
     await fs.rm(tempDir, { recursive: true, force: true });
   }

@@ -358,6 +358,15 @@ function parseCleanupMaxDeleteMb(raw) {
   return parsed;
 }
 
+function parseCleanupPreserveValidatedBackups(raw) {
+  if (raw === undefined || raw === null || raw === "") return undefined;
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isFinite(parsed) || parsed < 0 || parsed > 20) {
+    throw new HttpError(400, "preserveValidatedBackups invalido (use entre 0 e 20)");
+  }
+  return parsed;
+}
+
 function parseAuditFilters(query = {}) {
   const eventType = String(query.eventType || "").trim();
   const userId = query.userId ? parseUserId(query.userId) : null;
@@ -2427,12 +2436,18 @@ export function createApp(deps = {}) {
       const target = parseCleanupTarget(req.body.target);
       const olderThanDays = parseCleanupOlderThanDays(req.body.olderThanDays);
       const maxDeleteMb = parseCleanupMaxDeleteMb(req.body.maxDeleteMb);
+      const preserveValidatedBackups = parseCleanupPreserveValidatedBackups(
+        req.body.preserveValidatedBackups,
+      );
+      const backupPassphrase = parseBackupPassphrase(req.body.backupPassphrase);
 
       const result = await storageService.cleanup({
         target,
         olderThanDays,
         maxDeleteMb,
         execute: mode === "execute",
+        preserveValidatedBackups,
+        backupPassphrase,
       });
 
       return res.json({ cleanup: result });
