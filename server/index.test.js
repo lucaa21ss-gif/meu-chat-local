@@ -5,7 +5,10 @@ import { createApp } from "./index.js";
 
 function createMockStore() {
   const chats = new Map([
-    ["default", { id: "default", title: "Conversa Principal", userId: "user-default" }],
+    [
+      "default",
+      { id: "default", title: "Conversa Principal", userId: "user-default" },
+    ],
   ]);
   const messages = new Map([["default", []]]);
   const ragDocumentsByChat = new Map();
@@ -43,7 +46,8 @@ function createMockStore() {
       return users.get(userId);
     },
     deleteUser: async (userId) => {
-      if (userId === "user-default") throw new Error("Perfil padrao nao pode ser excluido");
+      if (userId === "user-default")
+        throw new Error("Perfil padrao nao pode ser excluido");
       const existed = users.delete(userId);
       for (const [chatId, chat] of chats.entries()) {
         if ((chat.userId || "user-default") === userId) {
@@ -60,9 +64,10 @@ function createMockStore() {
     },
     listChats: async (userId) => {
       const all = Array.from(chats.values());
-      return (userId
-        ? all.filter((c) => (c.userId || "user-default") === userId)
-        : all
+      return (
+        userId
+          ? all.filter((c) => (c.userId || "user-default") === userId)
+          : all
       ).map(({ id, title }) => ({ id, title }));
     },
     createChat: async (id, title, userId = "user-default") => {
@@ -102,19 +107,31 @@ function createMockStore() {
     },
     getMessages: async (chatId) => [...ensureMessages(chatId)],
     searchMessages: async (chatId, query, options = {}) => {
-      const normalized = String(query || '').trim().toLowerCase();
+      const normalized = String(query || "")
+        .trim()
+        .toLowerCase();
       if (!normalized) {
         return { items: [], total: 0, page: 1, limit: 20, totalPages: 0 };
       }
 
-      const safeLimit = Math.min(100, Math.max(1, Number.parseInt(options.limit, 10) || 20));
+      const safeLimit = Math.min(
+        100,
+        Math.max(1, Number.parseInt(options.limit, 10) || 20),
+      );
       const safePage = Math.max(1, Number.parseInt(options.page, 10) || 1);
-      const safeRole = options.role === 'user' || options.role === 'assistant' ? options.role : null;
+      const safeRole =
+        options.role === "user" || options.role === "assistant"
+          ? options.role
+          : null;
       const safeFrom = options.from ? new Date(options.from) : null;
       const safeTo = options.to ? new Date(options.to) : null;
 
       const filtered = ensureMessages(chatId)
-        .filter((msg) => String(msg.content || '').toLowerCase().includes(normalized))
+        .filter((msg) =>
+          String(msg.content || "")
+            .toLowerCase()
+            .includes(normalized),
+        )
         .filter((msg) => {
           if (safeRole && msg.role !== safeRole) return false;
           const createdAt = new Date(msg.createdAt || Date.now());
@@ -143,8 +160,8 @@ function createMockStore() {
     },
     upsertRagDocument: async (chatId, name, content) => {
       const docs = ensureRagDocs(chatId);
-      const normalizedName = String(name || '').trim();
-      const normalizedContent = String(content || '').trim();
+      const normalizedName = String(name || "").trim();
+      const normalizedContent = String(content || "").trim();
 
       let doc = docs.find((item) => item.name === normalizedName);
       if (!doc) {
@@ -179,9 +196,14 @@ function createMockStore() {
       }));
     },
     searchDocumentChunks: async (chatId, query, options = {}) => {
-      const q = String(query || '').trim().toLowerCase();
+      const q = String(query || "")
+        .trim()
+        .toLowerCase();
       if (!q) return [];
-      const limit = Math.min(8, Math.max(1, Number.parseInt(options.limit, 10) || 4));
+      const limit = Math.min(
+        8,
+        Math.max(1, Number.parseInt(options.limit, 10) || 4),
+      );
       const docs = ensureRagDocs(chatId);
       const tokens = (q.match(/[a-z0-9]+/gi) || [])
         .map((part) => part.trim().toLowerCase())
@@ -189,8 +211,10 @@ function createMockStore() {
 
       const matches = [];
       for (const doc of docs) {
-        const content = String(doc.content || '').toLowerCase();
-        const hasMatch = (tokens.length ? tokens : [q]).some((token) => content.includes(token));
+        const content = String(doc.content || "").toLowerCase();
+        const hasMatch = (tokens.length ? tokens : [q]).some((token) =>
+          content.includes(token),
+        );
         if (!hasMatch) continue;
 
         matches.push({
@@ -419,18 +443,20 @@ test("GET /api/chats/:chatId/search retorna matches por conteudo", async () => {
   });
 
   await request(app)
-    .post('/api/chat')
-    .send({ chatId: 'default', message: 'como melhorar observabilidade' })
+    .post("/api/chat")
+    .send({ chatId: "default", message: "como melhorar observabilidade" })
     .expect(200);
 
   const response = await request(app)
-    .get('/api/chats/default/search?q=observabilidade')
+    .get("/api/chats/default/search?q=observabilidade")
     .expect(200);
 
   assert.equal(Array.isArray(response.body.matches), true);
   assert.equal(response.body.matches.length > 0, true);
   assert.equal(
-    response.body.matches.some((item) => item.content.includes('observabilidade')),
+    response.body.matches.some((item) =>
+      item.content.includes("observabilidade"),
+    ),
     true,
   );
   assert.equal(response.body.pagination.total >= 1, true);
@@ -443,22 +469,25 @@ test("GET /api/chats/:chatId/search aplica paginacao e filtro por role", async (
   });
 
   await request(app)
-    .post('/api/chat')
-    .send({ chatId: 'default', message: 'filtro role um' })
+    .post("/api/chat")
+    .send({ chatId: "default", message: "filtro role um" })
     .expect(200);
 
   await request(app)
-    .post('/api/chat')
-    .send({ chatId: 'default', message: 'filtro role dois' })
+    .post("/api/chat")
+    .send({ chatId: "default", message: "filtro role dois" })
     .expect(200);
 
   const response = await request(app)
-    .get('/api/chats/default/search?q=filtro&role=user&limit=1&page=2')
+    .get("/api/chats/default/search?q=filtro&role=user&limit=1&page=2")
     .expect(200);
 
   assert.equal(Array.isArray(response.body.matches), true);
   assert.equal(response.body.matches.length, 1);
-  assert.equal(response.body.matches.every((item) => item.role === 'user'), true);
+  assert.equal(
+    response.body.matches.every((item) => item.role === "user"),
+    true,
+  );
   assert.equal(response.body.pagination.page, 2);
   assert.equal(response.body.pagination.limit, 1);
   assert.equal(response.body.pagination.total >= 2, true);
@@ -472,14 +501,15 @@ test("POST /api/chats/:chatId/rag/documents e GET listam documentos indexados", 
   });
 
   const upload = await request(app)
-    .post('/api/chats/default/rag/documents')
+    .post("/api/chats/default/rag/documents")
     .send({
       documents: [
         {
-          name: 'manual.md',
-          content: 'O produto oferece modo offline, privacidade local e busca no historico.'
-        }
-      ]
+          name: "manual.md",
+          content:
+            "O produto oferece modo offline, privacidade local e busca no historico.",
+        },
+      ],
     })
     .expect(201);
 
@@ -487,12 +517,12 @@ test("POST /api/chats/:chatId/rag/documents e GET listam documentos indexados", 
   assert.equal(upload.body.saved.length, 1);
 
   const listed = await request(app)
-    .get('/api/chats/default/rag/documents')
+    .get("/api/chats/default/rag/documents")
     .expect(200);
 
   assert.equal(Array.isArray(listed.body.documents), true);
   assert.equal(listed.body.documents.length, 1);
-  assert.equal(listed.body.documents[0].name, 'manual.md');
+  assert.equal(listed.body.documents[0].name, "manual.md");
 });
 
 test("GET /api/chats/:chatId/rag/search retorna trechos relevantes", async () => {
@@ -502,24 +532,25 @@ test("GET /api/chats/:chatId/rag/search retorna trechos relevantes", async () =>
   });
 
   await request(app)
-    .post('/api/chats/default/rag/documents')
+    .post("/api/chats/default/rag/documents")
     .send({
       documents: [
         {
-          name: 'politicas.txt',
-          content: 'A politica interna exige auditoria local e controle de acesso por times.'
-        }
-      ]
+          name: "politicas.txt",
+          content:
+            "A politica interna exige auditoria local e controle de acesso por times.",
+        },
+      ],
     })
     .expect(201);
 
   const response = await request(app)
-    .get('/api/chats/default/rag/search?q=auditoria')
+    .get("/api/chats/default/rag/search?q=auditoria")
     .expect(200);
 
   assert.equal(Array.isArray(response.body.matches), true);
   assert.equal(response.body.matches.length >= 1, true);
-  assert.equal(response.body.matches[0].documentName, 'politicas.txt');
+  assert.equal(response.body.matches[0].documentName, "politicas.txt");
 });
 
 test("POST /api/chat com ragEnabled retorna citacoes", async () => {
@@ -527,7 +558,7 @@ test("POST /api/chat com ragEnabled retorna citacoes", async () => {
     chatClient: {
       chat: async ({ messages }) => ({
         message: {
-          content: `Baseado no documento. ${messages[0]?.content?.includes('Fonte') ? '[Fonte: manual.md#trecho1]' : ''}`,
+          content: `Baseado no documento. ${messages[0]?.content?.includes("Fonte") ? "[Fonte: manual.md#trecho1]" : ""}`,
         },
       }),
     },
@@ -535,22 +566,23 @@ test("POST /api/chat com ragEnabled retorna citacoes", async () => {
   });
 
   await request(app)
-    .post('/api/chats/default/rag/documents')
+    .post("/api/chats/default/rag/documents")
     .send({
       documents: [
         {
-          name: 'manual.md',
-          content: 'Este manual interno recomenda citar as fontes internas em respostas tecnicas.'
-        }
-      ]
+          name: "manual.md",
+          content:
+            "Este manual interno recomenda citar as fontes internas em respostas tecnicas.",
+        },
+      ],
     })
     .expect(201);
 
   const response = await request(app)
-    .post('/api/chat')
+    .post("/api/chat")
     .send({
-      chatId: 'default',
-      message: 'Quais orientacoes do manual?',
+      chatId: "default",
+      message: "Quais orientacoes do manual?",
       ragEnabled: true,
       ragTopK: 3,
     })
@@ -558,41 +590,41 @@ test("POST /api/chat com ragEnabled retorna citacoes", async () => {
 
   assert.equal(Array.isArray(response.body.citations), true);
   assert.equal(response.body.citations.length >= 1, true);
-  assert.equal(response.body.citations[0].documentName, 'manual.md');
+  assert.equal(response.body.citations[0].documentName, "manual.md");
 });
 
 test("POST /api/chat usa fallback quando modelo primario falha", async () => {
   const app = createApp({
     ...createMockStore(),
-    ollamaFallbackModel: 'mistral',
+    ollamaFallbackModel: "mistral",
     ollamaMaxAttempts: 2,
     chatClient: {
       chat: async ({ model }) => {
-        if (model === 'meu-llama3') {
-          throw new Error('modelo principal indisponivel');
+        if (model === "meu-llama3") {
+          throw new Error("modelo principal indisponivel");
         }
         return { message: { content: `ok via ${model}` } };
-      }
-    }
+      },
+    },
   });
 
   const response = await request(app)
-    .post('/api/chat')
-    .send({ chatId: 'default', message: 'teste fallback', model: 'meu-llama3' })
+    .post("/api/chat")
+    .send({ chatId: "default", message: "teste fallback", model: "meu-llama3" })
     .expect(200);
 
-  assert.equal(response.body.reply, 'ok via mistral');
+  assert.equal(response.body.reply, "ok via mistral");
 });
 
 test("POST /api/chat-stream usa fallback quando modelo primario falha", async () => {
   const app = createApp({
     ...createMockStore(),
-    ollamaFallbackModel: 'mistral',
+    ollamaFallbackModel: "mistral",
     ollamaMaxAttempts: 2,
     chatClient: {
       chat: async ({ model, stream }) => {
-        if (model === 'meu-llama3') {
-          throw new Error('modelo principal indisponivel');
+        if (model === "meu-llama3") {
+          throw new Error("modelo principal indisponivel");
         }
 
         if (!stream) {
@@ -600,20 +632,24 @@ test("POST /api/chat-stream usa fallback quando modelo primario falha", async ()
         }
 
         async function* generator() {
-          yield { message: { content: 'stream fallback' } };
+          yield { message: { content: "stream fallback" } };
         }
 
         return generator();
-      }
-    }
+      },
+    },
   });
 
   const response = await request(app)
-    .post('/api/chat-stream')
-    .send({ chatId: 'default', message: 'teste fallback stream', model: 'meu-llama3' })
+    .post("/api/chat-stream")
+    .send({
+      chatId: "default",
+      message: "teste fallback stream",
+      model: "meu-llama3",
+    })
     .expect(200);
 
-  assert.equal(response.text.includes('stream fallback'), true);
+  assert.equal(response.text.includes("stream fallback"), true);
 });
 
 test("POST /api/chat retorna 504 quando inferencia excede timeout", async () => {
@@ -627,12 +663,14 @@ test("POST /api/chat retorna 504 quando inferencia excede timeout", async () => 
   });
 
   const response = await request(app)
-    .post('/api/chat')
-    .send({ chatId: 'default', message: 'timeout test', model: 'meu-llama3' })
+    .post("/api/chat")
+    .send({ chatId: "default", message: "timeout test", model: "meu-llama3" })
     .expect(504);
 
   assert.equal(
-    String(response.body?.error || response.text || '').includes('Tempo limite excedido'),
+    String(response.body?.error || response.text || "").includes(
+      "Tempo limite excedido",
+    ),
     true,
   );
 });
@@ -645,7 +683,10 @@ test("GET /api/users e POST /api/users gerenciam perfis de usuario", async () =>
 
   const listed = await request(app).get("/api/users").expect(200);
   assert.equal(Array.isArray(listed.body.users), true);
-  assert.equal(listed.body.users.some((u) => u.name === "padrao"), true);
+  assert.equal(
+    listed.body.users.some((u) => u.name === "padrao"),
+    true,
+  );
 
   const created = await request(app)
     .post("/api/users")
@@ -656,7 +697,10 @@ test("GET /api/users e POST /api/users gerenciam perfis de usuario", async () =>
   assert.ok(created.body.user.id);
 
   const listed2 = await request(app).get("/api/users").expect(200);
-  assert.equal(listed2.body.users.some((u) => u.name === "alice"), true);
+  assert.equal(
+    listed2.body.users.some((u) => u.name === "alice"),
+    true,
+  );
 });
 
 test("PATCH e DELETE /api/users/:userId renomeiam e excluem perfil", async () => {
@@ -682,7 +726,10 @@ test("PATCH e DELETE /api/users/:userId renomeiam e excluem perfil", async () =>
   await request(app).delete(`/api/users/${userId}`).expect(200);
 
   const listed = await request(app).get("/api/users").expect(200);
-  assert.equal(listed.body.users.some((u) => u.name === "bob-renomeado"), false);
+  assert.equal(
+    listed.body.users.some((u) => u.name === "bob-renomeado"),
+    false,
+  );
 });
 
 test("abas criadas por usuarios diferentes ficam isoladas", async () => {
@@ -709,8 +756,14 @@ test("abas criadas por usuarios diferentes ficam isoladas", async () => {
     .get("/api/chats?userId=user-default")
     .expect(200);
 
-  assert.equal(carolChats.body.chats.some((c) => c.id === "chat-carol"), true);
-  assert.equal(defaultChats.body.chats.some((c) => c.id === "chat-carol"), false);
+  assert.equal(
+    carolChats.body.chats.some((c) => c.id === "chat-carol"),
+    true,
+  );
+  assert.equal(
+    defaultChats.body.chats.some((c) => c.id === "chat-carol"),
+    false,
+  );
 });
 
 test("GET /api/chats/:chatId/search valida query curta", async () => {
@@ -720,12 +773,12 @@ test("GET /api/chats/:chatId/search valida query curta", async () => {
   });
 
   const response = await request(app)
-    .get('/api/chats/default/search?q=a')
+    .get("/api/chats/default/search?q=a")
     .expect(400);
 
   assert.equal(
-    String(response.body?.error || response.text || '').includes(
-      'Parametro q deve ter pelo menos 2 caracteres',
+    String(response.body?.error || response.text || "").includes(
+      "Parametro q deve ter pelo menos 2 caracteres",
     ),
     true,
   );
@@ -737,18 +790,20 @@ test("POST /api/chat-stream retorna erro padrao quando servico externo falha", a
     ollamaMaxAttempts: 1,
     chatClient: {
       chat: async () => {
-        throw new Error('ollama indisponivel');
+        throw new Error("ollama indisponivel");
       },
     },
   });
 
   const response = await request(app)
-    .post('/api/chat-stream')
-    .send({ chatId: 'default', message: 'falha externa', model: 'meu-llama3' })
+    .post("/api/chat-stream")
+    .send({ chatId: "default", message: "falha externa", model: "meu-llama3" })
     .expect(500);
 
   assert.equal(
-    String(response.body?.error || response.text || '').includes('Erro no streaming'),
+    String(response.body?.error || response.text || "").includes(
+      "Erro no streaming",
+    ),
     true,
   );
 });

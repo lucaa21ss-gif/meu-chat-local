@@ -162,6 +162,10 @@ mas o fluxo recomendado e usar `http://localhost:3001` para manter API e UI na m
 - `POST /api/reset`: limpa chat padrao
 - `GET /api/chats`: lista abas
 - `POST /api/chats`: cria aba
+- `GET /api/users`: lista perfis locais
+- `POST /api/users`: cria perfil local
+- `PATCH /api/users/:userId`: renomeia perfil local
+- `DELETE /api/users/:userId`: exclui perfil e seus dados
 - `POST /api/chats/:chatId/duplicate`: duplica aba com historico (suporta `userOnly: true`)
 - `PATCH /api/chats/:chatId`: renomeia aba
 - `DELETE /api/chats/:chatId`: exclui aba
@@ -176,22 +180,51 @@ mas o fluxo recomendado e usar `http://localhost:3001` para manter API e UI na m
 ## Como usar
 
 1. Crie uma nova aba em `+ Nova aba`
-2. Opcional: duplique uma aba existente por `Duplicar aba` usando o modal visual para escolher entre conversa completa ou apenas mensagens do usuario
-3. Ajuste:
+2. Opcional: escolha ou crie um perfil no seletor `Perfil ativo`; cada perfil enxerga apenas suas proprias abas e documentos locais
+3. Opcional: renomeie ou exclua o perfil atual pelos botoes ao lado do seletor
+4. Opcional: duplique uma aba existente por `Duplicar aba` usando o modal visual para escolher entre conversa completa ou apenas mensagens do usuario
+5. Ajuste:
 
 - temperatura
 - modelo
 - contexto
 
-4. Opcional:
+6. Opcional:
 
 - anexe uma ou mais imagens para modelos multimodais (ex.: `llava`)
 - use `Iniciar ditado` para preencher a mensagem por voz
 
-5. Envie a mensagem e acompanhe o streaming
-6. Copie respostas pelo botao `Copiar resposta` ou escute com `Ouvir resposta` (TTS)
-7. Exporte a conversa por `Exportar Markdown`
-8. Use `Renomear aba` e `Excluir aba` para organizar suas conversas
+7. Envie a mensagem e acompanhe o streaming
+8. Copie respostas pelo botao `Copiar resposta` ou escute com `Ouvir resposta` (TTS)
+9. Exporte a conversa por `Exportar Markdown`
+10. Use `Renomear aba` e `Excluir aba` para organizar suas conversas
+
+## Perfis multiusuario locais
+
+- Cada perfil local possui isolamento de abas, historico e documentos RAG.
+- O perfil ativo fica salvo no navegador via `localStorage` (`chatUserId`).
+- O perfil `padrao` existe por default e nao pode ser excluido.
+- A listagem de abas usa `GET /api/chats?userId=<perfil>`.
+
+Exemplos de uso da API:
+
+```bash
+curl http://localhost:3001/api/users
+
+curl -X POST http://localhost:3001/api/users \
+  -H "Content-Type: application/json" \
+  -d '{"name":"alice"}'
+
+curl -X PATCH http://localhost:3001/api/users/user-123 \
+  -H "Content-Type: application/json" \
+  -d '{"name":"alice-dev"}'
+
+curl "http://localhost:3001/api/chats?userId=user-default"
+
+curl -X POST http://localhost:3001/api/chats \
+  -H "Content-Type: application/json" \
+  -d '{"id":"chat-alice-1","title":"Inbox Alice","userId":"user-123"}'
+```
 
 ## Testes automatizados
 

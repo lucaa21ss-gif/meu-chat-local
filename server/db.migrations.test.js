@@ -23,7 +23,10 @@ test("initDb aplica migrations e define versao esperada", async () => {
     assert.equal(version, 4);
 
     const chats = await dbModule.listChats();
-    assert.equal(chats.some((chat) => chat.id === "default"), true);
+    assert.equal(
+      chats.some((chat) => chat.id === "default"),
+      true,
+    );
 
     await dbModule.closeDb();
   } finally {
