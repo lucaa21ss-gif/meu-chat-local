@@ -45,6 +45,8 @@ const duplicateModeUserEl = document.getElementById("duplicateModeUser");
 const duplicateCancelBtnEl = document.getElementById("duplicateCancelBtn");
 const duplicateConfirmBtnEl = document.getElementById("duplicateConfirmBtn");
 const ollamaStatusBadgeEl = document.getElementById("ollamaStatusBadge");
+const systemHealthBadgeEl = document.getElementById("systemHealthBadge");
+const ollamaLatencyTextEl = document.getElementById("ollamaLatencyText");
 const userPromptBtnEl = document.getElementById("userPromptBtn");
 const shortcutsHelpBtnEl = document.getElementById("shortcutsHelpBtn");
 const shortcutsModalEl = document.getElementById("shortcutsModal");
@@ -92,6 +94,7 @@ const ragStatusEl = document.getElementById("ragStatus");
 const onboardingModelSelectEl = document.getElementById("onboardingModelSelect");
 const onboardingHealthStatusEl = document.getElementById("onboardingHealthStatus");
 const onboardingSmokeStatusEl = document.getElementById("onboardingSmokeStatus");
+const healthIndicators = window.HealthIndicators || null;
 
 const state = {
   chats: [],
@@ -137,7 +140,8 @@ const state = {
   },
   telemetryEnabled: false,
   ollamaStatus: "unknown",
-  ollamaPollingTimer: null,
+  healthPoller: null,
+  healthLatencyMs: null,
   storage: {
     dbBytes: 0,
     uploadsBytes: 0,
@@ -637,8 +641,12 @@ async function loadTelemetryState() {
 }
 
 async function checkOllamaStatus() {
+  const startedAt = performance.now();
+  let requestOk = false;
+
   try {
     const data = await fetchJson("/api/health");
+    requestOk = true;
     state.ollamaStatus = data.ollama === "online" ? "online" : "offline";
     state.health = {
       status: data.status || "unknown",
@@ -665,16 +673,37 @@ async function checkOllamaStatus() {
     };
   }
 
-  if (!ollamaStatusBadgeEl) return;
+  const latencyMs = performance.now() - startedAt;
+  state.healthLatencyMs = Number.isFinite(latencyMs) ? Math.max(0, latencyMs) : null;
+  state.health = {
+    ...state.health,
+    latencyMs: state.healthLatencyMs,
+    lastCheckedAt: new Date().toISOString(),
+  };
 
-  if (state.ollamaStatus === "online") {
-    ollamaStatusBadgeEl.className =
-      "inline-block h-2 w-2 shrink-0 rounded-full bg-emerald-500";
-    ollamaStatusBadgeEl.title = "Ollama conectado";
-  } else {
-    ollamaStatusBadgeEl.className =
-      "inline-block h-2 w-2 shrink-0 rounded-full bg-red-500";
-    ollamaStatusBadgeEl.title = "Ollama offline";
+  if (ollamaStatusBadgeEl) {
+    if (state.ollamaStatus === "online") {
+      ollamaStatusBadgeEl.className =
+        "inline-block h-2 w-2 shrink-0 rounded-full bg-emerald-500";
+      ollamaStatusBadgeEl.title = "Ollama conectado";
+    } else {
+      ollamaStatusBadgeEl.className =
+        "inline-block h-2 w-2 shrink-0 rounded-full bg-red-500";
+      ollamaStatusBadgeEl.title = "Ollama offline";
+    }
+  }
+
+  if (healthIndicators) {
+    const headerView = healthIndicators.buildHeaderPresentation(state.health);
+    if (systemHealthBadgeEl) {
+      systemHealthBadgeEl.textContent = headerView.badgeText;
+      systemHealthBadgeEl.className = headerView.badgeClassName;
+      systemHealthBadgeEl.title = headerView.badgeTitle;
+    }
+    if (ollamaLatencyTextEl) {
+      ollamaLatencyTextEl.textContent = headerView.latencyText;
+      ollamaLatencyTextEl.className = `text-[11px] ${headerView.latencyClassName}`;
+    }
   }
 
   if (healthSummaryTextEl) {
@@ -728,6 +757,8 @@ async function checkOllamaStatus() {
       ? `SLO: ${labels[sloStatus] || "SEM AMOSTRAS"} • ${details}`
       : `SLO: ${labels[sloStatus] || "SEM AMOSTRAS"}`;
   }
+
+  return requestOk;
 }
 
 async function setTelemetryEnabled(enabled) {
@@ -3615,6 +3646,10 @@ if (diagnosticsExportBtnEl) {
 
 if (healthRefreshBtnEl) {
   healthRefreshBtnEl.addEventListener("click", () => {
+    if (state.healthPoller) {
+      state.healthPoller.refreshNow();
+      return;
+    }
     checkOllamaStatus().catch(console.error);
   });
 }
@@ -3657,7 +3692,6 @@ window.resetar = resetar;
   renderStorageUsage();
   try {
     await loadTelemetryState();
-    await checkOllamaStatus();
     await loadUsers();
     await loadChats();
     await loadRagDocuments();
@@ -3665,10 +3699,20 @@ window.resetar = resetar;
     console.error(error);
   }
 
-  // Polling de status do Ollama a cada 30s
-  state.ollamaPollingTimer = setInterval(() => {
-    checkOllamaStatus().catch(() => {});
-  }, 30_000);
+  if (healthIndicators?.createHealthPoller) {
+    state.healthPoller = healthIndicators.createHealthPoller({
+      checkHealth: () => checkOllamaStatus(),
+      baseIntervalMs: 30_000,
+      maxIntervalMs: 300_000,
+    });
+    state.healthPoller.start();
+  } else {
+    // Fallback para ambientes sem o utilitario carregado.
+    await checkOllamaStatus();
+    setInterval(() => {
+      checkOllamaStatus().catch(() => {});
+    }, 30_000);
+  }
 
   if (localStorage.getItem("onboardingDone") !== "true") {
     openOnboardingModal();

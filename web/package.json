@@ -5,7 +5,8 @@
   "main": "script.js",
   "scripts": {
     "build:css": "tailwindcss -i ./styles.css -o ./output.css",
-    "watch:css": "tailwindcss -i ./styles.css -o ./output.css --watch"
+    "watch:css": "tailwindcss -i ./styles.css -o ./output.css --watch",
+    "test": "node --test health-indicators.test.cjs"
   },
   "keywords": [],
   "author": "",

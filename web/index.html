@@ -56,6 +56,16 @@
                   title="Status do Ollama"
                   class="inline-block h-2 w-2 shrink-0 rounded-full bg-slate-300"
                 ></span>
+                <span
+                  id="systemHealthBadge"
+                  title="Saude: carregando"
+                  class="inline-flex items-center rounded-full border border-slate-300 bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+                >
+                  Saude: carregando
+                </span>
+                <span id="ollamaLatencyText" class="text-[11px] text-slate-500 dark:text-slate-400"
+                  >Latencia: --</span
+                >
               </p>
             </div>
           </div>
@@ -1182,6 +1192,7 @@
       </div>
     </div>
 
+    <script src="health-indicators.js"></script>
     <script src="script.js"></script>
   </body>
 </html>
