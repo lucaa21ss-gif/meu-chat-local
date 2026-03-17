@@ -262,30 +262,87 @@ export async function getMessages(chatId) {
   }));
 }
 
-export async function searchMessages(chatId, query, limit = 20) {
+export async function searchMessages(chatId, query, options = {}) {
   await initDb();
 
   const safeQuery = String(query || "").trim();
-  if (!safeQuery) return [];
+  if (!safeQuery) {
+    return {
+      items: [],
+      total: 0,
+      page: 1,
+      limit: 20,
+      totalPages: 0,
+    };
+  }
 
-  const safeLimit = Math.min(100, Math.max(1, Number.parseInt(limit, 10) || 20));
+  const safeLimit = Math.min(
+    100,
+    Math.max(1, Number.parseInt(options.limit, 10) || 20),
+  );
+  const safePage = Math.max(1, Number.parseInt(options.page, 10) || 1);
+  const offset = (safePage - 1) * safeLimit;
+  const safeRole =
+    options.role === "user" || options.role === "assistant"
+      ? options.role
+      : null;
+  const safeFrom = options.from ? String(options.from) : null;
+  const safeTo = options.to ? String(options.to) : null;
+
   const likeQuery = `%${safeQuery}%`;
+  const whereParts = [
+    "chat_id = ?",
+    "content LIKE ? COLLATE NOCASE",
+  ];
+  const whereParams = [chatId, likeQuery];
+
+  if (safeRole) {
+    whereParts.push("role = ?");
+    whereParams.push(safeRole);
+  }
+
+  if (safeFrom) {
+    whereParts.push("datetime(created_at) >= datetime(?)");
+    whereParams.push(safeFrom);
+  }
+
+  if (safeTo) {
+    whereParts.push("datetime(created_at) <= datetime(?)");
+    whereParams.push(safeTo);
+  }
+
+  const whereClause = whereParts.join(" AND ");
+
+  const totalRow = await db.get(
+    `SELECT COUNT(*) AS total
+     FROM messages
+     WHERE ${whereClause}`,
+    whereParams,
+  );
+
+  const total = Number.parseInt(totalRow?.total, 10) || 0;
+  const totalPages = total === 0 ? 0 : Math.ceil(total / safeLimit);
 
   const rows = await db.all(
     `SELECT role, content, created_at AS createdAt
      FROM messages
-     WHERE chat_id = ?
-       AND content LIKE ? COLLATE NOCASE
+     WHERE ${whereClause}
      ORDER BY id DESC
-     LIMIT ?`,
-    [chatId, likeQuery, safeLimit],
+     LIMIT ? OFFSET ?`,
+    [...whereParams, safeLimit, offset],
   );
 
-  return rows.map((row) => ({
-    role: row.role,
-    content: row.content,
-    createdAt: row.createdAt,
-  }));
+  return {
+    items: rows.map((row) => ({
+      role: row.role,
+      content: row.content,
+      createdAt: row.createdAt,
+    })),
+    total,
+    page: safePage,
+    limit: safeLimit,
+    totalPages,
+  };
 }
 
 export async function appendMessage(chatId, role, content, images = []) {

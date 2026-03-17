@@ -126,7 +126,7 @@ mas o fluxo recomendado e usar `http://localhost:3001` para manter API e UI na m
 - `PATCH /api/chats/:chatId`: renomeia aba
 - `DELETE /api/chats/:chatId`: exclui aba
 - `GET /api/chats/:chatId/messages`: carrega mensagens da aba
-- `GET /api/chats/:chatId/search?q=termo&limit=20`: busca textual no historico da aba
+- `GET /api/chats/:chatId/search?q=termo&role=all&page=1&limit=20&from=<iso>&to=<iso>`: busca textual no historico da aba com filtros
 - `POST /api/chats/:chatId/reset`: limpa uma aba
 - `GET /api/chats/:chatId/export`: exporta conversa em Markdown
 
@@ -205,9 +205,13 @@ O envio de imagem e opcional e depende do modelo escolhido suportar imagens.
 
 ## Busca no historico
 
-- Endpoint: `GET /api/chats/:chatId/search?q=termo&limit=20`
+- Endpoint: `GET /api/chats/:chatId/search?q=termo&role=all&page=1&limit=20&from=<iso>&to=<iso>`
 - `q` e obrigatorio (minimo de 2 caracteres)
+- `role` e opcional: `all`, `user`, `assistant`
+- `page` e opcional (padrao 1)
 - `limit` e opcional (1 a 100, padrao 20)
+- `from` e `to` sao opcionais (ISO datetime) para filtro por periodo
+- Resposta inclui `matches` e objeto `pagination` (`page`, `limit`, `total`, `totalPages`)
 
 ## Troubleshooting
 

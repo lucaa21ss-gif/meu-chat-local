@@ -135,6 +135,42 @@ function parseSearchQuery(raw) {
   return query;
 }
 
+function parseSearchPage(raw) {
+  if (raw === undefined) return 1;
+  const page = Number.parseInt(raw, 10);
+  if (!Number.isFinite(page) || page < 1) {
+    throw new HttpError(400, "Parametro page invalido");
+  }
+  return page;
+}
+
+function parseSearchLimit(raw) {
+  if (raw === undefined) return 20;
+  const limit = Number.parseInt(raw, 10);
+  if (!Number.isFinite(limit) || limit < 1 || limit > 100) {
+    throw new HttpError(400, "Parametro limit invalido");
+  }
+  return limit;
+}
+
+function parseSearchRole(raw) {
+  const role = String(raw || "all").trim().toLowerCase();
+  if (!["all", "user", "assistant"].includes(role)) {
+    throw new HttpError(400, "Parametro role invalido");
+  }
+  return role;
+}
+
+function parseSearchDate(raw, fieldName) {
+  if (raw === undefined || raw === null || raw === "") return null;
+  const value = String(raw).trim();
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    throw new HttpError(400, `Parametro ${fieldName} invalido`);
+  }
+  return parsed.toISOString();
+}
+
 function parseOptions(body = {}) {
   const temperature = Number.parseFloat(body.temperature);
   const context = Number.parseInt(body.context, 10);
@@ -538,12 +574,33 @@ export function createApp(deps = {}) {
     asyncHandler(async (req, res) => {
       const chatId = parseChatId(req.params.chatId, "chatId");
       const query = parseSearchQuery(req.query?.q);
-      const rawLimit = Number.parseInt(req.query?.limit, 10);
-      const limit = Number.isFinite(rawLimit)
-        ? Math.min(100, Math.max(1, rawLimit))
-        : 20;
-      const matches = await store.searchMessages(chatId, query, limit);
-      res.json({ matches });
+      const page = parseSearchPage(req.query?.page);
+      const limit = parseSearchLimit(req.query?.limit);
+      const role = parseSearchRole(req.query?.role);
+      const from = parseSearchDate(req.query?.from, "from");
+      const to = parseSearchDate(req.query?.to, "to");
+
+      if (from && to && new Date(from) > new Date(to)) {
+        throw new HttpError(400, "Parametro from nao pode ser maior que to");
+      }
+
+      const result = await store.searchMessages(chatId, query, {
+        page,
+        limit,
+        role,
+        from,
+        to,
+      });
+
+      res.json({
+        matches: result.items,
+        pagination: {
+          page: result.page,
+          limit: result.limit,
+          total: result.total,
+          totalPages: result.totalPages,
+        },
+      });
     }),
   );
 

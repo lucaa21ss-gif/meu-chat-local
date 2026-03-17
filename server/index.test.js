@@ -53,13 +53,45 @@ function createMockStore() {
       ensureMessages(chatId);
     },
     getMessages: async (chatId) => [...ensureMessages(chatId)],
-    searchMessages: async (chatId, query, limit = 20) => {
+    searchMessages: async (chatId, query, options = {}) => {
       const normalized = String(query || '').trim().toLowerCase();
-      if (!normalized) return [];
-      return ensureMessages(chatId)
+      if (!normalized) {
+        return { items: [], total: 0, page: 1, limit: 20, totalPages: 0 };
+      }
+
+      const safeLimit = Math.min(100, Math.max(1, Number.parseInt(options.limit, 10) || 20));
+      const safePage = Math.max(1, Number.parseInt(options.page, 10) || 1);
+      const safeRole = options.role === 'user' || options.role === 'assistant' ? options.role : null;
+      const safeFrom = options.from ? new Date(options.from) : null;
+      const safeTo = options.to ? new Date(options.to) : null;
+
+      const filtered = ensureMessages(chatId)
         .filter((msg) => String(msg.content || '').toLowerCase().includes(normalized))
-        .slice(0, limit)
-        .map((msg) => ({ role: msg.role, content: msg.content, createdAt: new Date().toISOString() }));
+        .filter((msg) => {
+          if (safeRole && msg.role !== safeRole) return false;
+          const createdAt = new Date(msg.createdAt || Date.now());
+          if (safeFrom && createdAt < safeFrom) return false;
+          if (safeTo && createdAt > safeTo) return false;
+          return true;
+        })
+        .map((msg) => ({
+          role: msg.role,
+          content: msg.content,
+          createdAt: msg.createdAt || new Date().toISOString(),
+        }));
+
+      const total = filtered.length;
+      const start = (safePage - 1) * safeLimit;
+      const items = filtered.slice(start, start + safeLimit);
+      const totalPages = total === 0 ? 0 : Math.ceil(total / safeLimit);
+
+      return {
+        items,
+        total,
+        page: safePage,
+        limit: safeLimit,
+        totalPages,
+      };
     },
     appendMessage: async (chatId, role, content, images = []) => {
       ensureMessages(chatId).push({ role, content, images });
@@ -275,6 +307,36 @@ test("GET /api/chats/:chatId/search retorna matches por conteudo", async () => {
     response.body.matches.some((item) => item.content.includes('observabilidade')),
     true,
   );
+  assert.equal(response.body.pagination.total >= 1, true);
+});
+
+test("GET /api/chats/:chatId/search aplica paginacao e filtro por role", async () => {
+  const app = createApp({
+    chatClient: createMockChatClient(),
+    ...createMockStore(),
+  });
+
+  await request(app)
+    .post('/api/chat')
+    .send({ chatId: 'default', message: 'filtro role um' })
+    .expect(200);
+
+  await request(app)
+    .post('/api/chat')
+    .send({ chatId: 'default', message: 'filtro role dois' })
+    .expect(200);
+
+  const response = await request(app)
+    .get('/api/chats/default/search?q=filtro&role=user&limit=1&page=2')
+    .expect(200);
+
+  assert.equal(Array.isArray(response.body.matches), true);
+  assert.equal(response.body.matches.length, 1);
+  assert.equal(response.body.matches.every((item) => item.role === 'user'), true);
+  assert.equal(response.body.pagination.page, 2);
+  assert.equal(response.body.pagination.limit, 1);
+  assert.equal(response.body.pagination.total >= 2, true);
+  assert.equal(response.body.pagination.totalPages >= 2, true);
 });
 
 test("POST /api/chat usa fallback quando modelo primario falha", async () => {
