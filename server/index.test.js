@@ -53,6 +53,14 @@ function createMockStore() {
       ensureMessages(chatId);
     },
     getMessages: async (chatId) => [...ensureMessages(chatId)],
+    searchMessages: async (chatId, query, limit = 20) => {
+      const normalized = String(query || '').trim().toLowerCase();
+      if (!normalized) return [];
+      return ensureMessages(chatId)
+        .filter((msg) => String(msg.content || '').toLowerCase().includes(normalized))
+        .slice(0, limit)
+        .map((msg) => ({ role: msg.role, content: msg.content, createdAt: new Date().toISOString() }));
+    },
     appendMessage: async (chatId, role, content, images = []) => {
       ensureMessages(chatId).push({ role, content, images });
     },
@@ -225,4 +233,101 @@ test("POST /api/chat-stream escreve resposta e exporta markdown", async () => {
 
   assert.equal(exported.text.includes("ola"), true);
   assert.equal(exported.text.includes("resposta stream"), true);
+});
+
+test("CORS bloqueia origem nao permitida por padrao", async () => {
+  const app = createApp({
+    chatClient: createMockChatClient(),
+    ...createMockStore(),
+  });
+
+  const response = await request(app)
+    .get("/api/chats")
+    .set("Origin", "https://origem-maliciosa.com")
+    .expect(403);
+
+  assert.equal(
+    String(response.body?.error || response.text || "").includes(
+      "Origem nao permitida pelo CORS",
+    ),
+    true,
+  );
+});
+
+test("GET /api/chats/:chatId/search retorna matches por conteudo", async () => {
+  const app = createApp({
+    chatClient: createMockChatClient(),
+    ...createMockStore(),
+  });
+
+  await request(app)
+    .post('/api/chat')
+    .send({ chatId: 'default', message: 'como melhorar observabilidade' })
+    .expect(200);
+
+  const response = await request(app)
+    .get('/api/chats/default/search?q=observabilidade')
+    .expect(200);
+
+  assert.equal(Array.isArray(response.body.matches), true);
+  assert.equal(response.body.matches.length > 0, true);
+  assert.equal(
+    response.body.matches.some((item) => item.content.includes('observabilidade')),
+    true,
+  );
+});
+
+test("POST /api/chat usa fallback quando modelo primario falha", async () => {
+  const app = createApp({
+    ...createMockStore(),
+    ollamaFallbackModel: 'mistral',
+    ollamaMaxAttempts: 2,
+    chatClient: {
+      chat: async ({ model }) => {
+        if (model === 'meu-llama3') {
+          throw new Error('modelo principal indisponivel');
+        }
+        return { message: { content: `ok via ${model}` } };
+      }
+    }
+  });
+
+  const response = await request(app)
+    .post('/api/chat')
+    .send({ chatId: 'default', message: 'teste fallback', model: 'meu-llama3' })
+    .expect(200);
+
+  assert.equal(response.body.reply, 'ok via mistral');
+});
+
+test("POST /api/chat-stream usa fallback quando modelo primario falha", async () => {
+  const app = createApp({
+    ...createMockStore(),
+    ollamaFallbackModel: 'mistral',
+    ollamaMaxAttempts: 2,
+    chatClient: {
+      chat: async ({ model, stream }) => {
+        if (model === 'meu-llama3') {
+          throw new Error('modelo principal indisponivel');
+        }
+
+        if (!stream) {
+          return { message: { content: `ok via ${model}` } };
+        }
+
+        async function* generator() {
+          yield { message: { content: 'stream fallback' } };
+        }
+
+        return generator();
+      }
+    }
+  });
+
+  const response = await request(app)
+    .post('/api/chat-stream')
+    .send({ chatId: 'default', message: 'teste fallback stream', model: 'meu-llama3' })
+    .expect(200);
+
+  assert.equal(response.text.includes('stream fallback'), true);
 });

@@ -14,15 +14,54 @@ Projeto de chat local com frontend moderno, streaming em tempo real, persistenci
 - Exportacao de conversa em Markdown
 - Recursos extras: voz (Web Speech API), anexo de imagem para modelos multimodais, copiar resposta
 
-## Estrutura
+## Arquitetura
 
-- `docker-compose.yml`: sobe Ollama e API
-- `ollama/Modelfile`: modelo customizavel
-- `server/index.js`: API REST/streaming
-- `server/db.js`: persistencia SQLite
-- `web/index.html`: interface do chat
-- `web/script.js`: logica de UI e streaming
-- `web/styles.css`: Tailwind + customizacoes
+Fluxo principal da aplicacao:
+
+1. O frontend envia mensagens para a API (`/api/chat` ou `/api/chat-stream`)
+2. O backend valida o payload, registra logs e encaminha para o Ollama
+3. As respostas podem retornar completas ou em streaming token a token
+4. Conversas e mensagens sao persistidas em SQLite por aba (`chatId`)
+5. A UI atualiza historico, permite exportacao Markdown e acoes de organizacao
+
+Camadas por responsabilidade:
+
+- Interface (`web/`): renderizacao da UI, eventos, streaming no cliente, estilos
+- Aplicacao (`server/index.js`): rotas HTTP, middlewares, regras de API
+- Integracao de modelo (`server/ollama.js`): comunicacao com Ollama
+- Persistencia (`server/db.js`): armazenamento e recuperacao em SQLite
+- Observabilidade (`server/logger.js`): logs estruturados e correlacao por `traceId`
+- Infra local (`docker-compose.yml` + `ollama/Modelfile`): orquestracao e modelo base
+
+## Estrutura fisica
+
+```text
+.
+├── docker-compose.yml
+├── ollama/
+│   └── Modelfile
+├── server/
+│   ├── index.js
+│   ├── ollama.js
+│   ├── db.js
+│   ├── logger.js
+│   ├── package.json
+│   └── Dockerfile
+└── web/
+    ├── index.html
+    ├── script.js
+    ├── styles.css
+    ├── tailwind.config.js
+    └── package.json
+```
+
+Arquivos-chave para comecar rapido:
+
+- `server/index.js`: ponto de entrada da API e middlewares
+- `server/db.js`: camada de persistencia SQLite
+- `web/index.html`: estrutura da UI
+- `web/script.js`: logica de chat e streaming no cliente
+- `web/styles.css`: estilos Tailwind + customizacoes
 
 ## Requisitos
 
@@ -87,6 +126,7 @@ mas o fluxo recomendado e usar `http://localhost:3001` para manter API e UI na m
 - `PATCH /api/chats/:chatId`: renomeia aba
 - `DELETE /api/chats/:chatId`: exclui aba
 - `GET /api/chats/:chatId/messages`: carrega mensagens da aba
+- `GET /api/chats/:chatId/search?q=termo&limit=20`: busca textual no historico da aba
 - `POST /api/chats/:chatId/reset`: limpa uma aba
 - `GET /api/chats/:chatId/export`: exporta conversa em Markdown
 
@@ -102,11 +142,11 @@ mas o fluxo recomendado e usar `http://localhost:3001` para manter API e UI na m
 
 4. Opcional:
 
-- anexe imagem para modelos multimodais (ex.: `llava`)
+- anexe uma ou mais imagens para modelos multimodais (ex.: `llava`)
 - use `Iniciar ditado` para preencher a mensagem por voz
 
 5. Envie a mensagem e acompanhe o streaming
-6. Copie respostas pelo botao `Copiar resposta`
+6. Copie respostas pelo botao `Copiar resposta` ou escute com `Ouvir resposta` (TTS)
 7. Exporte a conversa por `Exportar Markdown`
 8. Use `Renomear aba` e `Excluir aba` para organizar suas conversas
 
@@ -161,7 +201,13 @@ Para adicionar novos modelos, inclua novas opcoes no seletor em `web/index.html`
 O envio de imagem e opcional e depende do modelo escolhido suportar imagens.
 
 - Modelos apenas de texto vao ignorar imagem ou responder com limitacoes.
-- Modelos multimodais (como `llava`) aproveitam o anexo de imagem.
+- Modelos multimodais (como `llava`) aproveitam o anexo de uma ou mais imagens (ate 4 por mensagem).
+
+## Busca no historico
+
+- Endpoint: `GET /api/chats/:chatId/search?q=termo&limit=20`
+- `q` e obrigatorio (minimo de 2 caracteres)
+- `limit` e opcional (1 a 100, padrao 20)
 
 ## Troubleshooting
 
@@ -190,9 +236,17 @@ Variaveis de ambiente opcionais no backend:
 - `RATE_LIMIT_WINDOW_MS`: janela do rate limit geral (padrao: `900000`)
 - `RATE_LIMIT_MAX`: limite geral de requests na janela (padrao: `400`)
 - `RATE_LIMIT_CHAT_MAX`: limite de requests de chat na janela (padrao: `80`)
+- `OLLAMA_TIMEOUT_MS`: timeout por tentativa de inferencia em milissegundos (padrao: `45000`)
+- `OLLAMA_MAX_ATTEMPTS`: numero maximo de tentativas por requisicao de chat (padrao: `2`, maximo `3`)
+- `OLLAMA_FALLBACK_MODEL`: modelo de fallback quando o principal falha (ex.: `mistral`)
 - `LOG_LEVEL`: nivel de log (`fatal`, `error`, `warn`, `info`, `debug`, `trace`) (padrao: `info`)
 - `NODE_ENV`: quando `production`, usa logs JSON em vez de formato colorido de desenvolvimento
 - `LOG_PRETTY`: quando `true`, habilita logs legiveis via `pino-pretty` (recomendado apenas para desenvolvimento local)
+
+Notas sobre CORS:
+
+- Sem `FRONTEND_ORIGIN`, o backend aceita por padrao apenas `http://localhost:3001` e `http://127.0.0.1:3001` (alem de requests sem header `Origin`, como health checks e curl)
+- Para liberar outras origens, defina `FRONTEND_ORIGIN` com uma ou mais URLs separadas por virgula
 
 ## Observabilidade e performance (Sprint 4 e 5)
 

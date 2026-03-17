@@ -16,6 +16,7 @@ import {
   deleteChat,
   ensureChat,
   getMessages,
+  searchMessages,
   appendMessage,
   resetChat,
   exportChatMarkdown,
@@ -120,6 +121,20 @@ function parseUserOnly(raw) {
   return raw === true || raw === "true";
 }
 
+function parseSearchQuery(raw) {
+  const query = String(raw ?? "").trim();
+  if (!query) {
+    throw new HttpError(400, "Parametro q obrigatorio");
+  }
+  if (query.length < 2) {
+    throw new HttpError(400, "Parametro q deve ter pelo menos 2 caracteres");
+  }
+  if (query.length > 120) {
+    throw new HttpError(400, "Parametro q muito longo (max 120)");
+  }
+  return query;
+}
+
 function parseOptions(body = {}) {
   const temperature = Number.parseFloat(body.temperature);
   const context = Number.parseInt(body.context, 10);
@@ -138,6 +153,120 @@ function parseOptions(body = {}) {
   };
 }
 
+function parsePositiveInt(raw, fallback, min = 1, max = Number.MAX_SAFE_INTEGER) {
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(max, Math.max(min, parsed));
+}
+
+function withTimeout(promise, timeoutMs, errorMessage) {
+  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) return promise;
+
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => {
+      setTimeout(() => {
+        reject(new HttpError(504, errorMessage));
+      }, timeoutMs);
+    }),
+  ]);
+}
+
+function buildModelAttemptPlan(primaryModel, fallbackModel, maxAttempts) {
+  const primary = String(primaryModel || "").trim();
+  const fallback = String(fallbackModel || "").trim();
+  const attempts = [];
+
+  if (primary) attempts.push(primary);
+  if (fallback && fallback !== primary) attempts.push(fallback);
+
+  if (!attempts.length) attempts.push("meu-llama3");
+
+  while (attempts.length < maxAttempts) {
+    attempts.push(attempts[attempts.length - 1]);
+  }
+
+  return attempts.slice(0, maxAttempts);
+}
+
+async function executeWithModelRecovery({
+  primaryModel,
+  fallbackModel,
+  maxAttempts,
+  timeoutMs,
+  logger,
+  run,
+}) {
+  const attemptPlan = buildModelAttemptPlan(primaryModel, fallbackModel, maxAttempts);
+  let lastError;
+
+  for (let idx = 0; idx < attemptPlan.length; idx += 1) {
+    const model = attemptPlan[idx];
+    try {
+      const result = await withTimeout(
+        run(model),
+        timeoutMs,
+        `Tempo limite excedido ao consultar o modelo ${model}`,
+      );
+
+      return { result, modelUsed: model, attempt: idx + 1 };
+    } catch (err) {
+      lastError = err;
+      logger?.warn(
+        {
+          model,
+          attempt: idx + 1,
+          maxAttempts: attemptPlan.length,
+          error: err.message,
+        },
+        "Tentativa de inferencia falhou",
+      );
+    }
+  }
+
+  throw lastError || new HttpError(502, "Falha ao consultar modelos de inferencia");
+}
+
+function parseOriginList(raw) {
+  if (typeof raw !== "string") return [];
+  return raw
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+}
+
+function buildCorsOriginValidator(configuredOrigin) {
+  if (configuredOrigin === true || configuredOrigin === false) {
+    return configuredOrigin;
+  }
+
+  const configuredOrigins = Array.isArray(configuredOrigin)
+    ? configuredOrigin.map((origin) => String(origin).trim()).filter(Boolean)
+    : parseOriginList(configuredOrigin);
+
+  const allowlist = new Set(
+    configuredOrigins.length
+      ? configuredOrigins
+      : ["http://localhost:3001", "http://127.0.0.1:3001"],
+  );
+
+  return (origin, callback) => {
+    // Requests sem header Origin (curl, health checks e chamadas same-origin)
+    // continuam permitidos.
+    if (!origin) {
+      callback(null, true);
+      return;
+    }
+
+    if (allowlist.has(origin)) {
+      callback(null, true);
+      return;
+    }
+
+    callback(new HttpError(403, "Origem nao permitida pelo CORS"));
+  };
+}
+
 export function createApp(deps = {}) {
   const chatClient = deps.chatClient || client;
   const store = {
@@ -149,6 +278,7 @@ export function createApp(deps = {}) {
     deleteChat: deps.deleteChat || deleteChat,
     ensureChat: deps.ensureChat || ensureChat,
     getMessages: deps.getMessages || getMessages,
+    searchMessages: deps.searchMessages || searchMessages,
     appendMessage: deps.appendMessage || appendMessage,
     resetChat: deps.resetChat || resetChat,
     exportChatMarkdown: deps.exportChatMarkdown || exportChatMarkdown,
@@ -159,8 +289,9 @@ export function createApp(deps = {}) {
   const app = express();
   const serverDir = path.dirname(fileURLToPath(import.meta.url));
   const webDir = deps.webDir || path.resolve(serverDir, "../web");
-  const allowedOrigin =
-    deps.allowedOrigin || process.env.FRONTEND_ORIGIN || true;
+  const corsOrigin = buildCorsOriginValidator(
+    deps.allowedOrigin ?? process.env.FRONTEND_ORIGIN,
+  );
   const requestWindowMs = Number.parseInt(
     process.env.RATE_LIMIT_WINDOW_MS || `${15 * 60 * 1000}`,
     10,
@@ -170,6 +301,21 @@ export function createApp(deps = {}) {
     process.env.RATE_LIMIT_CHAT_MAX || "80",
     10,
   );
+  const ollamaTimeoutMs = parsePositiveInt(
+    deps.ollamaTimeoutMs ?? process.env.OLLAMA_TIMEOUT_MS,
+    45_000,
+    1_000,
+    120_000,
+  );
+  const ollamaMaxAttempts = parsePositiveInt(
+    deps.ollamaMaxAttempts ?? process.env.OLLAMA_MAX_ATTEMPTS,
+    2,
+    1,
+    3,
+  );
+  const ollamaFallbackModel = String(
+    deps.ollamaFallbackModel ?? process.env.OLLAMA_FALLBACK_MODEL ?? "",
+  ).trim();
 
   const apiLimiter = rateLimit({
     windowMs: Number.isFinite(requestWindowMs)
@@ -196,7 +342,7 @@ export function createApp(deps = {}) {
       crossOriginEmbedderPolicy: false,
     }),
   );
-  app.use(cors({ origin: allowedOrigin }));
+  app.use(cors({ origin: corsOrigin }));
   app.use(express.json({ limit: process.env.JSON_LIMIT || "8mb" }));
 
   // Response compression for JSON and text
@@ -265,8 +411,7 @@ export function createApp(deps = {}) {
       await store.renameChatFromFirstMessage(chatId, message);
 
       const history = await store.getMessages(chatId);
-      const response = await chatClient.chat({
-        model: options.model,
+      const payload = {
         messages: history.map((item) => ({
           role: item.role,
           content: item.content,
@@ -276,7 +421,19 @@ export function createApp(deps = {}) {
           temperature: options.temperature,
           num_ctx: options.num_ctx,
         },
-      });
+      };
+
+      const { result: response, modelUsed, attempt } =
+        await executeWithModelRecovery({
+          primaryModel: options.model,
+          fallbackModel: ollamaFallbackModel,
+          maxAttempts: ollamaMaxAttempts,
+          timeoutMs: ollamaTimeoutMs,
+          logger: req.logger,
+          run: (model) => chatClient.chat({ ...payload, model }),
+        });
+
+      req.logger?.info({ modelUsed, attempt }, "Inferencia concluida");
 
       const reply = String(response.message?.content || "");
       await store.appendMessage(chatId, "assistant", reply);
@@ -376,6 +533,20 @@ export function createApp(deps = {}) {
     }),
   );
 
+  app.get(
+    "/api/chats/:chatId/search",
+    asyncHandler(async (req, res) => {
+      const chatId = parseChatId(req.params.chatId, "chatId");
+      const query = parseSearchQuery(req.query?.q);
+      const rawLimit = Number.parseInt(req.query?.limit, 10);
+      const limit = Number.isFinite(rawLimit)
+        ? Math.min(100, Math.max(1, rawLimit))
+        : 20;
+      const matches = await store.searchMessages(chatId, query, limit);
+      res.json({ matches });
+    }),
+  );
+
   app.post(
     "/api/chats/:chatId/reset",
     asyncHandler(async (req, res) => {
@@ -423,8 +594,7 @@ export function createApp(deps = {}) {
 
       let fullReply = "";
 
-      const stream = await chatClient.chat({
-        model: options.model,
+      const payload = {
         messages: history.map((item) => ({
           role: item.role,
           content: item.content,
@@ -435,7 +605,18 @@ export function createApp(deps = {}) {
           temperature: options.temperature,
           num_ctx: options.num_ctx,
         },
+      };
+
+      const { result: stream, modelUsed, attempt } = await executeWithModelRecovery({
+        primaryModel: options.model,
+        fallbackModel: ollamaFallbackModel,
+        maxAttempts: ollamaMaxAttempts,
+        timeoutMs: ollamaTimeoutMs,
+        logger: req.logger,
+        run: (model) => chatClient.chat({ ...payload, model }),
       });
+
+      req.logger?.info({ modelUsed, attempt }, "Streaming iniciado");
 
       for await (const part of stream) {
         const chunk = part.message?.content ?? part.delta?.content ?? "";
