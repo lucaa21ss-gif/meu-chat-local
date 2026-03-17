@@ -57,6 +57,8 @@ function createMockStore() {
   ]);
   const auditLogs = [];
   let auditId = 0;
+  const configVersions = [];
+  let configVersionId = 0;
 
   const ensureMessages = (chatId) => {
     if (!messages.has(chatId)) messages.set(chatId, []);
@@ -336,6 +338,52 @@ function createMockStore() {
       };
       auditLogs.unshift(item);
       return item;
+    },
+    appendConfigVersion: async (entry = {}) => {
+      configVersionId += 1;
+      const item = {
+        id: configVersionId,
+        configKey: String(entry.configKey || "").trim(),
+        targetType: String(entry.targetType || "").trim(),
+        targetId: entry.targetId == null ? null : String(entry.targetId),
+        value: entry.value,
+        actorUserId: entry.actorUserId || null,
+        source: entry.source || "api",
+        meta: entry.meta && typeof entry.meta === "object" ? entry.meta : {},
+        createdAt: new Date().toISOString(),
+      };
+      configVersions.unshift(item);
+      return item;
+    },
+    listConfigVersions: async (options = {}) => {
+      const page = Math.max(1, Number.parseInt(options.page, 10) || 1);
+      const limit = Math.min(
+        100,
+        Math.max(1, Number.parseInt(options.limit, 10) || 20),
+      );
+      const filtered = configVersions.filter((item) => {
+        if (options.configKey && item.configKey !== options.configKey)
+          return false;
+        if (options.targetType && item.targetType !== options.targetType)
+          return false;
+        if (options.targetId && item.targetId !== options.targetId) return false;
+        return true;
+      });
+      const total = filtered.length;
+      const totalPages = total ? Math.ceil(total / limit) : 0;
+      const offset = (page - 1) * limit;
+      return {
+        items: filtered.slice(offset, offset + limit),
+        page,
+        limit,
+        total,
+        totalPages,
+      };
+    },
+    getConfigVersionById: async (versionId) => {
+      const id = Number.parseInt(versionId, 10);
+      if (!Number.isFinite(id) || id < 1) return null;
+      return configVersions.find((item) => item.id === id) || null;
     },
     listAuditLogs: async (options = {}) => {
       const page = Math.max(1, Number.parseInt(options.page, 10) || 1);
@@ -1718,6 +1766,84 @@ test("acoes criticas registram auditoria automaticamente", async () => {
 
   assert.equal(logs.body.logs.length >= 1, true);
   assert.equal(logs.body.logs[0].eventType, "chat.export");
+});
+
+test("versionamento de configuracao lista historico com metadata e faz rollback idempotente", async () => {
+  const app = createApp({
+    chatClient: createMockChatClient(),
+    ...createMockStore(),
+  });
+
+  await request(app)
+    .patch("/api/users/user-default/system-prompt-default")
+    .set("x-user-id", "user-default")
+    .send({ defaultSystemPrompt: "Prompt v1" })
+    .expect(200);
+
+  const listPromptVersions = await request(app)
+    .get(
+      "/api/config/versions?configKey=user.defaultSystemPrompt&targetType=user&targetId=user-default",
+    )
+    .set("x-user-id", "user-default")
+    .expect(200);
+
+  assert.equal(listPromptVersions.body.versions.length >= 1, true);
+  assert.equal(
+    listPromptVersions.body.versions[0].configKey,
+    "user.defaultSystemPrompt",
+  );
+  assert.equal(listPromptVersions.body.versions[0].targetType, "user");
+  assert.equal(listPromptVersions.body.versions[0].targetId, "user-default");
+  assert.equal(listPromptVersions.body.versions[0].actorUserId, "user-default");
+  assert.equal(listPromptVersions.body.versions[0].source, "api");
+  assert.equal(!!listPromptVersions.body.versions[0].createdAt, true);
+
+  await request(app)
+    .patch("/api/users/user-default/storage-limit")
+    .set("x-user-id", "user-default")
+    .send({ storageLimitMb: 777 })
+    .expect(200);
+
+  await request(app)
+    .patch("/api/users/user-default/storage-limit")
+    .set("x-user-id", "user-default")
+    .send({ storageLimitMb: 999 })
+    .expect(200);
+
+  const versionsResponse = await request(app)
+    .get(
+      "/api/config/versions?configKey=user.storageLimitMb&targetType=user&targetId=user-default",
+    )
+    .set("x-user-id", "user-default")
+    .expect(200);
+
+  const rollbackTarget = versionsResponse.body.versions.find(
+    (item) => item.value === 777,
+  );
+  assert.equal(!!rollbackTarget, true);
+
+  const rollback = await request(app)
+    .post(`/api/config/versions/${rollbackTarget.id}/rollback`)
+    .set("x-user-id", "user-default")
+    .expect(200);
+
+  assert.equal(rollback.body.changed, true);
+  assert.equal(rollback.body.value, 777);
+
+  const rollbackAgain = await request(app)
+    .post(`/api/config/versions/${rollbackTarget.id}/rollback`)
+    .set("x-user-id", "user-default")
+    .expect(200);
+
+  assert.equal(rollbackAgain.body.changed, false);
+
+  const audit = await request(app)
+    .get("/api/audit/logs?eventType=config.rollback")
+    .set("x-user-id", "user-default")
+    .expect(200);
+
+  assert.equal(audit.body.logs.length >= 2, true);
+  assert.equal(audit.body.logs[0].eventType, "config.rollback");
 });
 
 test("RBAC bloqueia backup para viewer e permite para admin", async () => {

@@ -27,7 +27,10 @@ import {
   getMessages,
   searchMessages,
   appendAuditLog,
+  appendConfigVersion,
   listAuditLogs,
+  listConfigVersions,
+  getConfigVersionById,
   exportAuditLogs,
   appendMessage,
   resetChat,
@@ -78,6 +81,14 @@ const ROLE_LEVEL = {
   operator: 2,
   admin: 3,
 };
+const CONFIG_KEYS = {
+  CHAT_SYSTEM_PROMPT: "chat.systemPrompt",
+  USER_DEFAULT_SYSTEM_PROMPT: "user.defaultSystemPrompt",
+  USER_THEME: "user.theme",
+  USER_STORAGE_LIMIT_MB: "user.storageLimitMb",
+  APP_TELEMETRY_ENABLED: "app.telemetryEnabled",
+};
+const ALLOWED_CONFIG_KEYS = new Set(Object.values(CONFIG_KEYS));
 
 const HEALTH_STATUS = {
   HEALTHY: "healthy",
@@ -317,6 +328,55 @@ function parseAuditFilters(query = {}) {
     page,
     limit,
   };
+}
+
+function parseConfigKey(raw) {
+  const key = String(raw || "").trim();
+  if (!key) return null;
+  if (!ALLOWED_CONFIG_KEYS.has(key)) {
+    throw new HttpError(400, "configKey invalida");
+  }
+  return key;
+}
+
+function parseConfigTargetType(raw) {
+  const value = String(raw || "").trim().toLowerCase();
+  if (!value) return null;
+  if (!["chat", "user", "app"].includes(value)) {
+    throw new HttpError(400, "targetType invalido");
+  }
+  return value;
+}
+
+function parseConfigVersionId(raw) {
+  const id = Number.parseInt(raw, 10);
+  if (!Number.isFinite(id) || id < 1) {
+    throw new HttpError(400, "versionId invalido");
+  }
+  return id;
+}
+
+function parseConfigVersionFilters(query = {}) {
+  const configKey = parseConfigKey(query.configKey);
+  const targetType = parseConfigTargetType(query.targetType);
+  const targetId = query.targetId ? parseUserId(query.targetId) : null;
+  const page = parseSearchPage(query.page);
+  const limit = parseSearchLimit(query.limit);
+  return {
+    configKey,
+    targetType,
+    targetId,
+    page,
+    limit,
+  };
+}
+
+function areConfigValuesEqual(left, right) {
+  try {
+    return JSON.stringify(left) === JSON.stringify(right);
+  } catch {
+    return String(left) === String(right);
+  }
 }
 
 function parseChatListFilters(query = {}) {
@@ -828,7 +888,10 @@ export function createApp(deps = {}) {
     getMessages: deps.getMessages || getMessages,
     searchMessages: deps.searchMessages || searchMessages,
     appendAuditLog: deps.appendAuditLog || appendAuditLog,
+    appendConfigVersion: deps.appendConfigVersion || appendConfigVersion,
     listAuditLogs: deps.listAuditLogs || listAuditLogs,
+    listConfigVersions: deps.listConfigVersions || listConfigVersions,
+    getConfigVersionById: deps.getConfigVersionById || getConfigVersionById,
     exportAuditLogs: deps.exportAuditLogs || exportAuditLogs,
     upsertRagDocument: deps.upsertRagDocument || upsertRagDocument,
     listRagDocuments: deps.listRagDocuments || listRagDocuments,
@@ -925,6 +988,90 @@ export function createApp(deps = {}) {
         },
         "Falha ao registrar evento de auditoria",
       );
+    }
+  }
+
+  async function recordConfigVersion(payload = {}) {
+    try {
+      await store.appendConfigVersion(payload);
+    } catch (error) {
+      logger.warn(
+        {
+          configKey: payload.configKey,
+          targetType: payload.targetType,
+          targetId: payload.targetId,
+          error: error.message,
+        },
+        "Falha ao registrar versao de configuracao",
+      );
+    }
+  }
+
+  async function readCurrentConfigValue(version) {
+    switch (version.configKey) {
+      case CONFIG_KEYS.CHAT_SYSTEM_PROMPT: {
+        const promptContext = await store.getChatSystemPrompts(version.targetId);
+        if (!promptContext) throw new HttpError(404, "Chat nao encontrado");
+        return promptContext.systemPrompt || "";
+      }
+      case CONFIG_KEYS.USER_DEFAULT_SYSTEM_PROMPT: {
+        const user = await store.getUserById(version.targetId);
+        if (!user) throw new HttpError(404, "Perfil nao encontrado");
+        return user.defaultSystemPrompt || "";
+      }
+      case CONFIG_KEYS.USER_THEME: {
+        const user = await store.getUserById(version.targetId);
+        if (!user) throw new HttpError(404, "Perfil nao encontrado");
+        return user.theme || "system";
+      }
+      case CONFIG_KEYS.USER_STORAGE_LIMIT_MB: {
+        const user = await store.getUserById(version.targetId);
+        if (!user) throw new HttpError(404, "Perfil nao encontrado");
+        return Number.parseInt(user.storageLimitMb, 10) || 512;
+      }
+      case CONFIG_KEYS.APP_TELEMETRY_ENABLED:
+        return !!isTelemetryEnabled();
+      default:
+        throw new HttpError(400, "configKey nao suportada para rollback");
+    }
+  }
+
+  async function applyConfigValue(version) {
+    switch (version.configKey) {
+      case CONFIG_KEYS.CHAT_SYSTEM_PROMPT: {
+        const value = parseSystemPrompt(version.value);
+        const updated = await store.setChatSystemPrompt(version.targetId, value);
+        if (!updated) throw new HttpError(404, "Chat nao encontrado");
+        return updated;
+      }
+      case CONFIG_KEYS.USER_DEFAULT_SYSTEM_PROMPT: {
+        const value = parseSystemPrompt(version.value);
+        const updated = await store.setUserDefaultSystemPrompt(version.targetId, value);
+        if (!updated) throw new HttpError(404, "Perfil nao encontrado");
+        return updated;
+      }
+      case CONFIG_KEYS.USER_THEME: {
+        const value = parseTheme(version.value);
+        const updated = await store.setUserTheme(version.targetId, value);
+        if (!updated) throw new HttpError(404, "Perfil nao encontrado");
+        return updated;
+      }
+      case CONFIG_KEYS.USER_STORAGE_LIMIT_MB: {
+        const value = parseStorageLimitMb(version.value);
+        const updated = await store.setUserStorageLimit(version.targetId, value);
+        if (!updated) throw new HttpError(404, "Perfil nao encontrado");
+        return updated;
+      }
+      case CONFIG_KEYS.APP_TELEMETRY_ENABLED: {
+        const value = parseBooleanLike(version.value, false);
+        setTelemetryEnabled(value);
+        if (!value) {
+          resetTelemetryStats();
+        }
+        return { enabled: isTelemetryEnabled() };
+      }
+      default:
+        throw new HttpError(400, "configKey nao suportada para rollback");
     }
   }
 
@@ -1256,11 +1403,23 @@ export function createApp(deps = {}) {
     requireMinimumRole("admin"),
     asyncHandler(async (req, res) => {
       assertBodyObject(req.body);
+      const actor = await resolveActor(req);
       const enabled = parseBooleanLike(req.body.enabled, false);
       setTelemetryEnabled(enabled);
       if (!enabled) {
         resetTelemetryStats();
       }
+      await recordConfigVersion({
+        configKey: CONFIG_KEYS.APP_TELEMETRY_ENABLED,
+        targetType: "app",
+        targetId: null,
+        value: !!enabled,
+        actorUserId: actor.userId,
+        source: "api",
+        meta: {
+          origin: "telemetry.patch",
+        },
+      });
       res.json({ enabled: isTelemetryEnabled() });
     }),
   );
@@ -1306,6 +1465,7 @@ export function createApp(deps = {}) {
     requireMinimumRole("admin"),
     asyncHandler(async (req, res) => {
       assertBodyObject(req.body);
+      const actor = await resolveActor(req);
       const userId = parseChatId(req.params.userId, "userId");
       const defaultSystemPrompt = parseSystemPrompt(
         req.body.defaultSystemPrompt,
@@ -1315,6 +1475,17 @@ export function createApp(deps = {}) {
         defaultSystemPrompt,
       );
       if (!updated) throw new HttpError(404, "Perfil nao encontrado");
+      await recordConfigVersion({
+        configKey: CONFIG_KEYS.USER_DEFAULT_SYSTEM_PROMPT,
+        targetType: "user",
+        targetId: userId,
+        value: defaultSystemPrompt,
+        actorUserId: actor.userId,
+        source: "api",
+        meta: {
+          origin: "user.system-prompt-default.patch",
+        },
+      });
       return res.json({ user: updated });
     }),
   );
@@ -1324,10 +1495,22 @@ export function createApp(deps = {}) {
     requireAdminOrSelf("userId"),
     asyncHandler(async (req, res) => {
       assertBodyObject(req.body);
+      const actor = await resolveActor(req);
       const userId = parseChatId(req.params.userId, "userId");
       const theme = parseTheme(req.body.theme);
       const updated = await store.setUserTheme(userId, theme);
       if (!updated) throw new HttpError(404, "Perfil nao encontrado");
+      await recordConfigVersion({
+        configKey: CONFIG_KEYS.USER_THEME,
+        targetType: "user",
+        targetId: userId,
+        value: theme,
+        actorUserId: actor.userId,
+        source: "api",
+        meta: {
+          origin: "user.theme.patch",
+        },
+      });
       return res.json({ user: updated });
     }),
   );
@@ -1337,10 +1520,22 @@ export function createApp(deps = {}) {
     requireMinimumRole("admin"),
     asyncHandler(async (req, res) => {
       assertBodyObject(req.body);
+      const actor = await resolveActor(req);
       const userId = parseChatId(req.params.userId, "userId");
       const storageLimitMb = parseStorageLimitMb(req.body.storageLimitMb);
       const updated = await store.setUserStorageLimit(userId, storageLimitMb);
       if (!updated) throw new HttpError(404, "Perfil nao encontrado");
+      await recordConfigVersion({
+        configKey: CONFIG_KEYS.USER_STORAGE_LIMIT_MB,
+        targetType: "user",
+        targetId: userId,
+        value: storageLimitMb,
+        actorUserId: actor.userId,
+        source: "api",
+        meta: {
+          origin: "user.storage-limit.patch",
+        },
+      });
       return res.json({ user: updated });
     }),
   );
@@ -1513,10 +1708,22 @@ export function createApp(deps = {}) {
     "/api/chats/:chatId/system-prompt",
     asyncHandler(async (req, res) => {
       assertBodyObject(req.body);
+      const actor = await resolveActor(req);
       const chatId = parseChatId(req.params.chatId, "chatId");
       const systemPrompt = parseSystemPrompt(req.body.systemPrompt);
       const updated = await store.setChatSystemPrompt(chatId, systemPrompt);
       if (!updated) throw new HttpError(404, "Chat nao encontrado");
+      await recordConfigVersion({
+        configKey: CONFIG_KEYS.CHAT_SYSTEM_PROMPT,
+        targetType: "chat",
+        targetId: chatId,
+        value: systemPrompt,
+        actorUserId: actor.userId,
+        source: "api",
+        meta: {
+          origin: "chat.system-prompt.patch",
+        },
+      });
       return res.json({ chat: updated });
     }),
   );
@@ -1775,6 +1982,76 @@ export function createApp(deps = {}) {
       });
 
       return res.json({ cleanup: result });
+    }),
+  );
+
+  app.get(
+    "/api/config/versions",
+    requireMinimumRole("admin"),
+    asyncHandler(async (req, res) => {
+      const filters = parseConfigVersionFilters(req.query || {});
+      const result = await store.listConfigVersions(filters);
+      return res.json({
+        versions: result.items,
+        pagination: {
+          page: result.page,
+          limit: result.limit,
+          total: result.total,
+          totalPages: result.totalPages,
+        },
+      });
+    }),
+  );
+
+  app.post(
+    "/api/config/versions/:versionId/rollback",
+    requireMinimumRole("admin"),
+    asyncHandler(async (req, res) => {
+      const actor = await resolveActor(req);
+      const versionId = parseConfigVersionId(req.params.versionId);
+      const version = await store.getConfigVersionById(versionId);
+      if (!version) {
+        throw new HttpError(404, "Versao de configuracao nao encontrada");
+      }
+
+      const currentValue = await readCurrentConfigValue(version);
+      const changed = !areConfigValuesEqual(currentValue, version.value);
+      let updated = null;
+      if (changed) {
+        updated = await applyConfigValue(version);
+      }
+
+      await recordConfigVersion({
+        configKey: version.configKey,
+        targetType: version.targetType,
+        targetId: version.targetId,
+        value: version.value,
+        actorUserId: actor.userId,
+        source: "rollback",
+        meta: {
+          rollbackOfVersionId: version.id,
+          changed,
+        },
+      });
+
+      await recordAudit("config.rollback", actor.userId, {
+        configKey: version.configKey,
+        targetType: version.targetType,
+        targetId: version.targetId,
+        sourceVersionId: version.id,
+        changed,
+      });
+
+      return res.json({
+        ok: true,
+        changed,
+        sourceVersionId: version.id,
+        configKey: version.configKey,
+        targetType: version.targetType,
+        targetId: version.targetId,
+        value: version.value,
+        updated,
+      });
     }),
   );
 

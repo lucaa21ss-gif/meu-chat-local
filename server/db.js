@@ -6,7 +6,7 @@ import { open } from "sqlite";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const defaultDbPath = path.join(__dirname, "chat.db");
-const DB_SCHEMA_VERSION = 10;
+const DB_SCHEMA_VERSION = 11;
 
 let db;
 
@@ -280,6 +280,33 @@ async function runMigrations(connection) {
         await connection.exec(`
           ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'operator';
           UPDATE users SET role = 'admin' WHERE id = 'user-default';
+        `);
+      },
+    },
+    {
+      version: 11,
+      up: async () => {
+        await connection.exec(`
+          CREATE TABLE IF NOT EXISTS config_versions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            config_key TEXT NOT NULL,
+            target_type TEXT NOT NULL,
+            target_id TEXT,
+            value_json TEXT NOT NULL,
+            actor_user_id TEXT,
+            source TEXT NOT NULL DEFAULT 'api',
+            meta_json TEXT NOT NULL DEFAULT '{}',
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+          );
+
+          CREATE INDEX IF NOT EXISTS idx_config_versions_created_at
+            ON config_versions(created_at DESC, id DESC);
+
+          CREATE INDEX IF NOT EXISTS idx_config_versions_key
+            ON config_versions(config_key, created_at DESC, id DESC);
+
+          CREATE INDEX IF NOT EXISTS idx_config_versions_target
+            ON config_versions(target_type, target_id, created_at DESC, id DESC);
         `);
       },
     },
@@ -870,6 +897,46 @@ function sanitizeAuditMeta(meta = {}) {
   return safe;
 }
 
+function sanitizeConfigValue(value, depth = 0) {
+  if (depth > 4) return "[max-depth]";
+  if (value === null) return null;
+
+  if (typeof value === "string") {
+    return value.slice(0, 4000);
+  }
+
+  if (typeof value === "number" || typeof value === "boolean") {
+    return value;
+  }
+
+  if (Array.isArray(value)) {
+    return value
+      .slice(0, 60)
+      .map((item) => sanitizeConfigValue(item, depth + 1));
+  }
+
+  if (typeof value === "object") {
+    const out = {};
+    for (const [rawKey, rawVal] of Object.entries(value).slice(0, 60)) {
+      const key = String(rawKey || "").trim().slice(0, 80);
+      if (!key) continue;
+      out[key] = sanitizeConfigValue(rawVal, depth + 1);
+    }
+    return out;
+  }
+
+  return String(value).slice(0, 200);
+}
+
+function parseJsonOrDefault(raw, fallback) {
+  try {
+    return JSON.parse(raw || "");
+  } catch {
+    // noop
+  }
+  return fallback;
+}
+
 export async function appendAuditLog(userId, eventType, meta = {}) {
   await initDb();
   const safeType = String(eventType || "").trim().slice(0, 80);
@@ -889,6 +956,161 @@ export async function appendAuditLog(userId, eventType, meta = {}) {
     eventType: safeType,
     meta: safeMeta,
     createdAt: new Date().toISOString(),
+  };
+}
+
+export async function appendConfigVersion(entry = {}) {
+  await initDb();
+  const configKey = String(entry.configKey || "").trim().slice(0, 80);
+  const targetType = String(entry.targetType || "").trim().slice(0, 40);
+  const targetId = entry.targetId == null ? null : String(entry.targetId).trim().slice(0, 80);
+  const actorUserId = entry.actorUserId
+    ? String(entry.actorUserId).trim().slice(0, 80)
+    : null;
+  const source = String(entry.source || "api").trim().slice(0, 40) || "api";
+
+  if (!configKey) throw new Error("configKey obrigatorio");
+  if (!targetType) throw new Error("targetType obrigatorio");
+
+  const safeValue = sanitizeConfigValue(entry.value);
+  const safeMeta = sanitizeAuditMeta(entry.meta || {});
+
+  const result = await db.run(
+    `INSERT INTO config_versions (
+      config_key,
+      target_type,
+      target_id,
+      value_json,
+      actor_user_id,
+      source,
+      meta_json
+    ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [
+      configKey,
+      targetType,
+      targetId,
+      JSON.stringify(safeValue),
+      actorUserId,
+      source,
+      JSON.stringify(safeMeta),
+    ],
+  );
+
+  return {
+    id: result.lastID,
+    configKey,
+    targetType,
+    targetId,
+    value: safeValue,
+    actorUserId,
+    source,
+    meta: safeMeta,
+    createdAt: new Date().toISOString(),
+  };
+}
+
+export async function listConfigVersions(options = {}) {
+  await initDb();
+  const page = Math.max(1, Number.parseInt(options.page, 10) || 1);
+  const limit = Math.min(100, Math.max(1, Number.parseInt(options.limit, 10) || 20));
+  const offset = (page - 1) * limit;
+
+  const where = [];
+  const params = [];
+
+  if (options.configKey) {
+    where.push("config_key = ?");
+    params.push(String(options.configKey));
+  }
+  if (options.targetType) {
+    where.push("target_type = ?");
+    params.push(String(options.targetType));
+  }
+  if (options.targetId) {
+    where.push("target_id = ?");
+    params.push(String(options.targetId));
+  }
+
+  const whereClause = where.length ? `WHERE ${where.join(" AND ")}` : "";
+
+  const countRow = await db.get(
+    `SELECT COUNT(*) AS total FROM config_versions ${whereClause}`,
+    params,
+  );
+
+  const rows = await db.all(
+    `SELECT id,
+            config_key AS configKey,
+            target_type AS targetType,
+            target_id AS targetId,
+            value_json AS valueJson,
+            actor_user_id AS actorUserId,
+            source,
+            meta_json AS metaJson,
+            created_at AS createdAt
+     FROM config_versions
+     ${whereClause}
+     ORDER BY datetime(created_at) DESC, id DESC
+     LIMIT ? OFFSET ?`,
+    [...params, limit, offset],
+  );
+
+  const items = rows.map((row) => ({
+    id: row.id,
+    configKey: row.configKey,
+    targetType: row.targetType,
+    targetId: row.targetId,
+    value: parseJsonOrDefault(row.valueJson, null),
+    actorUserId: row.actorUserId,
+    source: row.source,
+    meta: parseJsonOrDefault(row.metaJson, {}),
+    createdAt: row.createdAt,
+  }));
+
+  const total = Number.parseInt(countRow?.total, 10) || 0;
+  const totalPages = total ? Math.ceil(total / limit) : 0;
+
+  return {
+    items,
+    page,
+    limit,
+    total,
+    totalPages,
+  };
+}
+
+export async function getConfigVersionById(versionId) {
+  await initDb();
+  const id = Number.parseInt(versionId, 10);
+  if (!Number.isFinite(id) || id <= 0) return null;
+
+  const row = await db.get(
+    `SELECT id,
+            config_key AS configKey,
+            target_type AS targetType,
+            target_id AS targetId,
+            value_json AS valueJson,
+            actor_user_id AS actorUserId,
+            source,
+            meta_json AS metaJson,
+            created_at AS createdAt
+     FROM config_versions
+     WHERE id = ?`,
+    [id],
+  );
+
+  if (!row) return null;
+
+  return {
+    id: row.id,
+    configKey: row.configKey,
+    targetType: row.targetType,
+    targetId: row.targetId,
+    value: parseJsonOrDefault(row.valueJson, null),
+    actorUserId: row.actorUserId,
+    source: row.source,
+    meta: parseJsonOrDefault(row.metaJson, {}),
+    createdAt: row.createdAt,
   };
 }
 
