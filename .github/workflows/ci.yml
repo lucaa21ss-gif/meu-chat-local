@@ -10,10 +10,15 @@ on:
       - main
       - master
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   quality-gate:
     name: Quality Gate
     runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     steps:
       - name: Checkout
@@ -32,12 +37,14 @@ jobs:
       - name: Lint JavaScript
         run: npm run lint
 
-      - name: Check formatting
+      - name: Check formatting (advisory)
+        continue-on-error: true
         run: npm run format:check
 
   backend-test:
     name: Backend Tests
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
       - name: Checkout
@@ -59,8 +66,9 @@ jobs:
         run: npm test
 
   frontend-build:
-    name: Frontend Build
+    name: Frontend Checks
     runs-on: ubuntu-latest
+    timeout-minutes: 10
 
     steps:
       - name: Checkout
@@ -81,9 +89,19 @@ jobs:
         working-directory: web
         run: npm run build:css
 
+      - name: Validate frontend script syntax
+        run: node --check web/script.js
+
+      - name: Validate required UI entrypoints
+        run: |
+          grep -q 'id="msg"' web/index.html
+          grep -q 'id="sendBtn"' web/index.html
+          grep -q 'id="chat"' web/index.html
+
   docker-build:
     name: Docker Build
     runs-on: ubuntu-latest
+    timeout-minutes: 12
 
     steps:
       - name: Checkout

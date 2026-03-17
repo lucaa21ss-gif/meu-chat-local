@@ -248,9 +248,53 @@ Pipeline automatizado em [ .github/workflows/ci.yml ](.github/workflows/ci.yml):
 
 - executa quality gate com lint e format check
 - executa testes do backend com Node 20
-- valida build do frontend (`npm run build:css`)
+- valida checks basicos de frontend (`npm run build:css` + sintaxe de `web/script.js` + validacao de IDs essenciais da UI)
 - valida `docker compose config`
 - builda a imagem Docker do servidor sem publicar
+
+### Troubleshooting de CI
+
+Falhas comuns e como reproduzir localmente:
+
+- `Lint JavaScript` falhou:
+
+```bash
+npm ci
+npm run lint
+```
+
+- `Check formatting` falhou:
+
+```bash
+npm ci
+npm run format:check
+```
+
+- `Backend Tests` falhou:
+
+```bash
+cd server
+npm ci
+npm test
+```
+
+- `Frontend Checks` falhou:
+
+```bash
+cd web
+npm ci
+npm run build:css
+cd ..
+node --check web/script.js
+grep -q 'id="msg"' web/index.html && grep -q 'id="sendBtn"' web/index.html && grep -q 'id="chat"' web/index.html
+```
+
+- `Docker Build` falhou:
+
+```bash
+docker compose config -q
+docker build -f server/Dockerfile .
+```
 
 ## Release e versao
 

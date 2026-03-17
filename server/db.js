@@ -753,19 +753,6 @@ export async function searchMessages(chatId, query, options = {}) {
   const whereParts = [
     "chat_id = ?",
     "content LIKE ? COLLATE NOCASE",
-    {
-      version: 5,
-      up: async () => {
-        await connection.exec(`
-          ALTER TABLE chats ADD COLUMN is_favorite INTEGER NOT NULL DEFAULT 0;
-          ALTER TABLE chats ADD COLUMN archived_at TEXT;
-          ALTER TABLE chats ADD COLUMN tags TEXT NOT NULL DEFAULT '[]';
-
-          CREATE INDEX IF NOT EXISTS idx_chats_favorite
-            ON chats(user_id, is_favorite);
-        `);
-      },
-    },
   ];
   const whereParams = [chatId, likeQuery];
 
