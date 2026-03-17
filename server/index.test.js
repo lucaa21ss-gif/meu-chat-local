@@ -1441,6 +1441,88 @@ test("PATCH /api/auto-healing/status atualiza configuracao e bloqueia viewer", a
     assert.equal(updated.body.autoHealing.windowMs, 120000);
 });
 
+test("POST /api/disaster-recovery/test executa cenário e retorna RTO/status final", async () => {
+    const app = createApp({
+        chatClient: createMockChatClient(),
+        ...createMockStore(),
+        disasterRecoveryService: {
+            runScenario: async () => ({
+                ok: true,
+                reportPath: "server/artifacts/dr/dr-test-ok.json",
+                report: {
+                    scenarioId: "dr-test-ok",
+                    status: "passed",
+                    indicators: {
+                        rtoMs: 321,
+                        healthStatus: "healthy",
+                        restored: true,
+                    },
+                },
+            }),
+        },
+    });
+
+    const response = await request(app)
+        .post("/api/disaster-recovery/test")
+        .set("x-user-id", "user-default")
+        .send({ scenarioId: "dr-test-ok" })
+        .expect(200);
+
+    assert.equal(response.body.ok, true);
+    assert.equal(response.body.report.status, "passed");
+    assert.equal(response.body.report.indicators.rtoMs, 321);
+    assert.equal(
+        response.body.reportPath,
+        "server/artifacts/dr/dr-test-ok.json",
+    );
+});
+
+test("POST /api/disaster-recovery/test registra falha de restauracao", async () => {
+    const app = createApp({
+        chatClient: createMockChatClient(),
+        ...createMockStore(),
+        disasterRecoveryService: {
+            runScenario: async () => ({
+                ok: false,
+                reportPath: "server/artifacts/dr/dr-test-fail.json",
+                report: {
+                    scenarioId: "dr-test-fail",
+                    status: "failed",
+                    error: "Falha ao restaurar backup",
+                    indicators: {
+                        rtoMs: null,
+                        healthStatus: null,
+                        restored: false,
+                    },
+                },
+            }),
+        },
+    });
+
+    const response = await request(app)
+        .post("/api/disaster-recovery/test")
+        .set("x-user-id", "user-default")
+        .send({ scenarioId: "dr-test-fail" })
+        .expect(200);
+
+    assert.equal(response.body.ok, false);
+    assert.equal(response.body.report.status, "failed");
+    assert.equal(response.body.report.error, "Falha ao restaurar backup");
+});
+
+test("POST /api/disaster-recovery/test bloqueado para viewer", async () => {
+    const app = createApp({
+        chatClient: createMockChatClient(),
+        ...createMockStore(),
+    });
+
+    await request(app)
+        .post("/api/disaster-recovery/test")
+        .set("x-user-id", "user-viewer")
+        .send({ scenarioId: "dr-test-viewer" })
+        .expect(403);
+});
+
 test("GET /api/slo retorna snapshot com rotas avaliadas", async () => {
     const app = createApp({
         ...createMockStore(),

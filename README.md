@@ -201,6 +201,7 @@ mas o fluxo recomendado e usar `http://localhost:3001` para manter API e UI na m
 - `GET /api/auto-healing/status`: consulta estado e politicas de auto-healing (operator/admin)
 - `PATCH /api/auto-healing/status`: atualiza modo/limites de auto-healing (somente admin)
 - `POST /api/auto-healing/execute`: executa politica de auto-healing sob demanda (somente admin)
+- `POST /api/disaster-recovery/test`: executa cenário automatizado de desastre e restauração (somente admin)
 - `GET /api/diagnostics/export`: exporta pacote de diagnostico forense (somente admin); inclui estado de saude, SLO, storage, erros recentes, checklist de triagem e audit logs
 
 ## Backup criptografado opcional
@@ -453,6 +454,38 @@ Procedimento de promocao recomendado:
 3. Executar canary (`npm run release:canary`).
 4. Promover somente com gate `approved`.
 5. Em `blocked`, revisar o relatorio JSON e corrigir antes de nova tentativa.
+
+## Teste automatizado de restauração de desastre (DR)
+
+Execução por comando único:
+
+```bash
+npm run dr:test
+```
+
+O cenário automatizado executa:
+
+1. Cria estado sentinela mínimo.
+2. Gera backup operacional.
+3. Simula perda de estado.
+4. Executa restauração automática.
+5. Valida integridade mínima (health + recuperação do estado sentinela).
+
+Indicadores e evidências:
+
+- `status` final: `passed|failed`
+- indicador de RTO local em milissegundos (`rtoMs`)
+- relatório JSON persistido em `server/artifacts/dr/<scenarioId>.json`
+
+Exemplo com parâmetros opcionais:
+
+```bash
+npm run dr:test -- --scenario dr-release-01 --server http://localhost:3001 --actor user-default
+```
+
+Evento de auditoria gerado:
+
+- `disaster.recovery.test`
 
 ## Suite de caos local e recuperacao
 

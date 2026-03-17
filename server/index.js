@@ -8,6 +8,8 @@ import {
   readdir as fsReaddir,
   stat as fsStat,
   readFile as fsReadFile,
+  mkdir as fsMkdir,
+  writeFile as fsWriteFile,
 } from "node:fs/promises";
 import helmet from "helmet";
 import { client } from "./ollama.js";
@@ -491,6 +493,15 @@ function parseIncidentRunbookMode(raw) {
     throw new HttpError(400, "incident.mode invalido: use dry-run, execute ou rollback");
   }
   return mode;
+}
+
+function parseDisasterScenarioId(raw) {
+  if (raw === undefined || raw === null || raw === "") return null;
+  const value = String(raw).trim().toLowerCase();
+  if (!/^[a-z0-9:_-]{3,80}$/.test(value)) {
+    throw new HttpError(400, "scenarioId invalido");
+  }
+  return value;
 }
 
 function parseAutoHealingPolicy(raw) {
@@ -1634,6 +1645,149 @@ function createDefaultAutoHealingService({
   };
 }
 
+function createDefaultDisasterRecoveryService({
+  store,
+  backupService,
+  healthProviders,
+  artifactsDir,
+} = {}) {
+  async function writeReport(report) {
+    const scenarioId = report?.scenarioId || `dr-${Date.now()}`;
+    await fsMkdir(artifactsDir, { recursive: true });
+    const filePath = path.join(artifactsDir, `${scenarioId}.json`);
+    await fsWriteFile(filePath, JSON.stringify(report, null, 2), "utf8");
+    return filePath;
+  }
+
+  async function runScenario({ actorUserId = null, passphrase = null, scenarioId = null } = {}) {
+    const effectiveScenarioId = scenarioId || `dr-${Date.now()}`;
+    const startedAt = new Date().toISOString();
+    const sentinelChatId = `dr-sentinel-${Date.now()}`;
+    const sentinelMessage = "DR sentinel message";
+    const steps = [];
+
+    try {
+      await store.createChat(sentinelChatId, "DR Sentinel", "user-default");
+      await store.appendMessage(sentinelChatId, "user", sentinelMessage);
+      steps.push({
+        name: "seed-state",
+        status: "completed",
+        at: new Date().toISOString(),
+      });
+
+      const backup = await backupService.createBackup({ passphrase });
+      steps.push({
+        name: "backup-export",
+        status: "completed",
+        at: new Date().toISOString(),
+        details: {
+          fileName: backup.fileName,
+          encrypted: !!backup.isEncrypted,
+          sizeBytes: backup.sizeBytes,
+        },
+      });
+
+      await store.deleteChat(sentinelChatId);
+      steps.push({
+        name: "simulate-disaster",
+        status: "completed",
+        at: new Date().toISOString(),
+      });
+
+      const restoreStartedAt = Date.now();
+      await backupService.restoreBackup(backup.archiveBuffer, { passphrase });
+
+      let restored = false;
+      for (let i = 0; i < 20; i += 1) {
+        const chats = await store.listChats("user-default", {
+          favoriteOnly: false,
+          showArchived: false,
+          tag: null,
+        });
+        if (Array.isArray(chats) && chats.some((item) => item.id === sentinelChatId)) {
+          restored = true;
+          break;
+        }
+        await sleep(150);
+      }
+
+      const [db, model, disk] = await Promise.all([
+        healthProviders.checkDb(),
+        healthProviders.checkModel(),
+        healthProviders.checkDisk(),
+      ]);
+
+      const healthStatus = buildOverallHealthStatus({ db, model, disk });
+      const rtoMs = Date.now() - restoreStartedAt;
+      const status = restored && healthStatus !== HEALTH_STATUS.UNHEALTHY ? "passed" : "failed";
+
+      steps.push({
+        name: "restore-and-validate",
+        status: status === "passed" ? "completed" : "failed",
+        at: new Date().toISOString(),
+        details: {
+          restored,
+          healthStatus,
+          rtoMs,
+        },
+      });
+
+      const report = {
+        scenarioId: effectiveScenarioId,
+        status,
+        startedAt,
+        finishedAt: new Date().toISOString(),
+        actorUserId,
+        indicators: {
+          rtoMs,
+          healthStatus,
+          restored,
+        },
+        checks: {
+          health: { db, model, disk },
+          sentinelChatId,
+        },
+        steps,
+      };
+
+      const reportPath = await writeReport(report);
+      return {
+        ok: status === "passed",
+        report,
+        reportPath,
+      };
+    } catch (error) {
+      const report = {
+        scenarioId: effectiveScenarioId,
+        status: "failed",
+        startedAt,
+        finishedAt: new Date().toISOString(),
+        actorUserId,
+        indicators: {
+          rtoMs: null,
+          healthStatus: null,
+          restored: false,
+        },
+        checks: {
+          sentinelChatId,
+        },
+        steps,
+        error: String(error?.message || error),
+      };
+      const reportPath = await writeReport(report);
+      return {
+        ok: false,
+        report,
+        reportPath,
+      };
+    }
+  }
+
+  return {
+    runScenario,
+  };
+}
+
 function buildTriageRecommendations({
   health,
   slo,
@@ -1998,6 +2152,14 @@ export function createApp(deps = {}) {
       ollamaTimeoutMs,
       ollamaRetryDelays,
       state: deps.autoHealingState,
+    });
+  const disasterRecoveryService =
+    deps.disasterRecoveryService ||
+    createDefaultDisasterRecoveryService({
+      store,
+      backupService,
+      healthProviders,
+      artifactsDir: path.join(serverDir, "artifacts", "dr"),
     });
 
   const roleLimits = deps.roleLimits ?? {
@@ -3216,6 +3378,34 @@ export function createApp(deps = {}) {
         ok: execution.outcome !== "failed",
         execution,
         autoHealing: autoHealingService.getStatus(),
+      });
+    }),
+  );
+
+  app.post(
+    "/api/disaster-recovery/test",
+    requireMinimumRole("admin"),
+    asyncHandler(async (req, res) => {
+      assertBodyObject(req.body);
+      const actor = await resolveActor(req);
+      const scenarioId = parseDisasterScenarioId(req.body.scenarioId);
+      const passphrase = parseBackupPassphrase(req.body.passphrase);
+      const result = await disasterRecoveryService.runScenario({
+        actorUserId: actor.userId,
+        scenarioId,
+        passphrase,
+      });
+
+      await recordAudit("disaster.recovery.test", actor.userId, {
+        scenarioId: result.report?.scenarioId,
+        status: result.report?.status,
+        rtoMs: result.report?.indicators?.rtoMs,
+      });
+
+      return res.json({
+        ok: result.ok,
+        reportPath: result.reportPath,
+        report: result.report,
       });
     }),
   );
