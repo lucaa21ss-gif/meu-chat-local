@@ -6,7 +6,7 @@ import { open } from "sqlite";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const defaultDbPath = path.join(__dirname, "chat.db");
-const DB_SCHEMA_VERSION = 8;
+const DB_SCHEMA_VERSION = 9;
 
 let db;
 
@@ -239,6 +239,29 @@ async function runMigrations(connection) {
       up: async () => {
         await connection.exec(`
           ALTER TABLE users ADD COLUMN storage_limit_mb INTEGER NOT NULL DEFAULT 512;
+        `);
+      },
+    },
+    {
+      version: 9,
+      up: async () => {
+        await connection.exec(`
+          CREATE TABLE IF NOT EXISTS audit_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id TEXT,
+            event_type TEXT NOT NULL,
+            meta_json TEXT NOT NULL DEFAULT '{}',
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+          );
+
+          CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at
+            ON audit_logs(created_at DESC);
+
+          CREATE INDEX IF NOT EXISTS idx_audit_logs_event_type
+            ON audit_logs(event_type, created_at DESC);
+
+          CREATE INDEX IF NOT EXISTS idx_audit_logs_user_id
+            ON audit_logs(user_id, created_at DESC);
         `);
       },
     },
@@ -792,6 +815,149 @@ export async function searchMessages(chatId, query, options = {}) {
     page: safePage,
     limit: safeLimit,
     totalPages,
+  };
+}
+
+function sanitizeAuditMeta(meta = {}) {
+  if (!meta || typeof meta !== "object" || Array.isArray(meta)) return {};
+  const safe = {};
+  for (const [key, value] of Object.entries(meta)) {
+    const safeKey = String(key || "").trim().slice(0, 40);
+    if (!safeKey) continue;
+    if (typeof value === "string") {
+      safe[safeKey] = value.slice(0, 240);
+      continue;
+    }
+    if (typeof value === "number" || typeof value === "boolean") {
+      safe[safeKey] = value;
+      continue;
+    }
+    if (Array.isArray(value)) {
+      safe[safeKey] = value.slice(0, 20).map((item) => String(item).slice(0, 60));
+      continue;
+    }
+    if (value && typeof value === "object") {
+      safe[safeKey] = "[object]";
+    }
+  }
+  return safe;
+}
+
+export async function appendAuditLog(userId, eventType, meta = {}) {
+  await initDb();
+  const safeType = String(eventType || "").trim().slice(0, 80);
+  if (!safeType) throw new Error("eventType obrigatorio");
+  const safeUserId = userId ? String(userId).trim().slice(0, 80) : null;
+  const safeMeta = sanitizeAuditMeta(meta);
+
+  const result = await db.run(
+    `INSERT INTO audit_logs (user_id, event_type, meta_json)
+     VALUES (?, ?, ?)`,
+    [safeUserId, safeType, JSON.stringify(safeMeta)],
+  );
+
+  return {
+    id: result.lastID,
+    userId: safeUserId,
+    eventType: safeType,
+    meta: safeMeta,
+    createdAt: new Date().toISOString(),
+  };
+}
+
+export async function listAuditLogs(options = {}) {
+  await initDb();
+  const page = Math.max(1, Number.parseInt(options.page, 10) || 1);
+  const limit = Math.min(100, Math.max(1, Number.parseInt(options.limit, 10) || 20));
+  const offset = (page - 1) * limit;
+
+  const where = [];
+  const params = [];
+
+  if (options.userId) {
+    where.push("user_id = ?");
+    params.push(String(options.userId));
+  }
+  if (options.eventType) {
+    where.push("event_type = ?");
+    params.push(String(options.eventType));
+  }
+  if (options.from) {
+    where.push("datetime(created_at) >= datetime(?)");
+    params.push(String(options.from));
+  }
+  if (options.to) {
+    where.push("datetime(created_at) <= datetime(?)");
+    params.push(String(options.to));
+  }
+
+  const whereClause = where.length ? `WHERE ${where.join(" AND ")}` : "";
+
+  const countRow = await db.get(
+    `SELECT COUNT(*) AS total FROM audit_logs ${whereClause}`,
+    params,
+  );
+
+  const rows = await db.all(
+    `SELECT id,
+            user_id AS userId,
+            event_type AS eventType,
+            meta_json AS metaJson,
+            created_at AS createdAt
+     FROM audit_logs
+     ${whereClause}
+     ORDER BY datetime(created_at) DESC, id DESC
+     LIMIT ? OFFSET ?`,
+    [...params, limit, offset],
+  );
+
+  const normalizedItems = rows.map((row) => {
+    let meta = {};
+    try {
+      const parsed = JSON.parse(row.metaJson || "{}");
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+        meta = parsed;
+      }
+    } catch {
+      meta = {};
+    }
+    return {
+      id: row.id,
+      userId: row.userId,
+      eventType: row.eventType,
+      meta,
+      createdAt: row.createdAt,
+    };
+  });
+
+  const total = Number.parseInt(countRow?.total, 10) || 0;
+  const totalPages = total ? Math.ceil(total / limit) : 0;
+
+  return {
+    items: normalizedItems,
+    page,
+    limit,
+    total,
+    totalPages,
+  };
+}
+
+export async function exportAuditLogs(options = {}) {
+  const result = await listAuditLogs({
+    ...options,
+    page: 1,
+    limit: 1000,
+  });
+  return {
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    filters: {
+      userId: options.userId || null,
+      eventType: options.eventType || null,
+      from: options.from || null,
+      to: options.to || null,
+    },
+    logs: result.items,
   };
 }
 

@@ -32,6 +32,8 @@ function createMockStore() {
       },
     ],
   ]);
+  const auditLogs = [];
+  let auditId = 0;
 
   const ensureMessages = (chatId) => {
     if (!messages.has(chatId)) messages.set(chatId, []);
@@ -289,6 +291,71 @@ function createMockStore() {
         page: safePage,
         limit: safeLimit,
         totalPages,
+      };
+    },
+    appendAuditLog: async (userId, eventType, meta = {}) => {
+      auditId += 1;
+      const item = {
+        id: auditId,
+        userId: userId || null,
+        eventType: String(eventType || "").trim(),
+        meta: meta && typeof meta === "object" ? meta : {},
+        createdAt: new Date().toISOString(),
+      };
+      auditLogs.unshift(item);
+      return item;
+    },
+    listAuditLogs: async (options = {}) => {
+      const page = Math.max(1, Number.parseInt(options.page, 10) || 1);
+      const limit = Math.min(
+        100,
+        Math.max(1, Number.parseInt(options.limit, 10) || 20),
+      );
+      const filtered = auditLogs.filter((item) => {
+        if (options.userId && item.userId !== options.userId) return false;
+        if (options.eventType && item.eventType !== options.eventType)
+          return false;
+        if (options.from && new Date(item.createdAt) < new Date(options.from))
+          return false;
+        if (options.to && new Date(item.createdAt) > new Date(options.to))
+          return false;
+        return true;
+      });
+      const total = filtered.length;
+      const totalPages = total ? Math.ceil(total / limit) : 0;
+      const offset = (page - 1) * limit;
+      return {
+        items: filtered.slice(offset, offset + limit),
+        page,
+        limit,
+        total,
+        totalPages,
+      };
+    },
+    exportAuditLogs: async (options = {}) => {
+      const result = await (async () => {
+        const page = 1;
+        const limit = 1000;
+        const list = await Promise.resolve().then(() => {
+          return auditLogs.filter((item) => {
+            if (options.userId && item.userId !== options.userId) return false;
+            if (options.eventType && item.eventType !== options.eventType)
+              return false;
+            return true;
+          });
+        });
+        return { items: list.slice(0, limit), page, limit };
+      })();
+      return {
+        version: 1,
+        exportedAt: new Date().toISOString(),
+        filters: {
+          userId: options.userId || null,
+          eventType: options.eventType || null,
+          from: options.from || null,
+          to: options.to || null,
+        },
+        logs: result.items,
       };
     },
     upsertRagDocument: async (chatId, name, content) => {
@@ -1482,6 +1549,82 @@ test("POST /api/storage/cleanup dry-run e execute", async () => {
 
   assert.equal(execute.body.cleanup.mode, "execute");
   assert.equal(calls[1].execute, true);
+});
+
+test("GET /api/audit/logs suporta paginacao e filtros", async () => {
+  const app = createApp({
+    chatClient: createMockChatClient(),
+    ...createMockStore(),
+  });
+
+  await request(app)
+    .post("/api/audit/profile-switch")
+    .send({ userId: "user-default" })
+    .expect(201);
+
+  await request(app)
+    .post("/api/chats/import")
+    .send({
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      chat: {
+        id: "audit-import",
+        title: "Import audit",
+        userId: "user-default",
+        messages: [],
+      },
+    })
+    .expect(201);
+
+  const response = await request(app)
+    .get("/api/audit/logs?eventType=chat.import&page=1&limit=5")
+    .expect(200);
+
+  assert.equal(Array.isArray(response.body.logs), true);
+  assert.equal(response.body.logs.length >= 1, true);
+  assert.equal(response.body.logs[0].eventType, "chat.import");
+  assert.equal(response.body.pagination.page, 1);
+});
+
+test("GET /api/audit/export retorna JSON para download", async () => {
+  const app = createApp({
+    chatClient: createMockChatClient(),
+    ...createMockStore(),
+  });
+
+  await request(app)
+    .post("/api/audit/profile-switch")
+    .send({ userId: "user-default" })
+    .expect(201);
+
+  const response = await request(app)
+    .get("/api/audit/export?userId=user-default")
+    .expect(200);
+
+  assert.equal(
+    response.headers["content-type"].includes("application/json"),
+    true,
+  );
+  assert.equal(response.body.version, 1);
+  assert.equal(Array.isArray(response.body.logs), true);
+});
+
+test("acoes criticas registram auditoria automaticamente", async () => {
+  const app = createApp({
+    chatClient: createMockChatClient(),
+    ...createMockStore(),
+  });
+
+  await request(app)
+    .get("/api/chats/default/export?format=json")
+    .expect(200);
+
+  const logs = await request(app)
+    .get("/api/audit/logs?eventType=chat.export")
+    .expect(200);
+
+  assert.equal(logs.body.logs.length >= 1, true);
+  assert.equal(logs.body.logs[0].eventType, "chat.export");
 });
 
 test("POST /api/chat injeta prompts de perfil e conversa no payload", async () => {

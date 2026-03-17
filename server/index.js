@@ -25,6 +25,9 @@ import {
   ensureChat,
   getMessages,
   searchMessages,
+  appendAuditLog,
+  listAuditLogs,
+  exportAuditLogs,
   appendMessage,
   resetChat,
   exportChatMarkdown,
@@ -259,6 +262,26 @@ function parseCleanupMaxDeleteMb(raw) {
     throw new HttpError(400, "maxDeleteMb invalido (use entre 1 e 102400)");
   }
   return parsed;
+}
+
+function parseAuditFilters(query = {}) {
+  const eventType = String(query.eventType || "").trim();
+  const userId = query.userId ? parseUserId(query.userId) : null;
+  const from = parseSearchDate(query.from, "from");
+  const to = parseSearchDate(query.to, "to");
+  const page = parseSearchPage(query.page);
+  const limit = parseSearchLimit(query.limit);
+  if (from && to && new Date(from) > new Date(to)) {
+    throw new HttpError(400, "Parametro from nao pode ser maior que to");
+  }
+  return {
+    eventType: eventType || null,
+    userId,
+    from,
+    to,
+    page,
+    limit,
+  };
 }
 
 function parseChatListFilters(query = {}) {
@@ -679,6 +702,9 @@ export function createApp(deps = {}) {
     ensureChat: deps.ensureChat || ensureChat,
     getMessages: deps.getMessages || getMessages,
     searchMessages: deps.searchMessages || searchMessages,
+    appendAuditLog: deps.appendAuditLog || appendAuditLog,
+    listAuditLogs: deps.listAuditLogs || listAuditLogs,
+    exportAuditLogs: deps.exportAuditLogs || exportAuditLogs,
     upsertRagDocument: deps.upsertRagDocument || upsertRagDocument,
     listRagDocuments: deps.listRagDocuments || listRagDocuments,
     searchDocumentChunks: deps.searchDocumentChunks || searchDocumentChunks,
@@ -752,6 +778,21 @@ export function createApp(deps = {}) {
       baseDir: deps.storageBaseDir || serverDir,
       dbPath: deps.dbPath || getDbPath(),
     });
+
+  async function recordAudit(eventType, userId = null, meta = {}) {
+    try {
+      await store.appendAuditLog(userId, eventType, meta);
+    } catch (error) {
+      logger.warn(
+        {
+          eventType,
+          userId,
+          error: error.message,
+        },
+        "Falha ao registrar evento de auditoria",
+      );
+    }
+  }
 
   const apiLimiter = rateLimit({
     windowMs: Number.isFinite(requestWindowMs)
@@ -1091,6 +1132,18 @@ export function createApp(deps = {}) {
     }),
   );
 
+  app.post(
+    "/api/audit/profile-switch",
+    asyncHandler(async (req, res) => {
+      assertBodyObject(req.body);
+      const userId = parseUserId(req.body.userId);
+      await recordAudit("profile.switch", userId, {
+        source: "frontend",
+      });
+      return res.status(201).json({ ok: true });
+    }),
+  );
+
   app.delete(
     "/api/users/:userId",
     asyncHandler(async (req, res) => {
@@ -1102,6 +1155,9 @@ export function createApp(deps = {}) {
       if (!deleted) {
         throw new HttpError(404, "Perfil nao encontrado");
       }
+      await recordAudit("user.delete", userId, {
+        actor: "api",
+      });
       return res.json({ ok: true });
     }),
   );
@@ -1247,6 +1303,10 @@ export function createApp(deps = {}) {
         throw new HttpError(404, "Chat nao encontrado");
       }
 
+      await recordAudit("chat.delete", null, {
+        chatId,
+      });
+
       return res.json({ ok: true });
     }),
   );
@@ -1313,6 +1373,10 @@ export function createApp(deps = {}) {
       if (format === "json") {
         const payload = await store.exportChatJson(chatId);
         if (!payload) throw new HttpError(404, "Chat nao encontrado");
+        await recordAudit("chat.export", payload?.chat?.userId || null, {
+          chatId,
+          format: "json",
+        });
         res.setHeader("Content-Type", "application/json; charset=utf-8");
         res.setHeader(
           "Content-Disposition",
@@ -1323,6 +1387,10 @@ export function createApp(deps = {}) {
 
       const markdown = await store.exportChatMarkdown(chatId);
       if (!markdown) throw new HttpError(404, "Chat nao encontrado");
+      await recordAudit("chat.export", null, {
+        chatId,
+        format: "md",
+      });
       res.setHeader("Content-Type", "text/markdown; charset=utf-8");
       res.setHeader(
         "Content-Disposition",
@@ -1361,6 +1429,9 @@ export function createApp(deps = {}) {
         "Content-Disposition",
         `attachment; filename="chats-${userId}.json"`,
       );
+      await recordAudit("chat.export.batch", userId, {
+        chatsCount: exported.length,
+      });
       return res.send(
         JSON.stringify(
           {
@@ -1388,6 +1459,10 @@ export function createApp(deps = {}) {
 
       const forceNew = parseBooleanLike(req.query.forceNew, false);
       const result = await store.importChatJson(payload, { forceNew });
+      await recordAudit("chat.import", result?.userId || null, {
+        chatId: result?.id,
+        forceNew,
+      });
       return res.status(201).json({ chat: result });
     }),
   );
@@ -1396,6 +1471,10 @@ export function createApp(deps = {}) {
     "/api/backup/export",
     asyncHandler(async (_req, res) => {
       const backup = await backupService.createBackup();
+      await recordAudit("backup.export", null, {
+        fileName: backup.fileName,
+        sizeBytes: backup.sizeBytes,
+      });
       res.setHeader("Content-Type", "application/gzip");
       res.setHeader(
         "Content-Disposition",
@@ -1411,6 +1490,9 @@ export function createApp(deps = {}) {
       assertBodyObject(req.body);
       const archiveBuffer = parseBackupPayload(req.body.archiveBase64);
       const result = await backupService.restoreBackup(archiveBuffer);
+      await recordAudit("backup.restore", null, {
+        restored: true,
+      });
       return res.json({ ok: true, restore: result });
     }),
   );
@@ -1460,6 +1542,39 @@ export function createApp(deps = {}) {
       });
 
       return res.json({ cleanup: result });
+    }),
+  );
+
+  app.get(
+    "/api/audit/logs",
+    asyncHandler(async (req, res) => {
+      const filters = parseAuditFilters(req.query || {});
+      const result = await store.listAuditLogs(filters);
+      return res.json({
+        logs: result.items,
+        pagination: {
+          page: result.page,
+          limit: result.limit,
+          total: result.total,
+          totalPages: result.totalPages,
+        },
+      });
+    }),
+  );
+
+  app.get(
+    "/api/audit/export",
+    asyncHandler(async (req, res) => {
+      const filters = parseAuditFilters(req.query || {});
+      const payload = await store.exportAuditLogs(filters);
+      const userId = filters.userId || "all";
+      const type = filters.eventType || "all";
+      res.setHeader("Content-Type", "application/json; charset=utf-8");
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename="audit-${userId}-${type}.json"`,
+      );
+      return res.send(JSON.stringify(payload, null, 2));
     }),
   );
 
