@@ -493,6 +493,42 @@ Exemplo com parâmetros opcionais:
 npm run capacity:profile -- --iterations 20 --concurrency 4 --max-p95-ms 1200 --min-throughput-rps 1.5
 ```
 
+## Backpressure e fila local para operacoes custosas
+
+O servidor protege os endpoints criticos contra sobrecarga com uma fila interna de execucao concorrente. Novas requisicoes sao enfileiradas e processadas com controle de concorrencia; quando a fila atinge o limite, o servidor responde com **HTTP 429** em vez de degradar silenciosamente.
+
+Endpoints protegidos pela fila:
+
+- `POST /api/chat-stream`
+
+Variaveis de ambiente de ajuste:
+
+| Variavel                  | Padrao | Descricao                                              |
+|---------------------------|--------|--------------------------------------------------------|
+| `QUEUE_MAX_CONCURRENCY`   | `4`    | Maximo de tarefas em execucao simultanea (1-32)        |
+| `QUEUE_MAX_SIZE`          | `100`  | Tamanho maximo da fila de espera (1-500)               |
+| `QUEUE_TASK_TIMEOUT_MS`   | `30000`| Timeout por tarefa em ms (5000-120000)                 |
+| `QUEUE_REJECT_POLICY`     | `reject`| Politica quando a fila esta cheia (`reject`)          |
+
+Observabilidade:
+
+- `GET /api/health` inclui o campo `queue` com metricas em tempo real:
+  - `activeCount`, `queuedCount`, `completedCount`, `rejectedCount`, `failedCount`
+  - `averageWaitTimeMs`, `maxConcurrency`, `maxQueueSize`, `utilizationPercent`
+  - alerta automatico quando `rejectedCount > 0` ou utilizacao esta alta
+- `GET /api/diagnostics/export` inclui o mesmo snapshot `queue` no pacote forense
+
+Resposta de saturacao:
+
+```json
+{
+  "error": "Servidor saturado: fila cheia (100/100)",
+  "retryAfter": 5
+}
+```
+
+HTTP 429 com header `Retry-After: 5`.
+
 ## Teste automatizado de restauração de desastre (DR)
 
 Execução por comando único:

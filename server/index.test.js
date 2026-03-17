@@ -3208,4 +3208,57 @@ test("upload policy: bloqueios de upload ficam registrados no audit log", async 
     assert.equal(logs.body.logs.length >= 1, true);
     assert.equal(logs.body.logs[0].eventType, "upload.blocked");
     assert.equal(logs.body.logs[0].meta.route, "/api/chats/:chatId/rag/documents");
+
+test("queue service: metricas aparecem em /api/health", async () => {
+    const app = createApp({
+        chatClient: createMockChatClient(),
+        ...createMockStore(),
+        healthProviders: {
+            checkDb: async () => ({ status: "healthy", latencyMs: 1 }),
+            checkModel: async () => ({ status: "healthy", latencyMs: 1, ollama: "online" }),
+            checkDisk: async () => ({ status: "healthy", latencyMs: 1, freePercent: 50 }),
+        },
+    });
+
+    const res = await request(app).get("/api/health").expect(200);
+
+    assert.ok(res.body.queue, "queue deve estar no /api/health");
+    assert.equal(res.body.queue.activeCount, 0);
+    assert.equal(res.body.queue.queuedCount, 0);
+    assert.ok("maxConcurrency" in res.body.queue);
+    assert.ok("maxQueueSize" in res.body.queue);
+});
+
+test("queue service: metricas aparecem em /api/diagnostics/export", async () => {
+    const mockStorageService = {
+        getUsage: async () => ({
+            dbBytes: 1024,
+            uploadsBytes: 2048,
+            documentsBytes: 512,
+            backupsBytes: 256,
+            totalBytes: 3840,
+        }),
+        cleanup: async () => ({ mode: "dry-run", files: [], filesCount: 0, estimatedFreedBytes: 0 }),
+    };
+
+    const app = createApp({
+        chatClient: createMockChatClient(),
+        ...createMockStore(),
+        storageService: mockStorageService,
+        healthProviders: {
+            checkDb: async () => ({ status: "healthy", latencyMs: 1 }),
+            checkModel: async () => ({ status: "healthy", latencyMs: 1, ollama: "online" }),
+            checkDisk: async () => ({ status: "healthy", latencyMs: 1, freePercent: 50 }),
+        },
+    });
+
+    const res = await request(app)
+        .get("/api/diagnostics/export")
+        .set("x-user-id", "user-default")
+        .expect(200);
+
+    assert.ok(res.body.queue, "queue deve estar em /api/diagnostics/export");
+    assert.equal(typeof res.body.queue.activeCount, "number");
+    assert.equal(typeof res.body.queue.rejectedCount, "number");
+});
 });
