@@ -3261,4 +3261,107 @@ test("queue service: metricas aparecem em /api/diagnostics/export", async () => 
     assert.equal(typeof res.body.queue.activeCount, "number");
     assert.equal(typeof res.body.queue.rejectedCount, "number");
 });
+
+test("baseline: GET /api/config/baseline retorna not-configured sem baseline salvo", async () => {
+    const mockBaseline = {
+        check: async () => ({
+            hasSaved: false,
+            status: "not-configured",
+            baseline: null,
+            current: { telemetryEnabled: false, queue: {}, autoHealing: {} },
+            driftedKeys: [],
+            checkedAt: new Date().toISOString(),
+        }),
+        save: async () => ({ config: {}, savedAt: new Date().toISOString() }),
+    };
+
+    const app = createApp({
+        chatClient: createMockChatClient(),
+        ...createMockStore(),
+        baselineService: mockBaseline,
+        healthProviders: {
+            checkDb: async () => ({ status: "healthy", latencyMs: 1 }),
+            checkModel: async () => ({ status: "healthy", latencyMs: 1, ollama: "online" }),
+            checkDisk: async () => ({ status: "healthy", latencyMs: 1, freePercent: 50 }),
+        },
+    });
+
+    const res = await request(app)
+        .get("/api/config/baseline")
+        .set("x-user-id", "user-default")
+        .expect(200);
+
+    assert.equal(res.body.status, "not-configured");
+    assert.equal(res.body.hasSaved, false);
+    assert.ok(Array.isArray(res.body.driftedKeys));
+});
+
+test("baseline: POST /api/config/baseline salva e retorna ok", async () => {
+    const savedConfig = { telemetryEnabled: false, queue: { maxConcurrency: 4 }, autoHealing: { enabled: false } };
+    const mockBaseline = {
+        check: async () => ({
+            hasSaved: false,
+            status: "not-configured",
+            baseline: null,
+            current: savedConfig,
+            driftedKeys: [],
+            checkedAt: new Date().toISOString(),
+        }),
+        save: async () => ({ config: savedConfig, savedAt: new Date().toISOString() }),
+    };
+
+    const app = createApp({
+        chatClient: createMockChatClient(),
+        ...createMockStore(),
+        baselineService: mockBaseline,
+        healthProviders: {
+            checkDb: async () => ({ status: "healthy", latencyMs: 1 }),
+            checkModel: async () => ({ status: "healthy", latencyMs: 1, ollama: "online" }),
+            checkDisk: async () => ({ status: "healthy", latencyMs: 1, freePercent: 50 }),
+        },
+    });
+
+    const res = await request(app)
+        .post("/api/config/baseline")
+        .set("x-user-id", "user-default")
+        .expect(200);
+
+    assert.equal(res.body.ok, true);
+    assert.equal(res.body.reconciled, false);
+    assert.ok(res.body.baseline);
+    assert.ok(res.body.savedAt);
+});
+
+test("baseline: drift aparece em /api/health como alerta", async () => {
+    const mockBaseline = {
+        check: async () => ({
+            hasSaved: true,
+            status: "drift",
+            baseline: { telemetryEnabled: false },
+            current: { telemetryEnabled: true },
+            driftedKeys: ["telemetryEnabled"],
+            savedAt: new Date().toISOString(),
+            checkedAt: new Date().toISOString(),
+        }),
+        save: async () => ({ config: {}, savedAt: new Date().toISOString() }),
+    };
+
+    const app = createApp({
+        chatClient: createMockChatClient(),
+        ...createMockStore(),
+        baselineService: mockBaseline,
+        healthProviders: {
+            checkDb: async () => ({ status: "healthy", latencyMs: 1 }),
+            checkModel: async () => ({ status: "healthy", latencyMs: 1, ollama: "online" }),
+            checkDisk: async () => ({ status: "healthy", latencyMs: 1, freePercent: 50 }),
+        },
+    });
+
+    const res = await request(app).get("/api/health").expect(200);
+
+    assert.equal(res.body.baseline.status, "drift");
+    assert.ok(res.body.baseline.driftedKeys.includes("telemetryEnabled"));
+    const alertMsg = res.body.alerts.find((a) => a.includes("Drift de configuracao"));
+    assert.ok(alertMsg, "alerta de drift deve aparecer em alerts");
+});
 });

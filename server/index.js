@@ -2090,6 +2090,72 @@ function createQueueService({
   };
 }
 
+function createBaselineService({ baselinePath, getConfig }) {
+  async function load() {
+    try {
+      const raw = await fs.readFile(baselinePath, "utf-8");
+      return JSON.parse(raw);
+    } catch {
+      return null;
+    }
+  }
+
+  async function save() {
+    const config = getConfig();
+    const record = { config, savedAt: new Date().toISOString() };
+    await fs.mkdir(path.dirname(baselinePath), { recursive: true });
+    await fs.writeFile(baselinePath, JSON.stringify(record, null, 2), "utf-8");
+    return record;
+  }
+
+  async function check() {
+    const checkedAt = new Date().toISOString();
+    const saved = await load();
+    const current = getConfig();
+
+    if (!saved) {
+      return {
+        hasSaved: false,
+        status: "not-configured",
+        baseline: null,
+        current,
+        driftedKeys: [],
+        checkedAt,
+      };
+    }
+
+    const baseline = saved.config;
+    const driftedKeys = [];
+
+    function deepEqual(a, b) {
+      return JSON.stringify(a) === JSON.stringify(b);
+    }
+
+    for (const key of Object.keys(baseline)) {
+      if (!deepEqual(baseline[key], current[key])) {
+        driftedKeys.push(key);
+      }
+    }
+    for (const key of Object.keys(current)) {
+      if (!(key in baseline) && !driftedKeys.includes(key)) {
+        driftedKeys.push(key);
+      }
+    }
+
+    return {
+      hasSaved: true,
+      status: driftedKeys.length > 0 ? "drift" : "ok",
+      baseline,
+      current,
+      driftedKeys,
+      savedAt: saved.savedAt,
+      checkedAt,
+    };
+  }
+
+  return { load, save, check };
+}
+
 function buildCapacityEmptySummary(reason = "capacity-report-missing") {
   return {
     status: "unknown",
@@ -2656,6 +2722,26 @@ export function createApp(deps = {}) {
       rejectPolicy: (process.env.QUEUE_REJECT_POLICY || "reject").trim(),
     });
 
+  const baselineService =
+    deps.baselineService ||
+    createBaselineService({
+      baselinePath: path.join(serverDir, "artifacts", "baseline", "config-baseline.json"),
+      getConfig: () => ({
+        telemetryEnabled: isTelemetryEnabled(),
+        queue: {
+          maxConcurrency: parsePositiveInt(process.env.QUEUE_MAX_CONCURRENCY, 4, 1, 32),
+          maxSize: parsePositiveInt(process.env.QUEUE_MAX_SIZE, 100, 1, 500),
+          taskTimeoutMs: parsePositiveInt(process.env.QUEUE_TASK_TIMEOUT_MS, 30000, 5000, 120000),
+          rejectPolicy: (process.env.QUEUE_REJECT_POLICY || "reject").trim(),
+        },
+        autoHealing: {
+          enabled: autoHealingService.getStatus().enabled,
+          cooldownMs: autoHealingService.getStatus().cooldownMs,
+          maxAttempts: autoHealingService.getStatus().maxAttempts,
+        },
+      }),
+    });
+
   const roleLimits = deps.roleLimits ?? {
     admin: { windowMs: requestWindowMs, max: 300, chatMax: 100 },
     operator: { windowMs: requestWindowMs, max: 150, chatMax: 50 },
@@ -2947,6 +3033,7 @@ export function createApp(deps = {}) {
   app.locals.storageService = storageService;
   app.locals.capacityService = capacityService;
   app.locals.queueService = queueService;
+  app.locals.baselineService = baselineService;
 
   app.get("/healthz", (req, res) => {
     req.logger?.info({ uptime: process.uptime() }, "Liveness check");
@@ -2999,6 +3086,7 @@ export function createApp(deps = {}) {
       const slo = buildSloSnapshot(getTelemetryStats());
       const capacity = await capacityService.getLatestSummary();
       const queue = queueService.getMetrics();
+      const baselineDrift = await baselineService.check();
 
       const alerts = [];
       if (db.status !== HEALTH_STATUS.HEALTHY) {
@@ -3018,6 +3106,9 @@ export function createApp(deps = {}) {
       }
       if (queue.rejectedCount > 0 || (queue.queuedCount + queue.activeCount) > (queue.maxConcurrency * 2)) {
         alerts.push("Fila de operacoes proxima a saturacao - rejeitando novas requisicoes");
+      }
+      if (baselineDrift.status === "drift") {
+        alerts.push(`Drift de configuracao detectado em: ${baselineDrift.driftedKeys.join(", ")}`);
       }
 
       if (autoHealingExecution.executed) {
@@ -3039,6 +3130,7 @@ export function createApp(deps = {}) {
         integrity: integrityStatus,
         capacity,
         queue,
+        baseline: { status: baselineDrift.status, driftedKeys: baselineDrift.driftedKeys, checkedAt: baselineDrift.checkedAt },
         slo,
         autoHealing: autoHealingService.getStatus(),
         rateLimiter: roleLimiter.getMetrics(),
@@ -4233,6 +4325,42 @@ export function createApp(deps = {}) {
   );
 
   app.get(
+    "/api/config/baseline",
+    requireMinimumRole("operator"),
+    asyncHandler(async (req, res) => {
+      const drift = await baselineService.check();
+      return res.json(drift);
+    }),
+  );
+
+  app.post(
+    "/api/config/baseline",
+    requireMinimumRole("operator"),
+    asyncHandler(async (req, res) => {
+      const actor = await resolveActor(req);
+      const before = await baselineService.check();
+      const hasDrift = before.hasSaved && before.status === "drift";
+      const record = await baselineService.save();
+      await recordAudit(
+        hasDrift ? "config.baseline.reconciled" : "config.baseline.saved",
+        actor.userId,
+        {
+          driftedKeys: before.driftedKeys ?? [],
+          reconciled: hasDrift,
+          savedAt: record.savedAt,
+        },
+      );
+      return res.json({
+        ok: true,
+        reconciled: hasDrift,
+        driftedKeys: before.driftedKeys ?? [],
+        baseline: record.config,
+        savedAt: record.savedAt,
+      });
+    }),
+  );
+
+  app.get(
     "/api/audit/logs",
     asyncHandler(async (req, res) => {
       const filters = parseAuditFilters(req.query || {});
@@ -4425,6 +4553,7 @@ export function createApp(deps = {}) {
         }));
       const integritySnapshot = await integrityService.getOrRefresh();
       const capacitySnapshot = await capacityService.getLatestSummary();
+      const baselineDriftSnapshot = await baselineService.check();
       const sloSnapshot = buildSloSnapshot(
         getTelemetryStats().map((item) => ({
           ...item,
@@ -4476,6 +4605,7 @@ export function createApp(deps = {}) {
         integrity: integritySnapshot,
         capacity: capacitySnapshot,
         queue: queueService.getMetrics(),
+        baseline: baselineDriftSnapshot,
         autoHealing: autoHealingService.getStatus(),
         storage: storageSnapshot,
         backupValidation: backupValidationSnapshot,

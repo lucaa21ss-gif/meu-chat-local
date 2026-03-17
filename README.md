@@ -529,6 +529,52 @@ Resposta de saturacao:
 
 HTTP 429 com header `Retry-After: 5`.
 
+## Baseline de configuracao e deteccao de drift
+
+Governanca de configuracao com baseline versionado e deteccao automatica de drift operacional. Permite ao operador registrar o estado esperado da configuracao e ser alertado quando o runtime diverge.
+
+### Endpoints
+
+| Metodo | Rota                   | Role minima | Descricao                                         |
+|--------|------------------------|-------------|---------------------------------------------------|
+| GET    | `/api/config/baseline` | operator    | Retorna baseline salvo + drift atual              |
+| POST   | `/api/config/baseline` | operator    | Salva configuracao atual como novo baseline       |
+
+### Fluxo de revisao
+
+1. **Estabelecer baseline**: Apos configurar o servidor com os valores aprovados, chame `POST /api/config/baseline`. O estado atual sera salvo em `server/artifacts/baseline/config-baseline.json`.
+
+2. **Detectar drift**: `GET /api/config/baseline` compara o baseline salvo com a configuracao em execucao. O campo `driftedKeys` lista quais chaves divergiram.
+
+3. **Alerta automatico**: `GET /api/health` inclui `baseline.status` e emite um alerta em `alerts[]` quando `status === "drift"`.
+
+4. **Reconciliar**: Para aceitar o estado atual como novo baseline aprovado, chame novamente `POST /api/config/baseline`. O evento `config.baseline.reconciled` e registrado no audit log com as chaves reconciliadas.
+
+### Configuracoes monitoradas
+
+```json
+{
+  "telemetryEnabled": true,
+  "queue": {
+    "maxConcurrency": 4,
+    "maxSize": 100,
+    "taskTimeoutMs": 30000,
+    "rejectPolicy": "reject"
+  },
+  "autoHealing": {
+    "enabled": false,
+    "cooldownMs": 30000,
+    "maxAttempts": 3
+  }
+}
+```
+
+### Observabilidade
+
+- `GET /api/health` — campo `baseline.status` (`ok|drift|not-configured`) com `driftedKeys` e alerta automatico quando `status === "drift"`
+- `GET /api/diagnostics/export` — snapshot completo de baseline em `payload.baseline`
+- Audit log — eventos `config.baseline.saved` e `config.baseline.reconciled` com `driftedKeys` e `actorUserId`
+
 ## Teste automatizado de restauração de desastre (DR)
 
 Execução por comando único:
