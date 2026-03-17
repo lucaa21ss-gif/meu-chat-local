@@ -2036,3 +2036,82 @@ test("rate limiter: metricas de fila aparecem no /api/health", async () => {
   assert.ok("rejectedTotal" in res.body.rateLimiter);
   assert.ok("timedOutTotal" in res.body.rateLimiter);
 });
+
+test("observabilidade: x-trace-id presente em respostas de sucesso e de erro", async () => {
+  const app = createApp({
+    chatClient: createMockChatClient(),
+    ...createMockStore(),
+  });
+
+  const okRes = await request(app).get("/api/chats").expect(200);
+  assert.ok(okRes.headers["x-trace-id"], "x-trace-id deve estar em respostas 200");
+
+  const errRes = await request(app)
+    .get("/api/chats/chat-inexistente-xyz/export?format=json")
+    .expect(404);
+  assert.ok(errRes.headers["x-trace-id"], "x-trace-id deve estar em respostas de erro");
+  assert.ok(errRes.body.traceId, "corpo do erro deve incluir traceId");
+  assert.equal(
+    errRes.headers["x-trace-id"],
+    errRes.body.traceId,
+    "traceId do header deve coincidir com o do corpo",
+  );
+});
+
+test("observabilidade: GET /api/diagnostics/export retorna pacote com campos obrigatorios", async () => {
+  const app = createApp({
+    chatClient: createMockChatClient(),
+    ...createMockStore(),
+    healthProviders: {
+      checkDb:    async () => ({ status: "healthy", latencyMs: 2 }),
+      checkModel: async () => ({ status: "healthy", latencyMs: 3, ollama: "online" }),
+      checkDisk:  async () => ({ status: "healthy", latencyMs: 1, freePercent: 70 }),
+    },
+  });
+
+  const res = await request(app)
+    .get("/api/diagnostics/export")
+    .set("x-user-id", "user-default")
+    .expect(200);
+
+  assert.equal(
+    res.headers["content-type"].includes("application/json"),
+    true,
+    "content-type deve ser application/json",
+  );
+  assert.ok(
+    res.headers["content-disposition"].includes("diagnostics-"),
+    "deve incluir prefixo diagnostics- no filename",
+  );
+
+  const payload = JSON.parse(res.text);
+  assert.equal(payload.version, 1);
+  assert.ok(payload.generatedAt, "generatedAt obrigatorio");
+  assert.ok(payload.traceId, "traceId obrigatorio no pacote");
+  assert.ok(payload.app, "secao app obrigatoria");
+  assert.ok(payload.app.nodeVersion, "nodeVersion obrigatorio");
+  assert.ok(payload.health, "secao health obrigatoria");
+  assert.ok(payload.health.checks, "checks obrigatorio");
+  assert.ok(payload.rateLimiter, "rateLimiter obrigatorio");
+  assert.ok(payload.telemetry, "telemetry obrigatorio");
+  assert.ok(Array.isArray(payload.recentAuditLogs), "recentAuditLogs deve ser array");
+  assert.ok(Array.isArray(payload.recentConfigVersions), "recentConfigVersions deve ser array");
+
+  assert.equal(
+    res.headers["x-trace-id"],
+    payload.traceId,
+    "traceId do pacote deve coincidir com o header x-trace-id",
+  );
+});
+
+test("observabilidade: GET /api/diagnostics/export bloqueado para viewer", async () => {
+  const app = createApp({
+    chatClient: createMockChatClient(),
+    ...createMockStore(),
+  });
+
+  await request(app)
+    .get("/api/diagnostics/export")
+    .set("x-user-id", "user-viewer")
+    .expect(403);
+});

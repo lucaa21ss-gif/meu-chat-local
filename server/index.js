@@ -1157,6 +1157,11 @@ export function createApp(deps = {}) {
     req.logger = logger.child({ traceId: req.id });
     next();
   });
+  // Devolve o traceId em toda resposta API para correlacao com o frontend.
+  app.use((req, res, next) => {
+    if (req.id) res.setHeader("x-trace-id", req.id);
+    next();
+  });
   app.use(createTelemetryMiddleware());
 
   // Cache headers for static assets
@@ -2182,6 +2187,62 @@ export function createApp(deps = {}) {
     }
   });
 
+  // Pacote de diagnostico local para suporte tecnico
+  app.get(
+    "/api/diagnostics/export",
+    requireMinimumRole("admin"),
+    asyncHandler(async (req, res) => {
+      const traceId = req.id || null;
+      const generatedAt = new Date().toISOString();
+
+      const [healthDb, healthModel, healthDisk] = await Promise.all([
+        healthProviders.checkDb(),
+        healthProviders.checkModel(),
+        healthProviders.checkDisk(),
+      ]);
+
+      const auditPage = await store.listAuditLogs({ page: 1, limit: 50 });
+      const configPage = await store.listConfigVersions({ page: 1, limit: 50 });
+      const telemetry = getTelemetryStats().slice(0, 20).map((item) => ({
+        ...item,
+        errorRate: item.count ? Math.round((item.errors / item.count) * 100) : 0,
+      }));
+      const rateLimiterMetrics = roleLimiter.getMetrics();
+
+      const payload = {
+        version: 1,
+        generatedAt,
+        traceId,
+        app: {
+          nodeVersion: process.version,
+          platform: process.platform,
+          uptime: Math.round(process.uptime()),
+          memoryMb: Math.round(process.memoryUsage().rss / 1024 / 1024),
+        },
+        health: {
+          status: buildOverallHealthStatus({ db: healthDb, model: healthModel, disk: healthDisk }),
+          checks: { db: healthDb, model: healthModel, disk: healthDisk },
+        },
+        rateLimiter: rateLimiterMetrics,
+        telemetry: {
+          enabled: isTelemetryEnabled(),
+          topRoutes: telemetry,
+        },
+        recentAuditLogs: auditPage.items,
+        recentConfigVersions: configPage.items,
+      };
+
+      req.logger?.info({ traceId }, "Pacote de diagnostico exportado");
+
+      res.setHeader("Content-Type", "application/json; charset=utf-8");
+      res.setHeader(
+        "Content-Disposition",
+        `attachment; filename="diagnostics-${generatedAt.slice(0, 10)}.json"`,
+      );
+      return res.send(JSON.stringify(payload, null, 2));
+    }),
+  );
+
   app.use("/api", (_req, res) => {
     res.status(404).json({ error: "Endpoint nao encontrado" });
   });
@@ -2202,7 +2263,8 @@ export function createApp(deps = {}) {
     res.sendFile(path.join(webDir, "index.html"));
   });
 
-  app.use((err, req, res) => {
+  // eslint-disable-next-line no-unused-vars
+  app.use((err, req, res, _next) => {
     const status = err instanceof HttpError ? err.status : 500;
     const message =
       err instanceof HttpError ? err.message : "Erro interno do servidor";
@@ -2221,7 +2283,7 @@ export function createApp(deps = {}) {
     }
 
     if (req.path.startsWith("/api")) {
-      res.status(status).json({ error: message });
+      res.status(status).json({ error: message, traceId: req.id || null });
       return;
     }
 

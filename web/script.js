@@ -59,6 +59,7 @@ const telemetryOptInEl = document.getElementById("telemetryOptIn");
 const telemetryStatsBtnEl = document.getElementById("telemetryStatsBtn");
 const auditExportBtnEl = document.getElementById("auditExportBtn");
 const configHistoryBtnEl = document.getElementById("configHistoryBtn");
+const diagnosticsExportBtnEl = document.getElementById("diagnosticsExportBtn");
 const healthRefreshBtnEl = document.getElementById("healthRefreshBtn");
 const healthSummaryTextEl = document.getElementById("healthSummaryText");
 const healthChecksTextEl = document.getElementById("healthChecksText");
@@ -641,6 +642,49 @@ async function exportAuditLogsJson() {
   }
 }
 
+async function exportDiagnosticsPackage() {
+  try {
+    const response = await fetch(`${API_BASE}/api/diagnostics/export`, {
+      headers: { "x-user-id": state.userId || "" },
+    });
+
+    if (!response.ok) {
+      const traceId = response.headers.get("x-trace-id");
+      let msg = "Falha ao exportar diagnostico";
+      try {
+        const data = await response.json();
+        msg = data?.error || msg;
+      } catch {
+        /* noop */
+      }
+      const err = new Error(msg);
+      err.traceId = traceId;
+      throw err;
+    }
+
+    const jsonText = await response.text();
+    const blob = new Blob([jsonText], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `diagnostics-${new Date().toISOString().slice(0, 10)}.json`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+
+    showStatus("Pacote de diagnostico exportado com sucesso.", {
+      type: "success",
+      autoHideMs: 2500,
+    });
+  } catch (error) {
+    showStatus(`Falha ao exportar diagnostico: ${error.message}`, {
+      type: "error",
+      traceId: error.traceId,
+      retryAction: () => exportDiagnosticsPackage(),
+    });
+    throw error;
+  }
+}
+
 function formatConfigVersionLabel(item) {
   const map = {
     "chat.systemPrompt": "Prompt da conversa",
@@ -776,6 +820,7 @@ function updateRbacUi() {
     document.getElementById("auditExportBtn"),
     document.getElementById("configHistoryBtn"),
     document.getElementById("telemetryOptIn"),
+    document.getElementById("diagnosticsExportBtn"),
     document.getElementById("telemetryStatsBtn"),
   ];
 
@@ -1208,7 +1253,12 @@ function showStatus(message, options = {}) {
   const retryAction = options.retryAction || null;
   const autoHideMs = options.autoHideMs ?? (type === "success" ? 3000 : 0);
 
-  statusTextEl.textContent = message;
+  const traceId = options.traceId || null;
+  const displayText =
+    traceId && type === "error"
+      ? `${message} [ocorrencia: ${traceId.slice(0, 8)}]`
+      : message;
+  statusTextEl.textContent = displayText;
   statusBarEl.classList.remove("hidden");
   statusBarEl.classList.add("flex");
 
@@ -1495,11 +1545,14 @@ function renderTabs() {
 
 async function fetchJson(path, options = {}) {
   const response = await fetch(`${API_BASE}${path}`, options);
+  const responseTraceId = response.headers.get("x-trace-id") || null;
   if (!response.ok) {
     let detail = "";
+    let serverTraceId = responseTraceId;
     try {
       const data = await response.json();
       detail = data?.error || "";
+      if (data?.traceId) serverTraceId = data.traceId;
     } catch {
       try {
         detail = await response.text();
@@ -1509,7 +1562,10 @@ async function fetchJson(path, options = {}) {
     }
 
     const fallback = `Falha na requisicao (${response.status})`;
-    throw new Error((detail || fallback).trim());
+    const err = new Error((detail || fallback).trim());
+    err.traceId = serverTraceId;
+    err.status = response.status;
+    throw err;
   }
   return response.json();
 }
@@ -3206,6 +3262,18 @@ if (configHistoryBtnEl) {
     openConfigHistoryRollback().catch((error) => {
       showStatus(`Falha no rollback de configuracao: ${error.message}`, {
         type: "error",
+        traceId: error.traceId,
+      });
+    });
+  });
+}
+
+if (diagnosticsExportBtnEl) {
+  diagnosticsExportBtnEl.addEventListener("click", () => {
+    exportDiagnosticsPackage().catch((error) => {
+      showStatus(`Falha ao exportar diagnostico: ${error.message}`, {
+        type: "error",
+        traceId: error.traceId,
       });
     });
   });
