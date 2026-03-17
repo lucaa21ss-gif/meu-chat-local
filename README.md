@@ -178,6 +178,29 @@ mas o fluxo recomendado e usar `http://localhost:3001` para manter API e UI na m
 - `GET /api/chats/:chatId/rag/search?q=termo&limit=4`: busca trechos relevantes da base documental
 - `POST /api/chats/:chatId/reset`: limpa uma aba
 - `GET /api/chats/:chatId/export`: exporta conversa em Markdown
+- `GET /api/backup/export`: exporta backup completo (`.tgz` legado ou `.tgz.enc` protegido por passphrase)
+- `POST /api/backup/restore`: restaura backup completo com deteccao automatica de formato legado/criptografado
+
+## Backup criptografado opcional
+
+Fluxo de exportacao:
+
+1. Clique em `Backup completo` na UI.
+2. Informe passphrase opcional (minimo 8 caracteres) para gerar arquivo protegido.
+3. Sem passphrase, o sistema gera backup legado em `application/gzip`.
+4. Com passphrase, o sistema gera arquivo com envelope autenticado (`AES-256-GCM` + `scrypt`) e extensao `.tgz.enc`.
+
+Fluxo de restauracao:
+
+1. Clique em `Restaurar backup` e escolha arquivo `.tgz`, `.tar.gz` ou `.enc`.
+2. Informe passphrase apenas se o backup estiver protegido.
+3. O backend detecta o formato automaticamente e valida autenticidade.
+4. Chave incorreta ou ausente para arquivo protegido retorna erro de validacao.
+
+Compatibilidade:
+
+- Backups legados nao criptografados continuam suportados sem alteracoes.
+- Backups protegidos exigem a mesma passphrase utilizada na exportacao.
 
 ## Governanca de dependencias
 
@@ -196,9 +219,11 @@ Politica aplicada:
 Checklist de atualizacao segura:
 
 1. Executar auditoria local por alvo:
-  - `npm audit --audit-level=high`
-  - `cd server && npm audit --audit-level=high`
-  - `cd web && npm audit --audit-level=high`
+
+- `npm audit --audit-level=high`
+- `cd server && npm audit --audit-level=high`
+- `cd web && npm audit --audit-level=high`
+
 2. Priorizar atualizacoes `patch` e `minor` antes de `major`.
 3. Para atualizacoes com breaking change, abrir PR dedicado com plano de rollback.
 4. Reexecutar suite completa (`npm test` no backend + checks de CI locais).

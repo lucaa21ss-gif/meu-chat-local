@@ -76,6 +76,8 @@ const MAX_RAG_DOC_NAME_LENGTH = 140;
 const MAX_RAG_DOC_CONTENT_LENGTH = 120_000;
 const MAX_IMPORT_MESSAGES = 2000;
 const MAX_BACKUP_IMPORT_BYTES = 25 * 1024 * 1024;
+const MAX_BACKUP_PASSPHRASE_LENGTH = 128;
+const MIN_BACKUP_PASSPHRASE_LENGTH = 8;
 const MAX_USER_NAME_LENGTH = 40;
 const MAX_SYSTEM_PROMPT_LENGTH = 2500;
 const USER_ROLES = ["admin", "operator", "viewer"];
@@ -836,6 +838,32 @@ function parseBackupPayload(raw) {
   }
 }
 
+function parseBackupPassphrase(raw, { required = false } = {}) {
+  const value = String(raw ?? "").trim();
+  if (!value) {
+    if (required) {
+      throw new HttpError(400, "passphrase obrigatoria para este backup");
+    }
+    return null;
+  }
+
+  if (value.length < MIN_BACKUP_PASSPHRASE_LENGTH) {
+    throw new HttpError(
+      400,
+      `passphrase deve ter ao menos ${MIN_BACKUP_PASSPHRASE_LENGTH} caracteres`,
+    );
+  }
+
+  if (value.length > MAX_BACKUP_PASSPHRASE_LENGTH) {
+    throw new HttpError(
+      400,
+      `passphrase muito longa (max ${MAX_BACKUP_PASSPHRASE_LENGTH})`,
+    );
+  }
+
+  return value;
+}
+
 async function pruneBackups(backupRoot, maxFiles) {
   if (!Number.isFinite(maxFiles) || maxFiles < 1) return;
   const fs = await import("node:fs/promises");
@@ -881,23 +909,25 @@ function createDefaultBackupService(config = {}) {
   const backupKeep = parsePositiveInt(config.backupKeep, 10, 1, 100);
 
   return {
-    async createBackup() {
+    async createBackup(options = {}) {
       const info = await createBackupArchive({
         dbPath,
         includeDirs,
         backupRoot,
         createDbSnapshot,
+        passphrase: options.passphrase,
       });
       await pruneBackups(backupRoot, backupKeep);
       return info;
     },
-    async restoreBackup(buffer) {
+    async restoreBackup(buffer, options = {}) {
       return restoreBackupArchive({
         archiveBuffer: buffer,
         dbPath,
         includeDirs,
         closeDb,
         initDb,
+        passphrase: options.passphrase,
       });
     },
   };
@@ -2189,13 +2219,16 @@ export function createApp(deps = {}) {
   app.get(
     "/api/backup/export",
     requireMinimumRole("admin"),
-    asyncHandler(async (_req, res) => {
-      const backup = await backupService.createBackup();
+    asyncHandler(async (req, res) => {
+      const passphrase = parseBackupPassphrase(req.headers["x-backup-passphrase"]);
+      const backup = await backupService.createBackup({ passphrase });
       await recordAudit("backup.export", null, {
         fileName: backup.fileName,
         sizeBytes: backup.sizeBytes,
+        encrypted: !!backup.isEncrypted,
       });
-      res.setHeader("Content-Type", "application/gzip");
+      res.setHeader("Content-Type", backup.contentType || "application/gzip");
+      res.setHeader("X-Backup-Protected", backup.isEncrypted ? "true" : "false");
       res.setHeader(
         "Content-Disposition",
         `attachment; filename="${backup.fileName}"`,
@@ -2210,9 +2243,20 @@ export function createApp(deps = {}) {
     asyncHandler(async (req, res) => {
       assertBodyObject(req.body);
       const archiveBuffer = parseBackupPayload(req.body.archiveBase64);
-      const result = await backupService.restoreBackup(archiveBuffer);
+      const passphrase = parseBackupPassphrase(req.body.passphrase);
+      let result;
+      try {
+        result = await backupService.restoreBackup(archiveBuffer, { passphrase });
+      } catch (error) {
+        const message = String(error?.message || "");
+        if (message.toLowerCase().includes("backup") || message.toLowerCase().includes("passphrase")) {
+          throw new HttpError(400, message || "Falha ao restaurar backup");
+        }
+        throw error;
+      }
       await recordAudit("backup.restore", null, {
         restored: true,
+        encrypted: !!result?.encrypted,
       });
       return res.json({ ok: true, restore: result });
     }),

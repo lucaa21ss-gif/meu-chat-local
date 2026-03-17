@@ -2,8 +2,26 @@ import fs from "node:fs";
 import fsp from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
-import { randomUUID } from "node:crypto";
+import {
+  randomUUID,
+  randomBytes,
+  scryptSync,
+  createCipheriv,
+  createDecipheriv,
+} from "node:crypto";
 import * as tar from "tar";
+
+const ENCRYPTED_BACKUP_MAGIC = "MCLBK1\n";
+const ENCRYPTED_BACKUP_FORMAT = "mcl-backup-encrypted-v1";
+const ENCRYPTION_ALGORITHM = "aes-256-gcm";
+const ENCRYPTION_KDF = "scrypt";
+const ENCRYPTION_SCRYPT_N = 16384;
+const ENCRYPTION_SCRYPT_R = 8;
+const ENCRYPTION_SCRYPT_P = 1;
+const ENCRYPTION_KEY_BYTES = 32;
+const ENCRYPTION_SALT_BYTES = 16;
+const ENCRYPTION_IV_BYTES = 12;
+const BASE64_REGEX = /^[A-Za-z0-9+/=\r\n]+$/;
 
 function sanitizeDirName(dirName) {
   const normalized = String(dirName || "")
@@ -29,11 +47,130 @@ function nowStamp() {
   return new Date().toISOString().replace(/[:.]/g, "-");
 }
 
+function normalizePassphrase(passphrase) {
+  return String(passphrase ?? "").trim();
+}
+
+function deriveEncryptionKey(passphrase, salt) {
+  return scryptSync(passphrase, salt, ENCRYPTION_KEY_BYTES, {
+    N: ENCRYPTION_SCRYPT_N,
+    r: ENCRYPTION_SCRYPT_R,
+    p: ENCRYPTION_SCRYPT_P,
+    maxmem: 64 * 1024 * 1024,
+  });
+}
+
+function buildEncryptedEnvelope(archiveBuffer, passphrase) {
+  const salt = randomBytes(ENCRYPTION_SALT_BYTES);
+  const iv = randomBytes(ENCRYPTION_IV_BYTES);
+  const key = deriveEncryptionKey(passphrase, salt);
+  const cipher = createCipheriv(ENCRYPTION_ALGORITHM, key, iv);
+  const ciphertext = Buffer.concat([
+    cipher.update(archiveBuffer),
+    cipher.final(),
+  ]);
+  const tag = cipher.getAuthTag();
+
+  const payload = {
+    format: ENCRYPTED_BACKUP_FORMAT,
+    algorithm: ENCRYPTION_ALGORITHM,
+    kdf: ENCRYPTION_KDF,
+    kdfParams: {
+      N: ENCRYPTION_SCRYPT_N,
+      r: ENCRYPTION_SCRYPT_R,
+      p: ENCRYPTION_SCRYPT_P,
+      keyBytes: ENCRYPTION_KEY_BYTES,
+    },
+    salt: salt.toString("base64"),
+    iv: iv.toString("base64"),
+    tag: tag.toString("base64"),
+    ciphertext: ciphertext.toString("base64"),
+  };
+
+  return Buffer.from(`${ENCRYPTED_BACKUP_MAGIC}${JSON.stringify(payload)}`, "utf8");
+}
+
+function parseEnvelopeBase64(fieldName, value) {
+  const text = String(value || "").trim();
+  if (!text || !BASE64_REGEX.test(text)) {
+    throw new Error(`Envelope criptografado invalido (${fieldName})`);
+  }
+  return Buffer.from(text, "base64");
+}
+
+function decryptEncryptedEnvelope(archiveBuffer, passphrase) {
+  const envelopeText = archiveBuffer
+    .subarray(ENCRYPTED_BACKUP_MAGIC.length)
+    .toString("utf8");
+
+  let payload;
+  try {
+    payload = JSON.parse(envelopeText);
+  } catch {
+    throw new Error("Backup criptografado invalido");
+  }
+
+  if (
+    !payload ||
+    payload.format !== ENCRYPTED_BACKUP_FORMAT ||
+    payload.algorithm !== ENCRYPTION_ALGORITHM ||
+    payload.kdf !== ENCRYPTION_KDF
+  ) {
+    throw new Error("Backup criptografado invalido");
+  }
+
+  const salt = parseEnvelopeBase64("salt", payload.salt);
+  const iv = parseEnvelopeBase64("iv", payload.iv);
+  const tag = parseEnvelopeBase64("tag", payload.tag);
+  const ciphertext = parseEnvelopeBase64("ciphertext", payload.ciphertext);
+
+  if (iv.length !== ENCRYPTION_IV_BYTES || tag.length !== 16 || !ciphertext.length) {
+    throw new Error("Backup criptografado invalido");
+  }
+
+  const key = deriveEncryptionKey(passphrase, salt);
+  try {
+    const decipher = createDecipheriv(ENCRYPTION_ALGORITHM, key, iv);
+    decipher.setAuthTag(tag);
+    return Buffer.concat([decipher.update(ciphertext), decipher.final()]);
+  } catch {
+    throw new Error("Passphrase invalida para backup criptografado");
+  }
+}
+
+function decodeBackupArchive(archiveBuffer, passphrase) {
+  const hasEncryptedHeader =
+    archiveBuffer.length > ENCRYPTED_BACKUP_MAGIC.length &&
+    archiveBuffer
+      .subarray(0, ENCRYPTED_BACKUP_MAGIC.length)
+      .toString("utf8") === ENCRYPTED_BACKUP_MAGIC;
+
+  if (!hasEncryptedHeader) {
+    return {
+      archiveBuffer,
+      encrypted: false,
+    };
+  }
+
+  const normalizedPassphrase = normalizePassphrase(passphrase);
+  if (!normalizedPassphrase) {
+    throw new Error(
+      "Backup criptografado: informe a passphrase para restauracao",
+    );
+  }
+
+  return {
+    archiveBuffer: decryptEncryptedEnvelope(archiveBuffer, normalizedPassphrase),
+    encrypted: true,
+  };
+}
+
 export async function createBackupArchive({
   dbPath,
   includeDirs = [],
   backupRoot,
   createDbSnapshot,
+  passphrase,
 }) {
   const safeDbPath = String(dbPath || "").trim();
   if (!safeDbPath) throw new Error("dbPath obrigatorio para backup");
@@ -90,13 +227,21 @@ export async function createBackupArchive({
       ["chat.db", "manifest.json", "data"],
     );
 
-    const archiveBuffer = await fsp.readFile(archivePath);
+    const rawArchiveBuffer = await fsp.readFile(archivePath);
+    const normalizedPassphrase = normalizePassphrase(passphrase);
+    const isEncrypted = normalizedPassphrase.length > 0;
+    const archiveBuffer = isEncrypted
+      ? buildEncryptedEnvelope(rawArchiveBuffer, normalizedPassphrase)
+      : rawArchiveBuffer;
+
     return {
-      fileName,
+      fileName: isEncrypted ? `${fileName}.enc` : fileName,
       archivePath,
       sizeBytes: archiveBuffer.length,
       archiveBuffer,
       includes: manifest.includes,
+      isEncrypted,
+      contentType: isEncrypted ? "application/octet-stream" : "application/gzip",
     };
   } finally {
     await safeRm(workDir);
@@ -109,6 +254,7 @@ export async function restoreBackupArchive({
   includeDirs = [],
   closeDb,
   initDb,
+  passphrase,
 }) {
   if (!Buffer.isBuffer(archiveBuffer) || archiveBuffer.length === 0) {
     throw new Error("Arquivo de backup invalido");
@@ -128,11 +274,13 @@ export async function restoreBackupArchive({
   const workDir = await fsp.mkdtemp(path.join(os.tmpdir(), "chat-restore-"));
   let dbClosed = false;
   try {
+    const normalizedArchive = decodeBackupArchive(archiveBuffer, passphrase);
+
     const archivePath = path.join(workDir, `${randomUUID()}.tgz`);
     const extractDir = path.join(workDir, "extract");
     await fsp.mkdir(extractDir, { recursive: true });
 
-    await fsp.writeFile(archivePath, archiveBuffer);
+    await fsp.writeFile(archivePath, normalizedArchive.archiveBuffer);
     await tar.extract({
       cwd: extractDir,
       file: archivePath,
@@ -174,6 +322,7 @@ export async function restoreBackupArchive({
       restoredAt: new Date().toISOString(),
       dbPath: safeDbPath,
       restoredDirs: dirs,
+      encrypted: normalizedArchive.encrypted,
     };
   } catch (error) {
     if (dbClosed) {

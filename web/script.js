@@ -2350,8 +2350,29 @@ async function exportAllChatsJson() {
 }
 
 async function exportFullBackup() {
+  const passphraseInput = window.prompt(
+    "Passphrase opcional para proteger o backup (minimo 8 caracteres). Deixe vazio para gerar backup legado sem criptografia:",
+    "",
+  );
+
+  if (passphraseInput === null) return;
+
+  const passphrase = String(passphraseInput || "").trim();
+  if (passphrase && passphrase.length < 8) {
+    showStatus("A passphrase deve ter pelo menos 8 caracteres.", {
+      type: "error",
+      autoHideMs: 4000,
+    });
+    return;
+  }
+
   try {
-    const response = await fetch(`${API_BASE}/api/backup/export`);
+    const headers = {};
+    if (passphrase) {
+      headers["x-backup-passphrase"] = passphrase;
+    }
+
+    const response = await fetch(`${API_BASE}/api/backup/export`, { headers });
     if (!response.ok) {
       throw new Error("Falha ao gerar backup");
     }
@@ -2360,6 +2381,7 @@ async function exportFullBackup() {
     const header = String(response.headers.get("content-disposition") || "");
     const match = header.match(/filename="?([^";]+)"?/i);
     const fileName = match?.[1] || `meu-chat-local-backup-${Date.now()}.tgz`;
+    const isProtected = String(response.headers.get("x-backup-protected") || "") === "true";
 
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
@@ -2368,10 +2390,15 @@ async function exportFullBackup() {
     anchor.click();
     URL.revokeObjectURL(url);
 
-    showStatus("Backup completo exportado com sucesso.", {
-      type: "success",
-      autoHideMs: 3000,
-    });
+    showStatus(
+      isProtected
+        ? "Backup completo exportado com criptografia (passphrase obrigatoria para restaurar)."
+        : "Backup completo exportado sem criptografia (compatibilidade legado).",
+      {
+        type: "success",
+        autoHideMs: 4000,
+      },
+    );
   } catch (error) {
     showStatus(`Nao foi possivel exportar backup: ${error.message}`, {
       type: "error",
@@ -2424,21 +2451,41 @@ async function restoreFullBackup() {
     const file = await pickBackupFile();
     if (!file) return;
 
+    const passphraseInput = window.prompt(
+      "Se o backup estiver criptografado, informe a passphrase. Para backup legado, deixe vazio:",
+      "",
+    );
+    if (passphraseInput === null) return;
+
+    const passphrase = String(passphraseInput || "").trim();
+    if (passphrase && passphrase.length < 8) {
+      showStatus("A passphrase deve ter pelo menos 8 caracteres.", {
+        type: "error",
+        autoHideMs: 4000,
+      });
+      return;
+    }
+
     const archiveBase64 = await fileToBase64(file);
     await fetchJson("/api/backup/restore", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ archiveBase64 }),
+      body: JSON.stringify({ archiveBase64, passphrase: passphrase || null }),
     });
 
     await loadUsers();
     await loadChats();
     await loadRagDocuments();
 
-    showStatus("Backup restaurado com sucesso.", {
-      type: "success",
-      autoHideMs: 3500,
-    });
+    showStatus(
+      passphrase
+        ? "Backup restaurado com sucesso (modo protegido)."
+        : "Backup restaurado com sucesso.",
+      {
+        type: "success",
+        autoHideMs: 3500,
+      },
+    );
   } catch (error) {
     showStatus(`Nao foi possivel restaurar backup: ${error.message}`, {
       type: "error",
