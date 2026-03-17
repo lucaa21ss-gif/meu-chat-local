@@ -1964,6 +1964,57 @@ test("POST /api/storage/cleanup rejeita preserveValidatedBackups invalido", asyn
   );
 });
 
+test("GET/PATCH /api/incident/status retorna estado e permite transicoes para admin", async () => {
+  const app = createApp({
+    chatClient: createMockChatClient(),
+    ...createMockStore(),
+  });
+
+  const initial = await request(app)
+    .get("/api/incident/status")
+    .set("x-user-id", "user-operator")
+    .expect(200);
+
+  assert.equal(initial.body.incident.status, "normal");
+
+  const updated = await request(app)
+    .patch("/api/incident/status")
+    .set("x-user-id", "user-default")
+    .send({
+      status: "investigating",
+      severity: "high",
+      summary: "Latencia elevada no chat",
+      owner: "oncall-local",
+      recommendationType: "slo",
+    })
+    .expect(200);
+
+  assert.equal(updated.body.incident.status, "investigating");
+  assert.equal(updated.body.incident.severity, "high");
+  assert.equal(updated.body.incident.owner, "oncall-local");
+  assert.equal(Array.isArray(updated.body.incident.history), true);
+  assert.equal(updated.body.incident.history.length >= 1, true);
+});
+
+test("PATCH /api/incident/status bloqueia viewer e transicao invalida", async () => {
+  const app = createApp({
+    chatClient: createMockChatClient(),
+    ...createMockStore(),
+  });
+
+  await request(app)
+    .patch("/api/incident/status")
+    .set("x-user-id", "user-viewer")
+    .send({ status: "investigating" })
+    .expect(403);
+
+  await request(app)
+    .patch("/api/incident/status")
+    .set("x-user-id", "user-default")
+    .send({ status: "resolved" })
+    .expect(400);
+});
+
 test("GET /api/audit/logs suporta paginacao e filtros", async () => {
   const app = createApp({
     chatClient: createMockChatClient(),
@@ -2394,9 +2445,12 @@ test("observabilidade: GET /api/diagnostics/export retorna pacote com campos obr
   assert.ok(payload.environment, "environment obrigatorio no pacote forense");
   assert.ok(typeof payload.environment.nodeEnv === "string", "environment.nodeEnv deve ser string");
   assert.equal(typeof payload.environment.pid, "number", "environment.pid deve ser numero");
+  assert.ok(payload.incidentStatus, "incidentStatus obrigatorio no pacote forense");
+  assert.equal(typeof payload.incidentStatus.status, "string", "incidentStatus.status deve ser string");
   assert.ok(payload.triageChecklist, "triageChecklist obrigatorio no pacote forense");
   assert.equal(typeof payload.triageChecklist.version, "number", "triageChecklist.version deve ser numero");
   assert.ok(Array.isArray(payload.triageChecklist.items), "triageChecklist.items deve ser array");
+  assert.ok(Array.isArray(payload.triageChecklist.recommendations), "triageChecklist.recommendations deve ser array");
   assert.ok(payload.triageChecklist.items.length > 0, "triageChecklist deve ter ao menos um item");
   assert.ok(typeof payload.securityNote === "string", "securityNote deve estar presente");
 
@@ -2450,8 +2504,9 @@ test("diagnostics: triageChecklist e array versionado com itens", async () => {
 
   const payload = JSON.parse(res.text);
   assert.ok(payload.triageChecklist, "triageChecklist presente");
-  assert.equal(payload.triageChecklist.version, 1, "versao do checklist deve ser 1");
+  assert.equal(payload.triageChecklist.version, 2, "versao do checklist deve ser 2");
   assert.ok(Array.isArray(payload.triageChecklist.items), "items deve ser array");
+  assert.ok(Array.isArray(payload.triageChecklist.recommendations), "recommendations deve ser array");
   assert.ok(payload.triageChecklist.items.length >= 5, "deve ter ao menos 5 passos de triagem");
   assert.ok(
     payload.triageChecklist.items.every((item) => typeof item === "string" && item.length > 0),

@@ -182,6 +182,8 @@ mas o fluxo recomendado e usar `http://localhost:3001` para manter API e UI na m
 - `POST /api/backup/restore`: restaura backup completo com deteccao automatica de formato legado/criptografado
 - `GET /api/backup/validate?limit=3`: valida os ultimos backups e retorna status operacional (`ok|alerta|falha`)
 - `POST /api/storage/cleanup`: executa simulacao (`dry-run`) ou limpeza real (`execute`) com retencao inteligente para backups
+- `GET /api/incident/status`: consulta o estado operacional atual do incidente (operator/admin)
+- `PATCH /api/incident/status`: atualiza estado operacional do incidente (somente admin)
 - `GET /api/diagnostics/export`: exporta pacote de diagnostico forense (somente admin); inclui estado de saude, SLO, storage, erros recentes, checklist de triagem e audit logs
 
 ## Backup criptografado opcional
@@ -223,6 +225,7 @@ Campos do pacote (versao 2):
 | `storage`              | Consumo atual por tipo (db, uploads, documents, backups)     |
 | `backupValidation`     | Validacao recente de backups com status operacional          |
 | `slo`                  | Snapshot de SLO com avaliacao por rota critica               |
+| `incidentStatus`       | Estado operacional atual do incidente (status, severidade, historico) |
 | `recentErrors`         | Ultimos eventos bloqueados ou de erro dos audit logs         |
 | `recentAuditLogs`      | Ultimos 50 eventos de auditoria                              |
 | `recentConfigVersions` | Ultimas 50 versoes de configuracao                           |
@@ -276,6 +279,53 @@ curl -X POST http://localhost:3001/api/storage/cleanup \
 ```
 
 O retorno inclui previsao de impacto (`estimatedFreedBytes`), lista de candidatos (`files`) e arquivos preservados (`skipped`) com o motivo da preservacao.
+
+## Runbook de resposta a incidentes
+
+Fluxo operacional padrao para resposta local:
+
+1. Classificar severidade inicial.
+2. Abrir estado de incidente em `investigating`.
+3. Aplicar mitigacao e mover para `mitigating`.
+4. Confirmar estabilidade em `monitoring`.
+5. Encerrar em `resolved` e retornar para `normal`.
+
+Niveis de severidade recomendados:
+
+- `info`: observacao sem impacto direto no uso.
+- `low`: degradacao leve com workaround disponivel.
+- `medium`: degradacao relevante para parte dos fluxos.
+- `high`: impacto forte em funcionalidades principais.
+- `critical`: indisponibilidade ou risco operacional elevado.
+
+Transicoes de estado suportadas:
+
+- `normal -> investigating`
+- `investigating -> mitigating|monitoring|resolved`
+- `mitigating -> investigating|monitoring|resolved`
+- `monitoring -> normal|investigating|resolved`
+- `resolved -> normal|monitoring|investigating`
+
+Consulta do estado atual:
+
+```bash
+curl -H "x-user-id: user-operator" http://localhost:3001/api/incident/status
+```
+
+Atualizacao do estado (admin):
+
+```bash
+curl -X PATCH http://localhost:3001/api/incident/status \
+  -H "Content-Type: application/json" \
+  -H "x-user-id: user-default" \
+  -d '{
+    "status": "investigating",
+    "severity": "high",
+    "summary": "Latencia elevada em /api/chat",
+    "owner": "oncall-local",
+    "recommendationType": "slo"
+  }'
+```
 
 ## Governanca de dependencias
 

@@ -92,6 +92,21 @@ const ROLE_LEVEL = {
   operator: 2,
   admin: 3,
 };
+const INCIDENT_STATUSES = [
+  "normal",
+  "investigating",
+  "mitigating",
+  "monitoring",
+  "resolved",
+];
+const INCIDENT_SEVERITIES = ["info", "low", "medium", "high", "critical"];
+const INCIDENT_STATUS_TRANSITIONS = {
+  normal: new Set(["investigating"]),
+  investigating: new Set(["mitigating", "monitoring", "resolved"]),
+  mitigating: new Set(["investigating", "monitoring", "resolved"]),
+  monitoring: new Set(["normal", "investigating", "resolved"]),
+  resolved: new Set(["normal", "monitoring", "investigating"]),
+};
 const CONFIG_KEYS = {
   CHAT_SYSTEM_PROMPT: "chat.systemPrompt",
   USER_DEFAULT_SYSTEM_PROMPT: "user.defaultSystemPrompt",
@@ -365,6 +380,91 @@ function parseCleanupPreserveValidatedBackups(raw) {
     throw new HttpError(400, "preserveValidatedBackups invalido (use entre 0 e 20)");
   }
   return parsed;
+}
+
+function parseIncidentStatus(raw, fallback = "normal") {
+  const status = String(raw ?? fallback)
+    .trim()
+    .toLowerCase();
+  if (!INCIDENT_STATUSES.includes(status)) {
+    throw new HttpError(
+      400,
+      `incident.status invalido: use ${INCIDENT_STATUSES.join(", ")}`,
+    );
+  }
+  return status;
+}
+
+function parseIncidentSeverity(raw, fallback = "info") {
+  const severity = String(raw ?? fallback)
+    .trim()
+    .toLowerCase();
+  if (!INCIDENT_SEVERITIES.includes(severity)) {
+    throw new HttpError(
+      400,
+      `incident.severity invalido: use ${INCIDENT_SEVERITIES.join(", ")}`,
+    );
+  }
+  return severity;
+}
+
+function parseIncidentSummary(raw, { required = false } = {}) {
+  const summary = String(raw ?? "").trim();
+  if (!summary && required) {
+    throw new HttpError(400, "incident.summary obrigatorio");
+  }
+  if (summary.length > 280) {
+    throw new HttpError(400, "incident.summary muito longo (max 280)");
+  }
+  return summary || null;
+}
+
+function parseIncidentOwner(raw) {
+  const owner = String(raw ?? "").trim();
+  if (!owner) return null;
+  if (owner.length > 80) {
+    throw new HttpError(400, "incident.owner muito longo (max 80)");
+  }
+  return owner;
+}
+
+function parseIncidentRecommendationType(raw) {
+  const value = String(raw ?? "").trim().toLowerCase();
+  if (!value) return null;
+  const allowed = ["health", "slo", "backup", "rate-limiter", "security", "manual"];
+  if (!allowed.includes(value)) {
+    throw new HttpError(400, "incident.recommendationType invalido");
+  }
+  return value;
+}
+
+function parseIncidentNextUpdateAt(raw) {
+  if (raw === undefined || raw === null || raw === "") return null;
+  return parseSearchDate(raw, "incident.nextUpdateAt");
+}
+
+function parseIncidentUpdatePayload(body = {}) {
+  const has = (field) => Object.prototype.hasOwnProperty.call(body, field);
+  const patch = {};
+
+  if (has("status")) patch.status = parseIncidentStatus(body.status);
+  if (has("severity")) patch.severity = parseIncidentSeverity(body.severity);
+  if (has("summary")) patch.summary = parseIncidentSummary(body.summary);
+  if (has("owner")) patch.owner = parseIncidentOwner(body.owner);
+  if (has("nextUpdateAt")) {
+    patch.nextUpdateAt = parseIncidentNextUpdateAt(body.nextUpdateAt);
+  }
+  if (has("recommendationType")) {
+    patch.recommendationType = parseIncidentRecommendationType(
+      body.recommendationType,
+    );
+  }
+
+  if (!Object.keys(patch).length) {
+    throw new HttpError(400, "Body invalido: informe ao menos um campo de incidente");
+  }
+
+  return patch;
 }
 
 function parseAuditFilters(query = {}) {
@@ -1047,6 +1147,153 @@ function createDefaultBackupService(config = {}) {
   };
 }
 
+function createDefaultIncidentService(config = {}) {
+  const now = new Date().toISOString();
+  const initial = {
+    version: 1,
+    status: parseIncidentStatus(config.status, "normal"),
+    severity: parseIncidentSeverity(config.severity, "info"),
+    summary:
+      parseIncidentSummary(config.summary) ||
+      "Operacao normal - nenhum incidente ativo",
+    owner: parseIncidentOwner(config.owner),
+    recommendationType: parseIncidentRecommendationType(
+      config.recommendationType,
+    ),
+    startedAt: now,
+    nextUpdateAt: parseIncidentNextUpdateAt(config.nextUpdateAt),
+    updatedAt: now,
+    updatedBy: null,
+    history: [],
+  };
+
+  let state = initial;
+
+  return {
+    getStatus() {
+      return {
+        ...state,
+        history: [...state.history],
+      };
+    },
+    updateStatus(patch = {}, actorUserId = null) {
+      const nextStatus = patch.status || state.status;
+      const hasStatusChange = patch.status && patch.status !== state.status;
+
+      if (hasStatusChange) {
+        const allowed = INCIDENT_STATUS_TRANSITIONS[state.status] || new Set();
+        if (!allowed.has(nextStatus)) {
+          throw new HttpError(
+            400,
+            `Transicao de incidente invalida: ${state.status} -> ${nextStatus}`,
+          );
+        }
+      }
+
+      const timestamp = new Date().toISOString();
+      const updated = {
+        ...state,
+        ...patch,
+        status: nextStatus,
+        severity: patch.severity || state.severity,
+        summary: patch.summary === null ? state.summary : patch.summary || state.summary,
+        owner: patch.owner === undefined ? state.owner : patch.owner,
+        recommendationType:
+          patch.recommendationType === undefined
+            ? state.recommendationType
+            : patch.recommendationType,
+        nextUpdateAt:
+          patch.nextUpdateAt === undefined ? state.nextUpdateAt : patch.nextUpdateAt,
+        updatedAt: timestamp,
+        updatedBy: actorUserId,
+      };
+
+      const transitionEntry = {
+        at: timestamp,
+        fromStatus: state.status,
+        toStatus: updated.status,
+        severity: updated.severity,
+        by: actorUserId,
+      };
+
+      updated.history = [transitionEntry, ...(state.history || [])].slice(0, 20);
+      state = updated;
+      return this.getStatus();
+    },
+  };
+}
+
+function buildTriageRecommendations({
+  health,
+  slo,
+  backupValidation,
+  rateLimiter,
+  recentErrors,
+  incidentStatus,
+}) {
+  const recommendations = [];
+
+  if (health?.status && health.status !== HEALTH_STATUS.HEALTHY) {
+    recommendations.push({
+      type: "health",
+      severity: "high",
+      action: "Priorize checks degradados/unhealthy e estabilize DB/model/disk antes de novas mudancas",
+    });
+  }
+
+  if (slo?.status === "alerta") {
+    recommendations.push({
+      type: "slo",
+      severity: "medium",
+      action: "Investigue rotas em alerta no SLO e compare p95/erro com janelas anteriores",
+    });
+  }
+
+  if (backupValidation?.status && backupValidation.status !== "ok") {
+    recommendations.push({
+      type: "backup",
+      severity: backupValidation.status === "falha" ? "critical" : "medium",
+      action: "Execute validacao com passphrase quando necessario e regenere backups invalidos",
+    });
+  }
+
+  if (Number(rateLimiter?.rejectedTotal || 0) > 0) {
+    recommendations.push({
+      type: "rate-limiter",
+      severity: "medium",
+      action: "Analise picos de rejeicao/timeout no rate limiter e ajuste limites por papel se necessario",
+    });
+  }
+
+  if (Array.isArray(recentErrors) && recentErrors.length >= 5) {
+    recommendations.push({
+      type: "security",
+      severity: "high",
+      action: "Volume alto de erros/bloqueios recentes; revisar possivel abuso ou regressao operacional",
+    });
+  }
+
+  if (incidentStatus?.status && incidentStatus.status !== "normal") {
+    recommendations.push({
+      type: "manual",
+      severity: incidentStatus.severity || "medium",
+      action: `Incidente em ${incidentStatus.status}; manter atualizacao em ${
+        incidentStatus.nextUpdateAt || "janela curta"
+      } e registrar decisoes no runbook`,
+    });
+  }
+
+  if (!recommendations.length) {
+    recommendations.push({
+      type: "manual",
+      severity: "info",
+      action: "Sem sinais criticos no snapshot atual; manter monitoramento rotineiro",
+    });
+  }
+
+  return recommendations;
+}
+
 function buildOverallHealthStatus(checks = {}) {
   const statuses = Object.values(checks).map((item) => item?.status);
   if (statuses.some((status) => status === HEALTH_STATUS.UNHEALTHY)) {
@@ -1320,6 +1567,8 @@ export function createApp(deps = {}) {
       baseDir: deps.storageBaseDir || serverDir,
       dbPath: deps.dbPath || getDbPath(),
     });
+  const incidentService =
+    deps.incidentService || createDefaultIncidentService(deps.incidentState);
   const dbPath = deps.dbPath || getDbPath();
   const healthProviders =
     deps.healthProviders ||
@@ -2400,6 +2649,32 @@ export function createApp(deps = {}) {
   );
 
   app.get(
+    "/api/incident/status",
+    requireMinimumRole("operator"),
+    asyncHandler(async (_req, res) => {
+      return res.json({ incident: incidentService.getStatus() });
+    }),
+  );
+
+  app.patch(
+    "/api/incident/status",
+    requireMinimumRole("admin"),
+    asyncHandler(async (req, res) => {
+      assertBodyObject(req.body);
+      const actor = await resolveActor(req);
+      const patch = parseIncidentUpdatePayload(req.body);
+      const incident = incidentService.updateStatus(patch, actor.userId);
+
+      await recordAudit("incident.status.update", actor.userId, {
+        status: incident.status,
+        severity: incident.severity,
+      });
+
+      return res.json({ incident });
+    }),
+  );
+
+  app.get(
     "/api/storage/usage",
     asyncHandler(async (req, res) => {
       const userId = parseUserId(req.query?.userId);
@@ -2705,6 +2980,21 @@ export function createApp(deps = {}) {
             (entry.eventType.includes("blocked") || entry.eventType.includes("error"))
         )
         .slice(0, 20);
+      const incidentStatusSnapshot = incidentService.getStatus();
+      const triageRecommendations = buildTriageRecommendations({
+        health: {
+          status: buildOverallHealthStatus({
+            db: healthDb,
+            model: healthModel,
+            disk: healthDisk,
+          }),
+        },
+        slo: sloSnapshot,
+        backupValidation: backupValidationSnapshot,
+        rateLimiter: rateLimiterMetrics,
+        recentErrors,
+        incidentStatus: incidentStatusSnapshot,
+      });
 
       const payload = {
         version: 2,
@@ -2728,6 +3018,7 @@ export function createApp(deps = {}) {
         storage: storageSnapshot,
         backupValidation: backupValidationSnapshot,
         slo: sloSnapshot,
+        incidentStatus: incidentStatusSnapshot,
         recentErrors,
         recentAuditLogs: auditPage.items,
         recentConfigVersions: configPage.items,
@@ -2737,18 +3028,19 @@ export function createApp(deps = {}) {
           arch: process.arch,
         },
         triageChecklist: {
-          version: 1,
+          version: 2,
           items: [
-            "1. Verificar status geral em payload.health.status — degraded ou unhealthy exige investigacao imediata",
-            "2. Revisar eventos bloqueados em payload.recentErrors — padroes repetidos indicam ataque ou misconfiguracao",
-            "3. Conferir consumo de armazenamento em payload.storage — alertar se uso ultrapassar threshold operacional",
-            "4. Avaliar SLO em payload.slo.status — rotas com status 'alerta' requerem analise de latencia e taxa de erro",
+            "1. Verificar status geral em payload.health.status - degraded ou unhealthy exige investigacao imediata",
+            "2. Revisar eventos bloqueados em payload.recentErrors - padroes repetidos indicam ataque ou misconfiguracao",
+            "3. Conferir consumo de armazenamento em payload.storage - alertar se uso ultrapassar threshold operacional",
+            "4. Avaliar SLO em payload.slo.status - rotas com status alerta requerem analise de latencia e taxa de erro",
             "5. Analisar audit logs recentes em payload.recentAuditLogs em busca de atividades anomalas",
-            "6. Verificar versoes de configuracao em payload.recentConfigVersions — rollbacks nao autorizados sao sinal de incidente",
-            "7. Checar rate limiter em payload.rateLimiter — pico de rejeicoes pode indicar abuso ou sobrecarga",
-            "8. Confirmar telemetria ativa em payload.telemetry.enabled — desabilitada reduz visibilidade de incidentes",
+            "6. Verificar versoes de configuracao em payload.recentConfigVersions - rollbacks nao autorizados sao sinal de incidente",
+            "7. Checar rate limiter em payload.rateLimiter - pico de rejeicoes pode indicar abuso ou sobrecarga",
+            "8. Confirmar telemetria ativa em payload.telemetry.enabled - desabilitada reduz visibilidade de incidentes",
             "9. Registrar payload.traceId para correlacao com logs do servidor durante a investigacao",
           ],
+          recommendations: triageRecommendations,
         },
         securityNote:
           "Este pacote nao inclui: mensagens de chat, passphrases de backup, variaveis de ambiente sensiveis (segredos, tokens, senhas) nem dados de identificacao pessoal alem de userId em audit logs",
