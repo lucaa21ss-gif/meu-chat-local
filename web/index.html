@@ -82,6 +82,13 @@
         >
           + Nova aba
         </button>
+        <button
+          id="onboardingBtn"
+          type="button"
+          class="mt-2 rounded-xl border border-teal-300 bg-teal-50 px-4 py-2 text-sm font-semibold text-teal-700 transition hover:bg-teal-100 dark:border-teal-800 dark:bg-teal-950/30 dark:text-teal-300 dark:hover:bg-teal-900/40"
+        >
+          Assistente Inicial
+        </button>
         <div id="chatTabs" class="mt-4 flex-1 space-y-2 overflow-y-auto"></div>
         <button
           id="duplicateBtn"
@@ -522,6 +529,66 @@
             class="rounded-xl bg-rose-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-rose-700"
           >
             Confirmar
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div
+      id="onboardingModal"
+      class="fixed inset-0 z-[70] hidden items-center justify-center bg-slate-900/50 p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="onboardingTitle"
+    >
+      <div
+        class="w-full max-w-lg rounded-2xl bg-white p-5 shadow-xl ring-1 ring-slate-200 sm:p-6"
+        role="document"
+      >
+        <h3 id="onboardingTitle" class="text-lg font-bold text-slate-900">
+          Assistente Inicial
+        </h3>
+        <p class="mt-2 text-sm text-slate-600">
+          Verifique o ambiente, escolha o modelo padrao e rode um teste rapido.
+        </p>
+
+        <label class="mt-4 block">
+          <span class="text-xs font-semibold uppercase tracking-wide text-slate-600"
+            >Modelo padrao</span
+          >
+          <select
+            id="onboardingModelSelect"
+            class="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-200"
+          ></select>
+        </label>
+
+        <div class="mt-4 space-y-2 rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm">
+          <p class="font-semibold text-slate-700">Diagnostico</p>
+          <p id="onboardingHealthStatus" class="text-slate-600">API: pendente</p>
+          <p id="onboardingSmokeStatus" class="text-slate-600">Teste de chat: pendente</p>
+        </div>
+
+        <div class="mt-6 flex flex-wrap justify-end gap-2">
+          <button
+            id="onboardingRunChecksBtn"
+            type="button"
+            class="rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+          >
+            Rodar verificacao
+          </button>
+          <button
+            id="onboardingSkipBtn"
+            type="button"
+            class="rounded-xl border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+          >
+            Depois
+          </button>
+          <button
+            id="onboardingCompleteBtn"
+            type="button"
+            class="rounded-xl bg-teal-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-teal-700"
+          >
+            Concluir
           </button>
         </div>
       </div>
