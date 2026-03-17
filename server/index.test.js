@@ -28,6 +28,7 @@ function createMockStore() {
         name: "padrao",
         defaultSystemPrompt: "",
         theme: "system",
+        storageLimitMb: 512,
       },
     ],
   ]);
@@ -49,7 +50,13 @@ function createMockStore() {
       if ([...users.values()].some((u) => u.name === name)) {
         throw new Error("Nome de perfil ja existe");
       }
-      const user = { id, name, defaultSystemPrompt: "", theme: "system" };
+      const user = {
+        id,
+        name,
+        defaultSystemPrompt: "",
+        theme: "system",
+        storageLimitMb: 512,
+      };
       users.set(id, user);
       return user;
     },
@@ -212,6 +219,18 @@ function createMockStore() {
         theme: safeTheme,
       });
       return { id: userId, theme: safeTheme };
+    },
+    setUserStorageLimit: async (userId, storageLimitMb) => {
+      if (!users.has(userId)) return null;
+      const parsed = Number.parseInt(storageLimitMb, 10);
+      const safeLimit = Number.isFinite(parsed)
+        ? Math.min(10240, Math.max(50, parsed))
+        : 512;
+      users.set(userId, {
+        ...users.get(userId),
+        storageLimitMb: safeLimit,
+      });
+      return { id: userId, storageLimitMb: safeLimit };
     },
     ensureChat: async (chatId, title, userId = "user-default") => {
       if (!chats.has(chatId)) {
@@ -1361,6 +1380,108 @@ test("PATCH /api/users/:userId/theme atualiza tema do perfil", async () => {
 
   assert.equal(response.body.user.id, "user-default");
   assert.equal(response.body.user.theme, "dark");
+});
+
+test("PATCH /api/users/:userId/storage-limit atualiza limite por perfil", async () => {
+  const app = createApp({
+    chatClient: createMockChatClient(),
+    ...createMockStore(),
+  });
+
+  const response = await request(app)
+    .patch("/api/users/user-default/storage-limit")
+    .send({ storageLimitMb: 1024 })
+    .expect(200);
+
+  assert.equal(response.body.user.id, "user-default");
+  assert.equal(response.body.user.storageLimitMb, 1024);
+});
+
+test("GET /api/storage/usage retorna consumo por tipo", async () => {
+  const app = createApp({
+    chatClient: createMockChatClient(),
+    ...createMockStore(),
+    storageService: {
+      getUsage: async () => ({
+        dbBytes: 10,
+        uploadsBytes: 20,
+        documentsBytes: 30,
+        backupsBytes: 40,
+        totalBytes: 100,
+      }),
+      cleanup: async () => ({
+        mode: "dry-run",
+        files: [],
+        filesCount: 0,
+        estimatedFreedBytes: 0,
+      }),
+    },
+  });
+
+  const response = await request(app)
+    .get("/api/storage/usage?userId=user-default")
+    .expect(200);
+
+  assert.equal(response.body.userId, "user-default");
+  assert.equal(response.body.usage.dbBytes, 10);
+  assert.equal(response.body.usage.uploadsBytes, 20);
+  assert.equal(response.body.usage.documentsBytes, 30);
+  assert.equal(response.body.usage.totalBytes, 100);
+  assert.equal(response.body.limit.storageLimitMb, 512);
+});
+
+test("POST /api/storage/cleanup dry-run e execute", async () => {
+  const calls = [];
+  const app = createApp({
+    chatClient: createMockChatClient(),
+    ...createMockStore(),
+    storageService: {
+      getUsage: async () => ({
+        dbBytes: 0,
+        uploadsBytes: 0,
+        documentsBytes: 0,
+        backupsBytes: 0,
+        totalBytes: 0,
+      }),
+      cleanup: async (payload) => {
+        calls.push(payload);
+        return {
+          mode: payload.execute ? "execute" : "dry-run",
+          target: payload.target,
+          olderThanDays: payload.olderThanDays,
+          files: [],
+          filesCount: 0,
+          estimatedFreedBytes: 0,
+        };
+      },
+    },
+  });
+
+  const dryRun = await request(app)
+    .post("/api/storage/cleanup")
+    .send({
+      mode: "dry-run",
+      target: "backups",
+      olderThanDays: 15,
+      maxDeleteMb: 100,
+    })
+    .expect(200);
+
+  assert.equal(dryRun.body.cleanup.mode, "dry-run");
+  assert.equal(calls[0].execute, false);
+
+  const execute = await request(app)
+    .post("/api/storage/cleanup")
+    .send({
+      mode: "execute",
+      target: "backups",
+      olderThanDays: 15,
+      maxDeleteMb: 100,
+    })
+    .expect(200);
+
+  assert.equal(execute.body.cleanup.mode, "execute");
+  assert.equal(calls[1].execute, true);
 });
 
 test("POST /api/chat injeta prompts de perfil e conversa no payload", async () => {

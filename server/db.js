@@ -6,7 +6,7 @@ import { open } from "sqlite";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const defaultDbPath = path.join(__dirname, "chat.db");
-const DB_SCHEMA_VERSION = 7;
+const DB_SCHEMA_VERSION = 8;
 
 let db;
 
@@ -234,6 +234,14 @@ async function runMigrations(connection) {
         `);
       },
     },
+    {
+      version: 8,
+      up: async () => {
+        await connection.exec(`
+          ALTER TABLE users ADD COLUMN storage_limit_mb INTEGER NOT NULL DEFAULT 512;
+        `);
+      },
+    },
   ];
 
   let currentVersion = await getCurrentSchemaVersion(connection);
@@ -288,6 +296,7 @@ export async function listUsers() {
     `SELECT id, name,
             default_system_prompt AS defaultSystemPrompt,
             theme,
+          storage_limit_mb AS storageLimitMb,
             created_at AS createdAt,
             updated_at AS updatedAt
      FROM users
@@ -312,6 +321,7 @@ export async function createUser(id, name) {
     name: safeName,
     defaultSystemPrompt: "",
     theme: "system",
+    storageLimitMb: 512,
   };
 }
 
@@ -334,7 +344,8 @@ export async function renameUser(userId, name) {
   const row = await db.get(
     `SELECT id, name,
             default_system_prompt AS defaultSystemPrompt,
-            theme
+            theme,
+            storage_limit_mb AS storageLimitMb
      FROM users WHERE id = ?`,
     [userId],
   );
@@ -369,6 +380,23 @@ export async function setUserDefaultSystemPrompt(userId, defaultSystemPrompt) {
   return { id: userId, defaultSystemPrompt: safePrompt };
 }
 
+export async function setUserStorageLimit(userId, storageLimitMb) {
+  await initDb();
+  const parsed = Number.parseInt(storageLimitMb, 10);
+  const safeLimit = Number.isFinite(parsed)
+    ? Math.min(10240, Math.max(50, parsed))
+    : 512;
+
+  const result = await db.run(
+    `UPDATE users
+     SET storage_limit_mb = ?, updated_at = CURRENT_TIMESTAMP
+     WHERE id = ?`,
+    [safeLimit, userId],
+  );
+  if (!result.changes) return null;
+  return { id: userId, storageLimitMb: safeLimit };
+}
+
 export async function deleteUser(userId) {
   await initDb();
   if (userId === "user-default") {
@@ -399,6 +427,7 @@ export async function getUserById(userId) {
     `SELECT id, name,
             default_system_prompt AS defaultSystemPrompt,
             theme,
+          storage_limit_mb AS storageLimitMb,
             created_at AS createdAt
      FROM users WHERE id = ?`,
     [userId],

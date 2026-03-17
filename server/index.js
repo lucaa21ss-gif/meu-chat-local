@@ -38,6 +38,7 @@ import {
   createUser,
   renameUser,
   setUserTheme,
+  setUserStorageLimit,
   setUserDefaultSystemPrompt,
   deleteUser,
   getUserById,
@@ -47,6 +48,7 @@ import {
   createBackupArchive,
   restoreBackupArchive,
 } from "./backup.js";
+import { createStorageService } from "./storage.js";
 import {
   isEnabled as isTelemetryEnabled,
   setEnabled as setTelemetryEnabled,
@@ -213,6 +215,50 @@ function parseTheme(raw) {
     throw new HttpError(400, "Tema invalido: use light, dark ou system");
   }
   return theme;
+}
+
+function parseStorageLimitMb(raw) {
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isFinite(parsed) || parsed < 50 || parsed > 10240) {
+    throw new HttpError(400, "storageLimitMb invalido (use entre 50 e 10240)");
+  }
+  return parsed;
+}
+
+function parseCleanupMode(raw) {
+  const mode = String(raw || "dry-run").trim().toLowerCase();
+  if (!["dry-run", "execute"].includes(mode)) {
+    throw new HttpError(400, "mode invalido: use dry-run ou execute");
+  }
+  return mode;
+}
+
+function parseCleanupTarget(raw) {
+  const target = String(raw || "all").trim().toLowerCase();
+  if (!["all", "uploads", "documents", "backups"].includes(target)) {
+    throw new HttpError(
+      400,
+      "target invalido: use all, uploads, documents ou backups",
+    );
+  }
+  return target;
+}
+
+function parseCleanupOlderThanDays(raw) {
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isFinite(parsed) || parsed < 0 || parsed > 3650) {
+    throw new HttpError(400, "olderThanDays invalido (use entre 0 e 3650)");
+  }
+  return parsed;
+}
+
+function parseCleanupMaxDeleteMb(raw) {
+  if (raw === undefined || raw === null || raw === "") return undefined;
+  const parsed = Number.parseInt(raw, 10);
+  if (!Number.isFinite(parsed) || parsed < 1 || parsed > 102400) {
+    throw new HttpError(400, "maxDeleteMb invalido (use entre 1 e 102400)");
+  }
+  return parsed;
 }
 
 function parseChatListFilters(query = {}) {
@@ -640,6 +686,7 @@ export function createApp(deps = {}) {
     createUser: deps.createUser || createUser,
     renameUser: deps.renameUser || renameUser,
     setUserTheme: deps.setUserTheme || setUserTheme,
+    setUserStorageLimit: deps.setUserStorageLimit || setUserStorageLimit,
     setUserDefaultSystemPrompt:
       deps.setUserDefaultSystemPrompt || setUserDefaultSystemPrompt,
     deleteUser: deps.deleteUser || deleteUser,
@@ -699,6 +746,12 @@ export function createApp(deps = {}) {
         deps.backupIncludeDirs || process.env.BACKUP_INCLUDE_DIRS || "uploads,documents",
       backupKeep: deps.backupKeep || process.env.BACKUP_KEEP,
     });
+  const storageService =
+    deps.storageService ||
+    createStorageService({
+      baseDir: deps.storageBaseDir || serverDir,
+      dbPath: deps.dbPath || getDbPath(),
+    });
 
   const apiLimiter = rateLimit({
     windowMs: Number.isFinite(requestWindowMs)
@@ -753,6 +806,7 @@ export function createApp(deps = {}) {
   app.use("/api/chat-stream", chatLimiter);
 
   app.locals.backupService = backupService;
+  app.locals.storageService = storageService;
 
   app.get("/healthz", (req, res) => {
     req.logger?.info({ uptime: process.uptime() }, "Liveness check");
@@ -1020,6 +1074,18 @@ export function createApp(deps = {}) {
       const userId = parseChatId(req.params.userId, "userId");
       const theme = parseTheme(req.body.theme);
       const updated = await store.setUserTheme(userId, theme);
+      if (!updated) throw new HttpError(404, "Perfil nao encontrado");
+      return res.json({ user: updated });
+    }),
+  );
+
+  app.patch(
+    "/api/users/:userId/storage-limit",
+    asyncHandler(async (req, res) => {
+      assertBodyObject(req.body);
+      const userId = parseChatId(req.params.userId, "userId");
+      const storageLimitMb = parseStorageLimitMb(req.body.storageLimitMb);
+      const updated = await store.setUserStorageLimit(userId, storageLimitMb);
       if (!updated) throw new HttpError(404, "Perfil nao encontrado");
       return res.json({ user: updated });
     }),
@@ -1346,6 +1412,54 @@ export function createApp(deps = {}) {
       const archiveBuffer = parseBackupPayload(req.body.archiveBase64);
       const result = await backupService.restoreBackup(archiveBuffer);
       return res.json({ ok: true, restore: result });
+    }),
+  );
+
+  app.get(
+    "/api/storage/usage",
+    asyncHandler(async (req, res) => {
+      const userId = parseUserId(req.query?.userId);
+      const usage = await storageService.getUsage();
+      const user = await store.getUserById(userId);
+      const storageLimitMb = Number.parseInt(user?.storageLimitMb, 10) || 512;
+      const storageLimitBytes = storageLimitMb * 1024 * 1024;
+      const usagePercent = Math.round((usage.totalBytes / storageLimitBytes) * 100);
+
+      return res.json({
+        userId,
+        limit: {
+          storageLimitMb,
+          storageLimitBytes,
+        },
+        usage: {
+          dbBytes: usage.dbBytes,
+          uploadsBytes: usage.uploadsBytes,
+          documentsBytes: usage.documentsBytes,
+          backupsBytes: usage.backupsBytes,
+          totalBytes: usage.totalBytes,
+        },
+        usagePercent,
+      });
+    }),
+  );
+
+  app.post(
+    "/api/storage/cleanup",
+    asyncHandler(async (req, res) => {
+      assertBodyObject(req.body);
+      const mode = parseCleanupMode(req.body.mode);
+      const target = parseCleanupTarget(req.body.target);
+      const olderThanDays = parseCleanupOlderThanDays(req.body.olderThanDays);
+      const maxDeleteMb = parseCleanupMaxDeleteMb(req.body.maxDeleteMb);
+
+      const result = await storageService.cleanup({
+        target,
+        olderThanDays,
+        maxDeleteMb,
+        execute: mode === "execute",
+      });
+
+      return res.json({ cleanup: result });
     }),
   );
 
