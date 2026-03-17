@@ -128,6 +128,53 @@
         >
           Assistente Inicial
         </button>
+        <div
+          class="mt-3 rounded-xl border border-slate-200 bg-white/70 p-3 dark:border-slate-700 dark:bg-slate-800/60"
+        >
+          <p
+            class="mb-2 text-xs font-semibold uppercase tracking-widest text-slate-500 dark:text-slate-400"
+          >
+            Filtros
+          </p>
+          <div class="grid grid-cols-3 gap-2">
+            <button
+              id="filterAllBtn"
+              type="button"
+              class="rounded-lg border border-slate-300 bg-slate-100 px-2 py-1.5 text-xs font-semibold text-slate-700"
+            >
+              Ativas
+            </button>
+            <button
+              id="filterFavoritesBtn"
+              type="button"
+              class="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs font-semibold text-slate-700"
+            >
+              Favoritas
+            </button>
+            <button
+              id="filterArchivedBtn"
+              type="button"
+              class="rounded-lg border border-slate-300 bg-white px-2 py-1.5 text-xs font-semibold text-slate-700"
+            >
+              Arquivadas
+            </button>
+          </div>
+          <div class="mt-2 flex gap-2">
+            <input
+              id="filterTagInput"
+              type="text"
+              placeholder="tag"
+              class="min-w-0 flex-1 rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
+            />
+            <button
+              id="filterTagApplyBtn"
+              type="button"
+              class="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+            >
+              Aplicar
+            </button>
+          </div>
+        </div>
         <div id="chatTabs" class="mt-4 flex-1 space-y-2 overflow-y-auto"></div>
         <button
           id="duplicateBtn"
@@ -143,6 +190,27 @@
           class="mt-3 rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
         >
           Renomear aba
+        </button>
+        <button
+          id="favoriteBtn"
+          type="button"
+          class="mt-2 rounded-xl border border-amber-300 bg-white px-4 py-2 text-sm font-semibold text-amber-700 transition hover:bg-amber-50 dark:border-amber-900 dark:bg-slate-800 dark:text-amber-400 dark:hover:bg-amber-950/20"
+        >
+          Favoritar aba
+        </button>
+        <button
+          id="archiveBtn"
+          type="button"
+          class="mt-2 rounded-xl border border-indigo-300 bg-white px-4 py-2 text-sm font-semibold text-indigo-700 transition hover:bg-indigo-50 dark:border-indigo-900 dark:bg-slate-800 dark:text-indigo-300 dark:hover:bg-indigo-950/20"
+        >
+          Arquivar aba
+        </button>
+        <button
+          id="tagsBtn"
+          type="button"
+          class="mt-2 rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+        >
+          Editar tags
         </button>
         <button
           id="deleteBtn"
@@ -170,6 +238,27 @@
         >
           Guia rapido
         </a>
+        <div
+          class="mt-3 rounded-xl border border-slate-200 bg-slate-50/80 p-3 dark:border-slate-700 dark:bg-slate-800/60"
+        >
+          <label
+            class="flex items-center justify-between gap-3 text-xs font-semibold text-slate-600 dark:text-slate-300"
+          >
+            Telemetria local
+            <input
+              id="telemetryOptIn"
+              type="checkbox"
+              class="h-4 w-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500"
+            />
+          </label>
+          <button
+            id="telemetryStatsBtn"
+            type="button"
+            class="mt-2 w-full rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
+          >
+            Ver metricas
+          </button>
+        </div>
       </aside>
 
       <main

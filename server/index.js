@@ -14,6 +14,9 @@ import {
   duplicateChat,
   renameChat,
   deleteChat,
+  setChatFavorite,
+  setChatArchived,
+  setChatTags,
   ensureChat,
   getMessages,
   searchMessages,
@@ -31,6 +34,13 @@ import {
   getUserById,
   ensureUser,
 } from "./db.js";
+import {
+  isEnabled as isTelemetryEnabled,
+  setEnabled as setTelemetryEnabled,
+  getStats as getTelemetryStats,
+  resetStats as resetTelemetryStats,
+  createTelemetryMiddleware,
+} from "./telemetry.js";
 
 const CHAT_ID_REGEX = /^[a-zA-Z0-9:_-]{1,80}$/;
 const MAX_TITLE_LENGTH = 120;
@@ -153,6 +163,36 @@ function parseUserOnly(raw) {
   return raw === true || raw === "true";
 }
 
+function parseBooleanLike(raw, fallback = false) {
+  if (raw === undefined || raw === null || raw === "") return fallback;
+  if (raw === true || raw === "true" || raw === "1" || raw === 1) return true;
+  if (raw === false || raw === "false" || raw === "0" || raw === 0)
+    return false;
+  throw new HttpError(400, "Valor booleano invalido");
+}
+
+function parseTags(raw) {
+  if (!Array.isArray(raw)) {
+    throw new HttpError(400, "tags deve ser uma lista");
+  }
+  const tags = raw
+    .map((tag) => String(tag || "").trim())
+    .filter(Boolean)
+    .map((tag) => tag.slice(0, 30));
+  return [...new Set(tags)].slice(0, 10);
+}
+
+function parseChatListFilters(query = {}) {
+  const favoriteOnly = parseBooleanLike(query.favorite, false);
+  const showArchived = parseBooleanLike(query.archived, false);
+  const tag = String(query.tag || "").trim();
+  return {
+    favoriteOnly,
+    showArchived,
+    tag: tag || null,
+  };
+}
+
 function parseSearchQuery(raw) {
   const query = String(raw ?? "").trim();
   if (!query) {
@@ -186,7 +226,9 @@ function parseSearchLimit(raw) {
 }
 
 function parseSearchRole(raw) {
-  const role = String(raw || "all").trim().toLowerCase();
+  const role = String(raw || "all")
+    .trim()
+    .toLowerCase();
   if (!["all", "user", "assistant"].includes(role)) {
     throw new HttpError(400, "Parametro role invalido");
   }
@@ -228,11 +270,7 @@ function parseRagOptions(body = {}) {
     body.rag === true ||
     body.rag === "true";
 
-  const topK = clamp(
-    Number.parseInt(body.ragTopK, 10) || 3,
-    1,
-    8,
-  );
+  const topK = clamp(Number.parseInt(body.ragTopK, 10) || 3, 1, 8);
 
   return {
     enabled,
@@ -296,7 +334,12 @@ function buildRagSystemMessage(chunks = []) {
   ].join("\n");
 }
 
-function parsePositiveInt(raw, fallback, min = 1, max = Number.MAX_SAFE_INTEGER) {
+function parsePositiveInt(
+  raw,
+  fallback,
+  min = 1,
+  max = Number.MAX_SAFE_INTEGER,
+) {
   const parsed = Number.parseInt(raw, 10);
   if (!Number.isFinite(parsed)) return fallback;
   return Math.min(max, Math.max(min, parsed));
@@ -340,7 +383,11 @@ async function executeWithModelRecovery({
   logger,
   run,
 }) {
-  const attemptPlan = buildModelAttemptPlan(primaryModel, fallbackModel, maxAttempts);
+  const attemptPlan = buildModelAttemptPlan(
+    primaryModel,
+    fallbackModel,
+    maxAttempts,
+  );
   let lastError;
 
   for (let idx = 0; idx < attemptPlan.length; idx += 1) {
@@ -367,7 +414,9 @@ async function executeWithModelRecovery({
     }
   }
 
-  throw lastError || new HttpError(502, "Falha ao consultar modelos de inferencia");
+  throw (
+    lastError || new HttpError(502, "Falha ao consultar modelos de inferencia")
+  );
 }
 
 function parseOriginList(raw) {
@@ -419,6 +468,9 @@ export function createApp(deps = {}) {
     duplicateChat: deps.duplicateChat || duplicateChat,
     renameChat: deps.renameChat || renameChat,
     deleteChat: deps.deleteChat || deleteChat,
+    setChatFavorite: deps.setChatFavorite || setChatFavorite,
+    setChatArchived: deps.setChatArchived || setChatArchived,
+    setChatTags: deps.setChatTags || setChatTags,
     ensureChat: deps.ensureChat || ensureChat,
     getMessages: deps.getMessages || getMessages,
     searchMessages: deps.searchMessages || searchMessages,
@@ -506,6 +558,7 @@ export function createApp(deps = {}) {
     req.logger = logger.child({ traceId: req.id });
     next();
   });
+  app.use(createTelemetryMiddleware());
 
   // Cache headers for static assets
   app.use(
@@ -587,17 +640,23 @@ export function createApp(deps = {}) {
         },
       };
 
-      const { result: response, modelUsed, attempt } =
-        await executeWithModelRecovery({
-          primaryModel: options.model,
-          fallbackModel: ollamaFallbackModel,
-          maxAttempts: ollamaMaxAttempts,
-          timeoutMs: ollamaTimeoutMs,
-          logger: req.logger,
-          run: (model) => chatClient.chat({ ...payload, model }),
-        });
+      const {
+        result: response,
+        modelUsed,
+        attempt,
+      } = await executeWithModelRecovery({
+        primaryModel: options.model,
+        fallbackModel: ollamaFallbackModel,
+        maxAttempts: ollamaMaxAttempts,
+        timeoutMs: ollamaTimeoutMs,
+        logger: req.logger,
+        run: (model) => chatClient.chat({ ...payload, model }),
+      });
 
-      req.logger?.info({ modelUsed, attempt, ragEnabled: rag.enabled }, "Inferencia concluida");
+      req.logger?.info(
+        { modelUsed, attempt, ragEnabled: rag.enabled },
+        "Inferencia concluida",
+      );
 
       const reply = String(response.message?.content || "");
       await store.appendMessage(chatId, "assistant", reply);
@@ -626,7 +685,11 @@ export function createApp(deps = {}) {
       const saved = [];
       for (const doc of documents) {
         // Ingestao local simples com chunking no SQLite para recuperacao por contexto.
-        const result = await store.upsertRagDocument(chatId, doc.name, doc.content);
+        const result = await store.upsertRagDocument(
+          chatId,
+          doc.name,
+          doc.content,
+        );
         saved.push(result);
       }
 
@@ -653,7 +716,9 @@ export function createApp(deps = {}) {
       const chatId = parseChatId(req.params.chatId, "chatId");
       const query = parseSearchQuery(req.query?.q);
       const limit = clamp(Number.parseInt(req.query?.limit, 10) || 4, 1, 8);
-      const matches = await store.searchDocumentChunks(chatId, query, { limit });
+      const matches = await store.searchDocumentChunks(chatId, query, {
+        limit,
+      });
 
       res.json({
         matches: matches.map((item) => ({
@@ -670,6 +735,26 @@ export function createApp(deps = {}) {
     asyncHandler(async (_req, res) => {
       await store.resetChat("default");
       res.json({ ok: true });
+    }),
+  );
+
+  app.get(
+    "/api/telemetry",
+    asyncHandler(async (_req, res) => {
+      res.json({ enabled: isTelemetryEnabled(), stats: getTelemetryStats() });
+    }),
+  );
+
+  app.patch(
+    "/api/telemetry",
+    asyncHandler(async (req, res) => {
+      assertBodyObject(req.body);
+      const enabled = parseBooleanLike(req.body.enabled, false);
+      setTelemetryEnabled(enabled);
+      if (!enabled) {
+        resetTelemetryStats();
+      }
+      res.json({ enabled: isTelemetryEnabled() });
     }),
   );
 
@@ -725,7 +810,8 @@ export function createApp(deps = {}) {
     "/api/chats",
     asyncHandler(async (req, res) => {
       const userId = parseUserId(req.query?.userId);
-      const chats = await store.listChats(userId);
+      const filters = parseChatListFilters(req.query || {});
+      const chats = await store.listChats(userId, filters);
       res.json({ chats });
     }),
   );
@@ -780,6 +866,48 @@ export function createApp(deps = {}) {
         throw new HttpError(404, "Chat nao encontrado");
       }
 
+      return res.json({ chat: updated });
+    }),
+  );
+
+  app.patch(
+    "/api/chats/:chatId/favorite",
+    asyncHandler(async (req, res) => {
+      assertBodyObject(req.body);
+      const chatId = parseChatId(req.params.chatId, "chatId");
+      const isFavorite = parseBooleanLike(req.body.isFavorite, false);
+      const updated = await store.setChatFavorite(chatId, isFavorite);
+      if (!updated) {
+        throw new HttpError(404, "Chat nao encontrado");
+      }
+      return res.json({ chat: updated });
+    }),
+  );
+
+  app.patch(
+    "/api/chats/:chatId/archive",
+    asyncHandler(async (req, res) => {
+      assertBodyObject(req.body);
+      const chatId = parseChatId(req.params.chatId, "chatId");
+      const archived = parseBooleanLike(req.body.archived, false);
+      const updated = await store.setChatArchived(chatId, archived);
+      if (!updated) {
+        throw new HttpError(404, "Chat nao encontrado");
+      }
+      return res.json({ chat: updated });
+    }),
+  );
+
+  app.patch(
+    "/api/chats/:chatId/tags",
+    asyncHandler(async (req, res) => {
+      assertBodyObject(req.body);
+      const chatId = parseChatId(req.params.chatId, "chatId");
+      const tags = parseTags(req.body.tags);
+      const updated = await store.setChatTags(chatId, tags);
+      if (!updated) {
+        throw new HttpError(404, "Chat nao encontrado");
+      }
       return res.json({ chat: updated });
     }),
   );
@@ -910,7 +1038,11 @@ export function createApp(deps = {}) {
         },
       };
 
-      const { result: stream, modelUsed, attempt } = await executeWithModelRecovery({
+      const {
+        result: stream,
+        modelUsed,
+        attempt,
+      } = await executeWithModelRecovery({
         primaryModel: options.model,
         fallbackModel: ollamaFallbackModel,
         maxAttempts: ollamaMaxAttempts,

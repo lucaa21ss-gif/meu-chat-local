@@ -7,7 +7,14 @@ function createMockStore() {
   const chats = new Map([
     [
       "default",
-      { id: "default", title: "Conversa Principal", userId: "user-default" },
+      {
+        id: "default",
+        title: "Conversa Principal",
+        userId: "user-default",
+        isFavorite: false,
+        archivedAt: null,
+        tags: [],
+      },
     ],
   ]);
   const messages = new Map([["default", []]]);
@@ -62,19 +69,48 @@ function createMockStore() {
     ensureUser: async (id, name) => {
       if (!users.has(id)) users.set(id, { id, name });
     },
-    listChats: async (userId) => {
+    listChats: async (userId, opts = {}) => {
+      const { favoriteOnly = false, showArchived = false, tag = null } = opts;
       const all = Array.from(chats.values());
-      return (
-        userId
-          ? all.filter((c) => (c.userId || "user-default") === userId)
-          : all
-      ).map(({ id, title }) => ({ id, title }));
+      return all
+        .filter((c) =>
+          userId ? (c.userId || "user-default") === userId : true,
+        )
+        .filter((c) => (showArchived ? !!c.archivedAt : !c.archivedAt))
+        .filter((c) => (favoriteOnly ? !!c.isFavorite : true))
+        .filter((c) =>
+          tag
+            ? (c.tags || []).some(
+                (t) => String(t).toLowerCase() === String(tag).toLowerCase(),
+              )
+            : true,
+        )
+        .map(({ id, title, isFavorite, archivedAt, tags }) => ({
+          id,
+          title,
+          isFavorite: !!isFavorite,
+          archivedAt: archivedAt || null,
+          tags: Array.isArray(tags) ? tags : [],
+        }));
     },
     createChat: async (id, title, userId = "user-default") => {
-      const chat = { id, title, userId };
+      const chat = {
+        id,
+        title,
+        userId,
+        isFavorite: false,
+        archivedAt: null,
+        tags: [],
+      };
       chats.set(id, chat);
       ensureMessages(id);
-      return { id, title };
+      return {
+        id,
+        title,
+        isFavorite: false,
+        archivedAt: null,
+        tags: [],
+      };
     },
     duplicateChat: async (sourceChatId, targetChatId, title, options = {}) => {
       if (!chats.has(sourceChatId)) return null;
@@ -85,6 +121,10 @@ function createMockStore() {
       chats.set(targetChatId, {
         id: targetChatId,
         title: title || `${source.title} (copia)`,
+        userId: source.userId || "user-default",
+        isFavorite: false,
+        archivedAt: null,
+        tags: [],
       });
       messages.set(targetChatId, copied);
       return chats.get(targetChatId);
@@ -98,6 +138,25 @@ function createMockStore() {
       const existed = chats.delete(chatId);
       messages.delete(chatId);
       return existed;
+    },
+    setChatFavorite: async (chatId, isFavorite) => {
+      if (!chats.has(chatId)) return null;
+      chats.set(chatId, { ...chats.get(chatId), isFavorite: !!isFavorite });
+      return { id: chatId, isFavorite: !!isFavorite };
+    },
+    setChatArchived: async (chatId, archived) => {
+      if (!chats.has(chatId)) return null;
+      const archivedAt = archived ? new Date().toISOString() : null;
+      chats.set(chatId, { ...chats.get(chatId), archivedAt });
+      return { id: chatId, archivedAt };
+    },
+    setChatTags: async (chatId, tags) => {
+      if (!chats.has(chatId)) return null;
+      chats.set(chatId, {
+        ...chats.get(chatId),
+        tags: Array.isArray(tags) ? tags : [],
+      });
+      return { id: chatId, tags: Array.isArray(tags) ? tags : [] };
     },
     ensureChat: async (chatId, title, userId = "user-default") => {
       if (!chats.has(chatId)) {
@@ -319,6 +378,116 @@ test("PATCH e DELETE /api/chats/:chatId funcionam", async () => {
     listed.body.chats.some((chat) => chat.id === "tab-2"),
     false,
   );
+});
+
+test("PATCH /favorite, /archive e /tags atualiza metadados da conversa", async () => {
+  const app = createApp({
+    chatClient: createMockChatClient(),
+    ...createMockStore(),
+  });
+
+  await request(app)
+    .post("/api/chats")
+    .send({ id: "tab-meta", title: "Aba Meta" })
+    .expect(201);
+
+  const favorite = await request(app)
+    .patch("/api/chats/tab-meta/favorite")
+    .send({ isFavorite: true })
+    .expect(200);
+  assert.equal(favorite.body.chat.isFavorite, true);
+
+  const tags = await request(app)
+    .patch("/api/chats/tab-meta/tags")
+    .send({ tags: ["estudo", "importante"] })
+    .expect(200);
+  assert.deepEqual(tags.body.chat.tags, ["estudo", "importante"]);
+
+  const archived = await request(app)
+    .patch("/api/chats/tab-meta/archive")
+    .send({ archived: true })
+    .expect(200);
+  assert.equal(typeof archived.body.chat.archivedAt, "string");
+});
+
+test("GET /api/chats aplica filtros favorite, archived e tag", async () => {
+  const app = createApp({
+    chatClient: createMockChatClient(),
+    ...createMockStore(),
+  });
+
+  await request(app)
+    .post("/api/chats")
+    .send({ id: "tab-filtro", title: "Aba Filtro" })
+    .expect(201);
+
+  await request(app)
+    .patch("/api/chats/tab-filtro/favorite")
+    .send({ isFavorite: true })
+    .expect(200);
+
+  await request(app)
+    .patch("/api/chats/tab-filtro/tags")
+    .send({ tags: ["trabalho"] })
+    .expect(200);
+
+  const favorites = await request(app)
+    .get("/api/chats?favorite=true")
+    .expect(200);
+  assert.equal(
+    favorites.body.chats.some((chat) => chat.id === "tab-filtro"),
+    true,
+  );
+
+  await request(app)
+    .patch("/api/chats/tab-filtro/archive")
+    .send({ archived: true })
+    .expect(200);
+
+  const archived = await request(app)
+    .get("/api/chats?archived=true")
+    .expect(200);
+  assert.equal(
+    archived.body.chats.some((chat) => chat.id === "tab-filtro"),
+    true,
+  );
+
+  const byTag = await request(app)
+    .get("/api/chats?archived=true&tag=trabalho")
+    .expect(200);
+  assert.equal(byTag.body.chats.length >= 1, true);
+});
+
+test("telemetria opt-in habilita, coleta e desabilita", async () => {
+  const app = createApp({
+    chatClient: createMockChatClient(),
+    ...createMockStore(),
+  });
+
+  const initial = await request(app).get("/api/telemetry").expect(200);
+  assert.equal(initial.body.enabled, false);
+
+  await request(app)
+    .patch("/api/telemetry")
+    .send({ enabled: true })
+    .expect(200);
+
+  await request(app).get("/api/chats").expect(200);
+  await request(app).get("/api/chats/default/messages").expect(200);
+
+  const enabledStats = await request(app).get("/api/telemetry").expect(200);
+  assert.equal(enabledStats.body.enabled, true);
+  assert.equal(Array.isArray(enabledStats.body.stats), true);
+  assert.equal(enabledStats.body.stats.length >= 1, true);
+
+  await request(app)
+    .patch("/api/telemetry")
+    .send({ enabled: false })
+    .expect(200);
+
+  const disabled = await request(app).get("/api/telemetry").expect(200);
+  assert.equal(disabled.body.enabled, false);
+  assert.equal(disabled.body.stats.length, 0);
 });
 
 test("POST /api/chats/:chatId/duplicate clona historico da conversa", async () => {

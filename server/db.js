@@ -6,7 +6,7 @@ import { open } from "sqlite";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const defaultDbPath = path.join(__dirname, "chat.db");
-const DB_SCHEMA_VERSION = 4;
+const DB_SCHEMA_VERSION = 5;
 
 let db;
 
@@ -20,8 +20,19 @@ function titleFromText(text = "") {
   return normalized.length > 48 ? `${normalized.slice(0, 48)}...` : normalized;
 }
 
+function safeParseJsonArray(str) {
+  try {
+    const arr = JSON.parse(str || "[]");
+    return Array.isArray(arr) ? arr : [];
+  } catch {
+    return [];
+  }
+}
+
 function splitDocumentIntoChunks(text, maxChunkLength = 900, overlap = 120) {
-  const normalized = String(text || "").replace(/\r\n/g, "\n").trim();
+  const normalized = String(text || "")
+    .replace(/\r\n/g, "\n")
+    .trim();
   if (!normalized) return [];
 
   const chunks = [];
@@ -189,6 +200,19 @@ async function runMigrations(connection) {
         `);
       },
     },
+    {
+      version: 5,
+      up: async () => {
+        await connection.exec(`
+          ALTER TABLE chats ADD COLUMN is_favorite INTEGER NOT NULL DEFAULT 0;
+          ALTER TABLE chats ADD COLUMN archived_at TEXT;
+          ALTER TABLE chats ADD COLUMN tags TEXT NOT NULL DEFAULT '[]';
+
+          CREATE INDEX IF NOT EXISTS idx_chats_favorite
+            ON chats(user_id, is_favorite);
+        `);
+      },
+    },
   ];
 
   let currentVersion = await getCurrentSchemaVersion(connection);
@@ -275,10 +299,9 @@ export async function deleteUser(userId) {
   if (userId === "user-default") {
     throw new Error("Perfil padrao nao pode ser excluido");
   }
-  const chatRows = await db.all(
-    "SELECT id FROM chats WHERE user_id = ?",
-    [userId],
-  );
+  const chatRows = await db.all("SELECT id FROM chats WHERE user_id = ?", [
+    userId,
+  ]);
   for (const { id: chatId } of chatRows) {
     const docRows = await db.all(
       "SELECT id FROM rag_documents WHERE chat_id = ?",
@@ -304,7 +327,11 @@ export async function getUserById(userId) {
   return row || null;
 }
 
-export async function ensureChat(id, title = "Nova conversa", userId = "user-default") {
+export async function ensureChat(
+  id,
+  title = "Nova conversa",
+  userId = "user-default",
+) {
   await initDb();
   await db.run(
     `INSERT INTO chats (id, title, user_id) VALUES (?, ?, ?)
@@ -313,33 +340,112 @@ export async function ensureChat(id, title = "Nova conversa", userId = "user-def
   );
 }
 
-export async function listChats(userId) {
+export async function listChats(userId, opts = {}) {
   await initDb();
+  const { favoriteOnly = false, showArchived = false, tag = null } = opts;
+
+  const whereParts = [];
+  const params = [];
+
   if (userId) {
-    return db.all(
-      `SELECT id, title, created_at AS createdAt, updated_at AS updatedAt
-       FROM chats
-       WHERE user_id = ?
-       ORDER BY datetime(updated_at) DESC`,
-      [userId],
+    whereParts.push("user_id = ?");
+    params.push(userId);
+  }
+
+  if (showArchived) {
+    whereParts.push("archived_at IS NOT NULL");
+  } else {
+    whereParts.push("archived_at IS NULL");
+  }
+
+  if (favoriteOnly) {
+    whereParts.push("is_favorite = 1");
+  }
+
+  const whereClause = whereParts.length
+    ? `WHERE ${whereParts.join(" AND ")}`
+    : "";
+
+  let rows = await db.all(
+    `SELECT id, title,
+            is_favorite AS isFavorite,
+            archived_at AS archivedAt,
+            tags,
+            created_at AS createdAt,
+            updated_at AS updatedAt
+     FROM chats
+     ${whereClause}
+     ORDER BY datetime(updated_at) DESC`,
+    params,
+  );
+
+  if (tag) {
+    const safeTag = String(tag).trim().toLowerCase();
+    rows = rows.filter((r) =>
+      safeParseJsonArray(r.tags).some(
+        (t) => String(t).trim().toLowerCase() === safeTag,
+      ),
     );
   }
-  return db.all(
-    `SELECT id, title, created_at AS createdAt, updated_at AS updatedAt
-     FROM chats
-     ORDER BY datetime(updated_at) DESC`,
-  );
+
+  return rows.map((r) => ({
+    ...r,
+    isFavorite: r.isFavorite === 1,
+    tags: safeParseJsonArray(r.tags),
+  }));
 }
 
 export async function createChat(id, title, userId = "user-default") {
   await initDb();
   const safeTitle = titleFromText(title);
-  await db.run(
-    `INSERT INTO chats (id, title, user_id) VALUES (?, ?, ?)`,
-    [id, safeTitle, userId],
-  );
+  await db.run(`INSERT INTO chats (id, title, user_id) VALUES (?, ?, ?)`, [
+    id,
+    safeTitle,
+    userId,
+  ]);
 
-  return { id, title: safeTitle };
+  return {
+    id,
+    title: safeTitle,
+    isFavorite: false,
+    archivedAt: null,
+    tags: [],
+  };
+}
+
+export async function setChatFavorite(chatId, isFavorite) {
+  await initDb();
+  const result = await db.run(
+    `UPDATE chats SET is_favorite = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+    [isFavorite ? 1 : 0, chatId],
+  );
+  if (!result.changes) return null;
+  return { id: chatId, isFavorite: !!isFavorite };
+}
+
+export async function setChatArchived(chatId, archived) {
+  await initDb();
+  const archivedAt = archived ? new Date().toISOString() : null;
+  const result = await db.run(
+    `UPDATE chats SET archived_at = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+    [archivedAt, chatId],
+  );
+  if (!result.changes) return null;
+  return { id: chatId, archivedAt };
+}
+
+export async function setChatTags(chatId, tags) {
+  await initDb();
+  const safeTags = Array.isArray(tags)
+    ? tags.map(String).filter(Boolean).slice(0, 10)
+    : [];
+  const tagsJson = JSON.stringify(safeTags);
+  const result = await db.run(
+    `UPDATE chats SET tags = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+    [tagsJson, chatId],
+  );
+  if (!result.changes) return null;
+  return { id: chatId, tags: safeTags };
 }
 
 export async function duplicateChat(
@@ -350,15 +456,17 @@ export async function duplicateChat(
 ) {
   await initDb();
 
-  const source = await db.get("SELECT id, title FROM chats WHERE id = ?", [
-    sourceChatId,
-  ]);
+  const source = await db.get(
+    "SELECT id, title, user_id AS userId FROM chats WHERE id = ?",
+    [sourceChatId],
+  );
   if (!source) return null;
 
   const targetTitle = titleFromText(title || `${source.title} (copia)`);
-  await db.run(`INSERT INTO chats (id, title) VALUES (?, ?)`, [
+  await db.run(`INSERT INTO chats (id, title, user_id) VALUES (?, ?, ?)`, [
     targetChatId,
     targetTitle,
+    source.userId || "user-default",
   ]);
 
   await db.run(
@@ -402,7 +510,7 @@ export async function deleteChat(chatId) {
   const result = await db.run("DELETE FROM chats WHERE id = ?", [chatId]);
 
   if (chatId === "default") {
-    await ensureChat("default", "Conversa Principal");
+    await ensureChat("default", "Conversa Principal", "user-default");
   }
 
   return result.changes > 0;
@@ -476,6 +584,19 @@ export async function searchMessages(chatId, query, options = {}) {
   const whereParts = [
     "chat_id = ?",
     "content LIKE ? COLLATE NOCASE",
+    {
+      version: 5,
+      up: async () => {
+        await connection.exec(`
+          ALTER TABLE chats ADD COLUMN is_favorite INTEGER NOT NULL DEFAULT 0;
+          ALTER TABLE chats ADD COLUMN archived_at TEXT;
+          ALTER TABLE chats ADD COLUMN tags TEXT NOT NULL DEFAULT '[]';
+
+          CREATE INDEX IF NOT EXISTS idx_chats_favorite
+            ON chats(user_id, is_favorite);
+        `);
+      },
+    },
   ];
   const whereParams = [chatId, likeQuery];
 
@@ -530,7 +651,7 @@ export async function searchMessages(chatId, query, options = {}) {
 
 export async function appendMessage(chatId, role, content, images = []) {
   await initDb();
-  await ensureChat(chatId);
+  await ensureChat(chatId, "Nova conversa", "user-default");
 
   const safeImages = Array.isArray(images) ? images : [];
   await db.run(
@@ -589,7 +710,7 @@ export async function exportChatMarkdown(chatId) {
 
 export async function upsertRagDocument(chatId, name, content) {
   await initDb();
-  await ensureChat(chatId);
+  await ensureChat(chatId, "Nova conversa", "user-default");
 
   const safeName = String(name || "").trim();
   const safeContent = String(content || "").trim();
@@ -658,7 +779,9 @@ export async function listRagDocuments(chatId) {
 export async function searchDocumentChunks(chatId, query, options = {}) {
   await initDb();
 
-  const normalizedQuery = String(query || "").trim().toLowerCase();
+  const normalizedQuery = String(query || "")
+    .trim()
+    .toLowerCase();
   if (!normalizedQuery) return [];
 
   const limit = Math.min(
