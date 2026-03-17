@@ -8,10 +8,16 @@ function createMockStore() {
     ["default", { id: "default", title: "Conversa Principal" }],
   ]);
   const messages = new Map([["default", []]]);
+  const ragDocumentsByChat = new Map();
 
   const ensureMessages = (chatId) => {
     if (!messages.has(chatId)) messages.set(chatId, []);
     return messages.get(chatId);
+  };
+
+  const ensureRagDocs = (chatId) => {
+    if (!ragDocumentsByChat.has(chatId)) ragDocumentsByChat.set(chatId, []);
+    return ragDocumentsByChat.get(chatId);
   };
 
   return {
@@ -92,6 +98,68 @@ function createMockStore() {
         limit: safeLimit,
         totalPages,
       };
+    },
+    upsertRagDocument: async (chatId, name, content) => {
+      const docs = ensureRagDocs(chatId);
+      const normalizedName = String(name || '').trim();
+      const normalizedContent = String(content || '').trim();
+
+      let doc = docs.find((item) => item.name === normalizedName);
+      if (!doc) {
+        doc = {
+          id: docs.length + 1,
+          name: normalizedName,
+          content: normalizedContent,
+          updatedAt: new Date().toISOString(),
+        };
+        docs.push(doc);
+      } else {
+        doc.content = normalizedContent;
+        doc.updatedAt = new Date().toISOString();
+      }
+
+      const chunkCount = Math.max(1, Math.ceil(normalizedContent.length / 900));
+      doc.chunkCount = chunkCount;
+
+      return {
+        id: doc.id,
+        name: doc.name,
+        updatedAt: doc.updatedAt,
+        chunkCount,
+      };
+    },
+    listRagDocuments: async (chatId) => {
+      return ensureRagDocs(chatId).map((doc) => ({
+        id: doc.id,
+        name: doc.name,
+        updatedAt: doc.updatedAt,
+        chunkCount: doc.chunkCount || 1,
+      }));
+    },
+    searchDocumentChunks: async (chatId, query, options = {}) => {
+      const q = String(query || '').trim().toLowerCase();
+      if (!q) return [];
+      const limit = Math.min(8, Math.max(1, Number.parseInt(options.limit, 10) || 4));
+      const docs = ensureRagDocs(chatId);
+      const tokens = (q.match(/[a-z0-9]+/gi) || [])
+        .map((part) => part.trim().toLowerCase())
+        .filter((part) => part.length >= 3);
+
+      const matches = [];
+      for (const doc of docs) {
+        const content = String(doc.content || '').toLowerCase();
+        const hasMatch = (tokens.length ? tokens : [q]).some((token) => content.includes(token));
+        if (!hasMatch) continue;
+
+        matches.push({
+          documentName: doc.name,
+          chunkIndex: 1,
+          snippet: doc.content.slice(0, 220),
+          content: doc.content,
+        });
+      }
+
+      return matches.slice(0, limit);
     },
     appendMessage: async (chatId, role, content, images = []) => {
       ensureMessages(chatId).push({ role, content, images });
@@ -353,6 +421,102 @@ test("GET /api/chats/:chatId/search aplica paginacao e filtro por role", async (
   assert.equal(response.body.pagination.limit, 1);
   assert.equal(response.body.pagination.total >= 2, true);
   assert.equal(response.body.pagination.totalPages >= 2, true);
+});
+
+test("POST /api/chats/:chatId/rag/documents e GET listam documentos indexados", async () => {
+  const app = createApp({
+    chatClient: createMockChatClient(),
+    ...createMockStore(),
+  });
+
+  const upload = await request(app)
+    .post('/api/chats/default/rag/documents')
+    .send({
+      documents: [
+        {
+          name: 'manual.md',
+          content: 'O produto oferece modo offline, privacidade local e busca no historico.'
+        }
+      ]
+    })
+    .expect(201);
+
+  assert.equal(Array.isArray(upload.body.saved), true);
+  assert.equal(upload.body.saved.length, 1);
+
+  const listed = await request(app)
+    .get('/api/chats/default/rag/documents')
+    .expect(200);
+
+  assert.equal(Array.isArray(listed.body.documents), true);
+  assert.equal(listed.body.documents.length, 1);
+  assert.equal(listed.body.documents[0].name, 'manual.md');
+});
+
+test("GET /api/chats/:chatId/rag/search retorna trechos relevantes", async () => {
+  const app = createApp({
+    chatClient: createMockChatClient(),
+    ...createMockStore(),
+  });
+
+  await request(app)
+    .post('/api/chats/default/rag/documents')
+    .send({
+      documents: [
+        {
+          name: 'politicas.txt',
+          content: 'A politica interna exige auditoria local e controle de acesso por times.'
+        }
+      ]
+    })
+    .expect(201);
+
+  const response = await request(app)
+    .get('/api/chats/default/rag/search?q=auditoria')
+    .expect(200);
+
+  assert.equal(Array.isArray(response.body.matches), true);
+  assert.equal(response.body.matches.length >= 1, true);
+  assert.equal(response.body.matches[0].documentName, 'politicas.txt');
+});
+
+test("POST /api/chat com ragEnabled retorna citacoes", async () => {
+  const app = createApp({
+    chatClient: {
+      chat: async ({ messages }) => ({
+        message: {
+          content: `Baseado no documento. ${messages[0]?.content?.includes('Fonte') ? '[Fonte: manual.md#trecho1]' : ''}`,
+        },
+      }),
+    },
+    ...createMockStore(),
+  });
+
+  await request(app)
+    .post('/api/chats/default/rag/documents')
+    .send({
+      documents: [
+        {
+          name: 'manual.md',
+          content: 'Este manual interno recomenda citar as fontes internas em respostas tecnicas.'
+        }
+      ]
+    })
+    .expect(201);
+
+  const response = await request(app)
+    .post('/api/chat')
+    .send({
+      chatId: 'default',
+      message: 'Quais orientacoes do manual?',
+      ragEnabled: true,
+      ragTopK: 3,
+    })
+    .expect(200);
+
+  assert.equal(Array.isArray(response.body.citations), true);
+  assert.equal(response.body.citations.length >= 1, true);
+  assert.equal(response.body.citations[0].documentName, 'manual.md');
 });
 
 test("POST /api/chat usa fallback quando modelo primario falha", async () => {

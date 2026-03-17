@@ -167,6 +167,9 @@ mas o fluxo recomendado e usar `http://localhost:3001` para manter API e UI na m
 - `DELETE /api/chats/:chatId`: exclui aba
 - `GET /api/chats/:chatId/messages`: carrega mensagens da aba
 - `GET /api/chats/:chatId/search?q=termo&role=all&page=1&limit=20&from=<iso>&to=<iso>`: busca textual no historico da aba com filtros
+- `POST /api/chats/:chatId/rag/documents`: indexa documentos locais (nome + conteudo)
+- `GET /api/chats/:chatId/rag/documents`: lista documentos indexados da aba
+- `GET /api/chats/:chatId/rag/search?q=termo&limit=4`: busca trechos relevantes da base documental
 - `POST /api/chats/:chatId/reset`: limpa uma aba
 - `GET /api/chats/:chatId/export`: exporta conversa em Markdown
 
@@ -252,6 +255,14 @@ O envio de imagem e opcional e depende do modelo escolhido suportar imagens.
 - `limit` e opcional (1 a 100, padrao 20)
 - `from` e `to` sao opcionais (ISO datetime) para filtro por periodo
 - Resposta inclui `matches` e objeto `pagination` (`page`, `limit`, `total`, `totalPages`)
+
+## RAG local (documentos com citacoes)
+
+- Upload/indexacao: `POST /api/chats/:chatId/rag/documents`
+- Listagem da base: `GET /api/chats/:chatId/rag/documents`
+- Busca de trechos: `GET /api/chats/:chatId/rag/search?q=termo&limit=4`
+- O frontend permite anexar arquivos texto por aba e ativar `RAG` no envio da mensagem.
+- Quando ativo, o endpoint `/api/chat` retorna `citations` com os trechos usados.
 
 ## Troubleshooting
 

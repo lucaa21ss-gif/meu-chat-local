@@ -6,7 +6,7 @@ import { open } from "sqlite";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const defaultDbPath = path.join(__dirname, "chat.db");
-const DB_SCHEMA_VERSION = 2;
+const DB_SCHEMA_VERSION = 3;
 
 let db;
 
@@ -18,6 +18,33 @@ function titleFromText(text = "") {
   const normalized = String(text).trim().replace(/\s+/g, " ");
   if (!normalized) return "Nova conversa";
   return normalized.length > 48 ? `${normalized.slice(0, 48)}...` : normalized;
+}
+
+function splitDocumentIntoChunks(text, maxChunkLength = 900, overlap = 120) {
+  const normalized = String(text || "").replace(/\r\n/g, "\n").trim();
+  if (!normalized) return [];
+
+  const chunks = [];
+  let cursor = 0;
+
+  while (cursor < normalized.length) {
+    let end = Math.min(normalized.length, cursor + maxChunkLength);
+
+    if (end < normalized.length) {
+      const breakAt = normalized.lastIndexOf("\n", end);
+      if (breakAt > cursor + 160) {
+        end = breakAt;
+      }
+    }
+
+    const content = normalized.slice(cursor, end).trim();
+    if (content) chunks.push(content);
+    if (end >= normalized.length) break;
+
+    cursor = Math.max(end - overlap, cursor + 1);
+  }
+
+  return chunks;
 }
 
 export async function initDb() {
@@ -101,6 +128,40 @@ async function runMigrations(connection) {
 
           CREATE INDEX IF NOT EXISTS idx_messages_chat_id_id
             ON messages(chat_id, id);
+        `);
+      },
+    },
+    {
+      version: 3,
+      up: async () => {
+        await connection.exec(`
+          CREATE TABLE IF NOT EXISTS rag_documents (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            chat_id TEXT NOT NULL,
+            name TEXT NOT NULL,
+            content TEXT NOT NULL,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(chat_id, name),
+            FOREIGN KEY(chat_id) REFERENCES chats(id)
+          );
+
+          CREATE TABLE IF NOT EXISTS rag_chunks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            document_id INTEGER NOT NULL,
+            chat_id TEXT NOT NULL,
+            chunk_index INTEGER NOT NULL,
+            content TEXT NOT NULL,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(document_id) REFERENCES rag_documents(id),
+            FOREIGN KEY(chat_id) REFERENCES chats(id)
+          );
+
+          CREATE INDEX IF NOT EXISTS idx_rag_documents_chat
+            ON rag_documents(chat_id, updated_at DESC);
+
+          CREATE INDEX IF NOT EXISTS idx_rag_chunks_chat
+            ON rag_chunks(chat_id, document_id, chunk_index);
         `);
       },
     },
@@ -402,4 +463,140 @@ export async function exportChatMarkdown(chatId) {
   }
 
   return lines.join("\n");
+}
+
+export async function upsertRagDocument(chatId, name, content) {
+  await initDb();
+  await ensureChat(chatId);
+
+  const safeName = String(name || "").trim();
+  const safeContent = String(content || "").trim();
+  if (!safeName || !safeContent) {
+    throw new Error("Documento invalido");
+  }
+
+  await db.run(
+    `INSERT INTO rag_documents (chat_id, name, content)
+     VALUES (?, ?, ?)
+     ON CONFLICT(chat_id, name)
+     DO UPDATE SET content = excluded.content, updated_at = CURRENT_TIMESTAMP`,
+    [chatId, safeName, safeContent],
+  );
+
+  const document = await db.get(
+    `SELECT id, name, updated_at AS updatedAt
+     FROM rag_documents
+     WHERE chat_id = ? AND name = ?`,
+    [chatId, safeName],
+  );
+
+  const chunks = splitDocumentIntoChunks(safeContent);
+  await db.run("DELETE FROM rag_chunks WHERE document_id = ?", [document.id]);
+
+  for (let idx = 0; idx < chunks.length; idx += 1) {
+    await db.run(
+      `INSERT INTO rag_chunks (document_id, chat_id, chunk_index, content)
+       VALUES (?, ?, ?, ?)`,
+      [document.id, chatId, idx + 1, chunks[idx]],
+    );
+  }
+
+  return {
+    id: document.id,
+    name: document.name,
+    updatedAt: document.updatedAt,
+    chunkCount: chunks.length,
+  };
+}
+
+export async function listRagDocuments(chatId) {
+  await initDb();
+
+  const rows = await db.all(
+    `SELECT d.id,
+            d.name,
+            d.updated_at AS updatedAt,
+            COUNT(c.id) AS chunkCount
+     FROM rag_documents d
+     LEFT JOIN rag_chunks c ON c.document_id = d.id
+     WHERE d.chat_id = ?
+     GROUP BY d.id, d.name, d.updated_at
+     ORDER BY datetime(d.updated_at) DESC`,
+    [chatId],
+  );
+
+  return rows.map((row) => ({
+    id: row.id,
+    name: row.name,
+    updatedAt: row.updatedAt,
+    chunkCount: Number.parseInt(row.chunkCount, 10) || 0,
+  }));
+}
+
+export async function searchDocumentChunks(chatId, query, options = {}) {
+  await initDb();
+
+  const normalizedQuery = String(query || "").trim().toLowerCase();
+  if (!normalizedQuery) return [];
+
+  const limit = Math.min(
+    8,
+    Math.max(1, Number.parseInt(options.limit, 10) || 4),
+  );
+  const tokens = Array.from(
+    new Set(
+      (normalizedQuery.match(/[a-z0-9]+/gi) || [])
+        .map((part) => part.trim().toLowerCase())
+        .filter((part) => part.length >= 2)
+        .slice(0, 8),
+    ),
+  );
+
+  const searchTokens = tokens.length ? tokens : [normalizedQuery];
+  const whereSearch = searchTokens
+    .map(() => "LOWER(c.content) LIKE ?")
+    .join(" OR ");
+  const params = [chatId, ...searchTokens.map((token) => `%${token}%`)];
+
+  const rows = await db.all(
+    `SELECT c.id,
+            c.chunk_index AS chunkIndex,
+            c.content,
+            d.name AS documentName
+     FROM rag_chunks c
+     INNER JOIN rag_documents d ON d.id = c.document_id
+     WHERE c.chat_id = ?
+       AND (${whereSearch})
+     ORDER BY c.id DESC
+     LIMIT 80`,
+    params,
+  );
+
+  const ranked = rows
+    .map((row) => {
+      const content = String(row.content || "").toLowerCase();
+      const score = searchTokens.reduce(
+        (sum, token) => sum + (content.includes(token) ? 1 : 0),
+        0,
+      );
+
+      return {
+        documentName: row.documentName,
+        chunkIndex: row.chunkIndex,
+        content: row.content,
+        score,
+      };
+    })
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit);
+
+  return ranked.map((item) => ({
+    documentName: item.documentName,
+    chunkIndex: item.chunkIndex,
+    snippet:
+      item.content.length > 260
+        ? `${item.content.slice(0, 260)}...`
+        : item.content,
+    content: item.content,
+  }));
 }

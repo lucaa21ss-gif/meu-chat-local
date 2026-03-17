@@ -21,6 +21,9 @@ import {
   resetChat,
   exportChatMarkdown,
   renameChatFromFirstMessage,
+  upsertRagDocument,
+  listRagDocuments,
+  searchDocumentChunks,
 } from "./db.js";
 
 const CHAT_ID_REGEX = /^[a-zA-Z0-9:_-]{1,80}$/;
@@ -28,6 +31,9 @@ const MAX_TITLE_LENGTH = 120;
 const MAX_MESSAGE_LENGTH = 4000;
 const MAX_IMAGES = 4;
 const MAX_IMAGE_BASE64_LENGTH = 2_500_000;
+const MAX_RAG_DOCS_PER_UPLOAD = 6;
+const MAX_RAG_DOC_NAME_LENGTH = 140;
+const MAX_RAG_DOC_CONTENT_LENGTH = 120_000;
 
 class HttpError extends Error {
   constructor(status, message) {
@@ -189,6 +195,81 @@ function parseOptions(body = {}) {
   };
 }
 
+function parseRagOptions(body = {}) {
+  const enabled =
+    body.ragEnabled === true ||
+    body.ragEnabled === "true" ||
+    body.rag === true ||
+    body.rag === "true";
+
+  const topK = clamp(
+    Number.parseInt(body.ragTopK, 10) || 3,
+    1,
+    8,
+  );
+
+  return {
+    enabled,
+    topK,
+  };
+}
+
+function parseRagDocuments(body = {}) {
+  if (!Array.isArray(body.documents)) {
+    throw new HttpError(400, "documents deve ser uma lista");
+  }
+
+  const docs = body.documents.slice(0, MAX_RAG_DOCS_PER_UPLOAD).map((item) => {
+    if (!isPlainObject(item)) {
+      throw new HttpError(400, "Documento invalido");
+    }
+
+    const name = String(item.name || "").trim();
+    const content = String(item.content || "").trim();
+
+    if (!name) {
+      throw new HttpError(400, "Nome do documento obrigatorio");
+    }
+    if (name.length > MAX_RAG_DOC_NAME_LENGTH) {
+      throw new HttpError(400, "Nome do documento muito longo");
+    }
+    if (!content) {
+      throw new HttpError(400, "Conteudo do documento obrigatorio");
+    }
+    if (content.length > MAX_RAG_DOC_CONTENT_LENGTH) {
+      throw new HttpError(400, "Documento muito grande para indexacao local");
+    }
+
+    return { name, content };
+  });
+
+  if (!docs.length) {
+    throw new HttpError(400, "Nenhum documento enviado");
+  }
+
+  return docs;
+}
+
+function buildRagSystemMessage(chunks = []) {
+  if (!chunks.length) return null;
+
+  const context = chunks
+    .map(
+      (item) =>
+        `[Fonte: ${item.documentName}#trecho${item.chunkIndex}]\n${item.content}`,
+    )
+    .join("\n\n");
+
+  return [
+    "Voce recebeu contexto de documentos locais.",
+    "Responda com base nesse contexto quando relevante.",
+    "Ao usar um trecho, cite no formato [Fonte: arquivo#trechoN].",
+    "Se o contexto nao cobrir a pergunta, diga explicitamente que nao encontrou base documental suficiente.",
+    "",
+    context,
+  ].join("\n");
+}
+
 function parsePositiveInt(raw, fallback, min = 1, max = Number.MAX_SAFE_INTEGER) {
   const parsed = Number.parseInt(raw, 10);
   if (!Number.isFinite(parsed)) return fallback;
@@ -315,6 +396,9 @@ export function createApp(deps = {}) {
     ensureChat: deps.ensureChat || ensureChat,
     getMessages: deps.getMessages || getMessages,
     searchMessages: deps.searchMessages || searchMessages,
+    upsertRagDocument: deps.upsertRagDocument || upsertRagDocument,
+    listRagDocuments: deps.listRagDocuments || listRagDocuments,
+    searchDocumentChunks: deps.searchDocumentChunks || searchDocumentChunks,
     appendMessage: deps.appendMessage || appendMessage,
     resetChat: deps.resetChat || resetChat,
     exportChatMarkdown: deps.exportChatMarkdown || exportChatMarkdown,
@@ -440,6 +524,7 @@ export function createApp(deps = {}) {
       const message = parseMessage(req.body);
       const chatId = getChatId(req.body);
       const options = parseOptions(req.body);
+      const rag = parseRagOptions(req.body);
       const images = getMessageImages(req.body);
 
       await store.ensureChat(chatId);
@@ -447,12 +532,23 @@ export function createApp(deps = {}) {
       await store.renameChatFromFirstMessage(chatId, message);
 
       const history = await store.getMessages(chatId);
+      const ragChunks = rag.enabled
+        ? await store.searchDocumentChunks(chatId, message, { limit: rag.topK })
+        : [];
+      const ragSystemMessage = buildRagSystemMessage(ragChunks);
+
+      const messagesPayload = history.map((item) => ({
+        role: item.role,
+        content: item.content,
+        ...(item.images?.length ? { images: item.images } : {}),
+      }));
+
+      if (ragSystemMessage) {
+        messagesPayload.unshift({ role: "system", content: ragSystemMessage });
+      }
+
       const payload = {
-        messages: history.map((item) => ({
-          role: item.role,
-          content: item.content,
-          ...(item.images?.length ? { images: item.images } : {}),
-        })),
+        messages: messagesPayload,
         options: {
           temperature: options.temperature,
           num_ctx: options.num_ctx,
@@ -469,12 +565,71 @@ export function createApp(deps = {}) {
           run: (model) => chatClient.chat({ ...payload, model }),
         });
 
-      req.logger?.info({ modelUsed, attempt }, "Inferencia concluida");
+      req.logger?.info({ modelUsed, attempt, ragEnabled: rag.enabled }, "Inferencia concluida");
 
       const reply = String(response.message?.content || "");
       await store.appendMessage(chatId, "assistant", reply);
 
-      res.json({ reply, chatId });
+      res.json({
+        reply,
+        chatId,
+        citations: ragChunks.map((item) => ({
+          documentName: item.documentName,
+          chunkIndex: item.chunkIndex,
+          snippet: item.snippet,
+        })),
+      });
+    }),
+  );
+
+  app.post(
+    "/api/chats/:chatId/rag/documents",
+    asyncHandler(async (req, res) => {
+      assertBodyObject(req.body);
+      const chatId = parseChatId(req.params.chatId, "chatId");
+      const documents = parseRagDocuments(req.body);
+
+      await store.ensureChat(chatId);
+
+      const saved = [];
+      for (const doc of documents) {
+        // Ingestao local simples com chunking no SQLite para recuperacao por contexto.
+        const result = await store.upsertRagDocument(chatId, doc.name, doc.content);
+        saved.push(result);
+      }
+
+      const allDocuments = await store.listRagDocuments(chatId);
+      res.status(201).json({
+        saved,
+        documents: allDocuments,
+      });
+    }),
+  );
+
+  app.get(
+    "/api/chats/:chatId/rag/documents",
+    asyncHandler(async (req, res) => {
+      const chatId = parseChatId(req.params.chatId, "chatId");
+      const documents = await store.listRagDocuments(chatId);
+      res.json({ documents });
+    }),
+  );
+
+  app.get(
+    "/api/chats/:chatId/rag/search",
+    asyncHandler(async (req, res) => {
+      const chatId = parseChatId(req.params.chatId, "chatId");
+      const query = parseSearchQuery(req.query?.q);
+      const limit = clamp(Number.parseInt(req.query?.limit, 10) || 4, 1, 8);
+      const matches = await store.searchDocumentChunks(chatId, query, { limit });
+
+      res.json({
+        matches: matches.map((item) => ({
+          documentName: item.documentName,
+          chunkIndex: item.chunkIndex,
+          snippet: item.snippet,
+        })),
+      });
     }),
   );
 
@@ -638,6 +793,7 @@ export function createApp(deps = {}) {
       const message = parseMessage(req.body);
       const chatId = getChatId(req.body);
       const options = parseOptions(req.body);
+      const rag = parseRagOptions(req.body);
       const images = getMessageImages(req.body);
 
       await store.ensureChat(chatId);
@@ -648,12 +804,23 @@ export function createApp(deps = {}) {
 
       let fullReply = "";
 
+      const ragChunks = rag.enabled
+        ? await store.searchDocumentChunks(chatId, message, { limit: rag.topK })
+        : [];
+      const ragSystemMessage = buildRagSystemMessage(ragChunks);
+
+      const messagesPayload = history.map((item) => ({
+        role: item.role,
+        content: item.content,
+        ...(item.images?.length ? { images: item.images } : {}),
+      }));
+
+      if (ragSystemMessage) {
+        messagesPayload.unshift({ role: "system", content: ragSystemMessage });
+      }
+
       const payload = {
-        messages: history.map((item) => ({
-          role: item.role,
-          content: item.content,
-          ...(item.images?.length ? { images: item.images } : {}),
-        })),
+        messages: messagesPayload,
         stream: true,
         options: {
           temperature: options.temperature,
@@ -670,7 +837,10 @@ export function createApp(deps = {}) {
         run: (model) => chatClient.chat({ ...payload, model }),
       });
 
-      req.logger?.info({ modelUsed, attempt }, "Streaming iniciado");
+      req.logger?.info(
+        { modelUsed, attempt, ragEnabled: rag.enabled },
+        "Streaming iniciado",
+      );
 
       res.setHeader("Content-Type", "text/plain; charset=utf-8");
       res.setHeader("Transfer-Encoding", "chunked");
