@@ -73,6 +73,8 @@ const MAX_IMAGE_BASE64_LENGTH = 2_500_000;
 const MAX_RAG_DOCS_PER_UPLOAD = 6;
 const MAX_RAG_DOC_NAME_LENGTH = 140;
 const MAX_RAG_DOC_CONTENT_LENGTH = 120_000;
+const MAX_IMPORT_MESSAGES = 2000;
+const MAX_BACKUP_IMPORT_BYTES = 25 * 1024 * 1024;
 const MAX_USER_NAME_LENGTH = 40;
 const MAX_SYSTEM_PROMPT_LENGTH = 2500;
 const USER_ROLES = ["admin", "operator", "viewer"];
@@ -480,7 +482,14 @@ function parseRagDocuments(body = {}) {
     throw new HttpError(400, "documents deve ser uma lista");
   }
 
-  const docs = body.documents.slice(0, MAX_RAG_DOCS_PER_UPLOAD).map((item) => {
+  if (body.documents.length > MAX_RAG_DOCS_PER_UPLOAD) {
+    throw new HttpError(
+      400,
+      `Quantidade de documentos excede o limite (${MAX_RAG_DOCS_PER_UPLOAD})`,
+    );
+  }
+
+  const docs = body.documents.map((item) => {
     if (!isPlainObject(item)) {
       throw new HttpError(400, "Documento invalido");
     }
@@ -493,6 +502,12 @@ function parseRagDocuments(body = {}) {
     }
     if (name.length > MAX_RAG_DOC_NAME_LENGTH) {
       throw new HttpError(400, "Nome do documento muito longo");
+    }
+    if (name.includes("/") || name.includes("\\")) {
+      throw new HttpError(400, "Nome do documento invalido");
+    }
+    if (/[\u0000-\u001f]/.test(name)) {
+      throw new HttpError(400, "Nome do documento contem caracteres invalidos");
     }
     if (!content) {
       throw new HttpError(400, "Conteudo do documento obrigatorio");
@@ -664,12 +679,114 @@ function parseDirList(raw) {
     .filter(Boolean);
 }
 
+function parseChatImportPayload(rawBody = {}) {
+  assertBodyObject(rawBody);
+
+  const chat = rawBody.chat;
+  if (!isPlainObject(chat)) {
+    throw new HttpError(400, "Payload invalido: campo chat obrigatorio");
+  }
+
+  const sanitized = {
+    chat: {
+      id: chat.id ? parseChatId(chat.id, "chat.id") : undefined,
+      title: parseTitle(chat.title, "Conversa importada"),
+      userId: parseUserId(chat.userId, "user-default"),
+      isFavorite: parseBooleanLike(chat.isFavorite, false),
+      archivedAt: null,
+      systemPrompt: parseSystemPrompt(chat.systemPrompt || ""),
+      tags: Array.isArray(chat.tags) ? parseTags(chat.tags) : [],
+      messages: [],
+    },
+  };
+
+  if (chat.archivedAt !== undefined && chat.archivedAt !== null && chat.archivedAt !== "") {
+    sanitized.chat.archivedAt = parseSearchDate(chat.archivedAt, "chat.archivedAt");
+  }
+
+  if (!Array.isArray(chat.messages)) {
+    throw new HttpError(400, "Payload invalido: chat.messages deve ser uma lista");
+  }
+
+  if (chat.messages.length > MAX_IMPORT_MESSAGES) {
+    throw new HttpError(
+      400,
+      `Quantidade de mensagens excede o limite (${MAX_IMPORT_MESSAGES})`,
+    );
+  }
+
+  for (const item of chat.messages) {
+    if (!isPlainObject(item)) {
+      throw new HttpError(400, "Mensagem de importacao invalida");
+    }
+
+    const role = String(item.role || "").trim().toLowerCase();
+    if (!role || !["user", "assistant"].includes(role)) {
+      throw new HttpError(400, "Mensagem de importacao invalida: role deve ser user ou assistant");
+    }
+
+    const content = String(item.content || "").trim();
+    if (!content) {
+      throw new HttpError(400, "Mensagem de importacao invalida: content obrigatorio");
+    }
+    if (content.length > MAX_MESSAGE_LENGTH) {
+      throw new HttpError(
+        400,
+        `Mensagem de importacao muito longa (max ${MAX_MESSAGE_LENGTH})`,
+      );
+    }
+
+    let images = [];
+    if (item.images !== undefined && item.images !== null) {
+      if (!Array.isArray(item.images)) {
+        throw new HttpError(400, "Mensagem de importacao invalida: images deve ser lista");
+      }
+      if (item.images.length > MAX_IMAGES) {
+        throw new HttpError(
+          400,
+          `Mensagem de importacao invalida: maximo de ${MAX_IMAGES} imagens`,
+        );
+      }
+      images = item.images.map((image) => String(image || "").trim()).filter(Boolean);
+      for (const image of images) {
+        if (image.length > MAX_IMAGE_BASE64_LENGTH) {
+          throw new HttpError(400, "Mensagem de importacao invalida: imagem muito grande");
+        }
+      }
+    }
+
+    const createdAt =
+      item.createdAt === undefined || item.createdAt === null || item.createdAt === ""
+        ? new Date().toISOString()
+        : parseSearchDate(item.createdAt, "message.createdAt");
+
+    sanitized.chat.messages.push({
+      role,
+      content,
+      images,
+      createdAt,
+    });
+  }
+
+  return sanitized;
+}
+
 function parseBackupPayload(raw) {
   const value = String(raw ?? "").trim();
   if (!value) {
     throw new HttpError(400, "archiveBase64 obrigatorio");
   }
   const normalized = value.includes(",") ? value.split(",").pop() : value;
+  if (!/^[A-Za-z0-9+/=\r\n]+$/.test(normalized)) {
+    throw new HttpError(400, "Arquivo de backup invalido");
+  }
+  const estimatedBytes = Math.floor((normalized.replace(/\s+/g, "").length * 3) / 4);
+  if (estimatedBytes > MAX_BACKUP_IMPORT_BYTES) {
+    throw new HttpError(
+      400,
+      `Arquivo de backup excede limite de ${Math.floor(MAX_BACKUP_IMPORT_BYTES / (1024 * 1024))}MB`,
+    );
+  }
   try {
     const buffer = Buffer.from(normalized, "base64");
     if (!buffer.length) {
@@ -1141,7 +1258,20 @@ export function createApp(deps = {}) {
   app.disable("x-powered-by");
   app.use(
     helmet({
-      contentSecurityPolicy: false,
+      contentSecurityPolicy: {
+        useDefaults: true,
+        directives: {
+          defaultSrc: ["'self'"],
+          scriptSrc: ["'self'", "'unsafe-inline'"],
+          styleSrc: ["'self'", "'unsafe-inline'"],
+          imgSrc: ["'self'", "data:", "blob:"],
+          connectSrc: ["'self'"],
+          objectSrc: ["'none'"],
+          frameAncestors: ["'none'"],
+          baseUri: ["'self'"],
+          formAction: ["'self'"],
+        },
+      },
       crossOriginEmbedderPolicy: false,
     }),
   );
@@ -1892,12 +2022,7 @@ export function createApp(deps = {}) {
     "/api/chats/import",
     requireMinimumRole("operator"),
     asyncHandler(async (req, res) => {
-      assertBodyObject(req.body);
-
-      const payload = req.body;
-      if (!payload?.chat || typeof payload.chat !== "object") {
-        throw new HttpError(400, "Payload invalido: campo chat obrigatorio");
-      }
+      const payload = parseChatImportPayload(req.body);
 
       const forceNew = parseBooleanLike(req.query.forceNew, false);
       const result = await store.importChatJson(payload, { forceNew });

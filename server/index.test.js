@@ -2115,3 +2115,89 @@ test("observabilidade: GET /api/diagnostics/export bloqueado para viewer", async
     .set("x-user-id", "user-viewer")
     .expect(403);
 });
+
+test("seguranca: respostas incluem headers de hardening", async () => {
+  const app = createApp({
+    chatClient: createMockChatClient(),
+    ...createMockStore(),
+  });
+
+  const response = await request(app).get("/api/chats").expect(200);
+
+  assert.equal(response.headers["x-content-type-options"], "nosniff");
+  assert.ok(response.headers["x-frame-options"]);
+  assert.ok(response.headers["content-security-policy"]);
+  assert.ok(response.headers["referrer-policy"]);
+});
+
+test("seguranca: upload RAG rejeita quantidade acima do limite", async () => {
+  const app = createApp({
+    chatClient: createMockChatClient(),
+    ...createMockStore(),
+  });
+
+  const docs = Array.from({ length: 7 }, (_, idx) => ({
+    name: `doc-${idx + 1}.txt`,
+    content: "conteudo",
+  }));
+
+  const response = await request(app)
+    .post("/api/chats/default/rag/documents")
+    .send({ documents: docs })
+    .expect(400);
+
+  assert.equal(
+    response.body.error.includes("Quantidade de documentos excede o limite"),
+    true,
+  );
+});
+
+test("seguranca: import de chat rejeita role invalida", async () => {
+  const app = createApp({
+    chatClient: createMockChatClient(),
+    ...createMockStore(),
+  });
+
+  const response = await request(app)
+    .post("/api/chats/import")
+    .send({
+      chat: {
+        id: "chat-role-invalida",
+        title: "Conversa",
+        userId: "user-default",
+        messages: [
+          {
+            role: "system",
+            content: "mensagem invalida",
+          },
+        ],
+      },
+    })
+    .expect(400);
+
+  assert.equal(
+    response.body.error.includes("role deve ser user ou assistant"),
+    true,
+  );
+});
+
+test("seguranca: backup restore rejeita base64 malformado", async () => {
+  const app = createApp({
+    chatClient: createMockChatClient(),
+    ...createMockStore(),
+    backupService: {
+      createBackup: async () => ({
+        fileName: "x.tgz",
+        archiveBuffer: Buffer.from("x"),
+      }),
+      restoreBackup: async () => ({ restored: true }),
+    },
+  });
+
+  const response = await request(app)
+    .post("/api/backup/restore")
+    .send({ archiveBase64: "@@@###" })
+    .expect(400);
+
+  assert.equal(response.body.error, "Arquivo de backup invalido");
+});
