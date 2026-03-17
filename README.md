@@ -7,12 +7,12 @@ Projeto de chat local com frontend moderno, streaming em tempo real, persistenci
 
 ## Visao geral
 
-- Backend Node.js/Express integrado com Ollama
-- Frontend em HTML + Tailwind CSS
-- Resposta em streaming token a token
-- Historico persistente por aba em SQLite
-- Exportacao de conversa em Markdown
-- Recursos extras: voz (Web Speech API), anexo de imagem para modelos multimodais, copiar resposta
+- Aplicacao local completa com backend Node.js/Express, frontend web e persistencia SQLite
+- Integracao com Ollama para chat sincrono e streaming token a token
+- Experiencia multimodal com voz, imagens, RAG local por aba e exportacao de conversas
+- Operacao assistida com health checks, SLO, auto-healing, scorecard, diagnostico e auditoria local
+- Automacoes operacionais para canary, DR test, perfil de capacidade, backup e distribuicao
+- Suite de testes backend/frontend e pipeline CI para validar regressao, seguranca e qualidade
 
 Pontos de entrada para usuario final:
 
@@ -25,57 +25,95 @@ Pontos de entrada para usuario final:
 Fluxo principal da aplicacao:
 
 1. O frontend envia mensagens para a API (`/api/chat` ou `/api/chat-stream`)
-2. O backend valida o payload, registra logs e encaminha para o Ollama
-3. As respostas podem retornar completas ou em streaming token a token
-4. Conversas e mensagens sao persistidas em SQLite por aba (`chatId`)
-5. A UI atualiza historico, permite exportacao Markdown e acoes de organizacao
+2. O backend aplica validacao, RBAC, rate limiting, auditoria e controles operacionais
+3. A camada de aplicacao encaminha inferencia para o Ollama e integra recursos locais como RAG, backup e diagnostico
+4. Conversas, mensagens, configuracoes e trilhas operacionais sao persistidas em SQLite e artefatos locais
+5. A UI atualiza historico, status de saude, acoes administrativas e exportacoes sem depender de servicos externos
 
 Camadas por responsabilidade:
 
-- Interface (`web/`): renderizacao da UI, eventos, streaming no cliente, estilos
-- Aplicacao (`server/index.js`): rotas HTTP, middlewares, regras de API
-- Integracao de modelo (`server/ollama.js`): comunicacao com Ollama
-- Persistencia (`server/db.js`): armazenamento e recuperacao em SQLite
-- Observabilidade (`server/logger.js`): logs estruturados e correlacao por `traceId`
-- Infra local (`docker-compose.yml` + `ollama/Modelfile`): orquestracao e modelo base
+- Interface (`web/`): paginas do produto/chat/guia, eventos, streaming no cliente, atalhos e indicadores de health
+- Aplicacao (`server/index.js`): rotas HTTP, middlewares, RBAC, validacoes, scorecard e coordenacao dos fluxos
+- Persistencia e servicos (`server/db.js`, `server/storage.js`, `server/backup.js`, `server/rateLimiter.js`): dados, backup, fila local, storage e controles operacionais
+- Integracao de modelo (`server/ollama.js`): comunicacao com Ollama, retries e fallback de inferencia
+- Observabilidade (`server/logger.js`, `server/telemetry.js`): logs estruturados, `traceId`, metricas e snapshots operacionais
+- Automacao operacional (`scripts/`): empacotamento, instalacao, canary, DR test, runbook de incidente e capacity profile
+- Infra local (`docker-compose.yml`, `server/Dockerfile`, `ollama/Modelfile`): orquestracao, build e modelo base
 
 ## Estrutura fisica
 
 ```text
 .
+├── .github/
+│   └── workflows/
+├── dist/
 ├── docker-compose.yml
 ├── ollama/
 │   └── Modelfile
+├── scripts/
+│   ├── capacity-profile.mjs
+│   ├── disaster-recovery-test.sh
+│   ├── package-dist.sh
+│   ├── release-canary.mjs
+│   ├── runbook-incident.sh
+│   ├── start.sh
+│   ├── stop.sh
+│   └── uninstall.sh
 ├── server/
-│   ├── index.js
-│   ├── ollama.js
+│   ├── artifacts/
+│   ├── backup.js
+│   ├── backup.test.js
+│   ├── chaos.test.js
 │   ├── db.js
+│   ├── db.migrations.test.js
+│   ├── Dockerfile
+│   ├── index.js
+│   ├── index.test.js
+│   ├── integrity.test.js
 │   ├── logger.js
+│   ├── ollama.js
 │   ├── package.json
-│   └── Dockerfile
+│   ├── rateLimiter.js
+│   ├── storage.js
+│   ├── storage.test.js
+│   └── telemetry.js
 └── web/
+    ├── assets/
+    ├── guia.html
+    ├── health-indicators.js
+    ├── health-indicators.test.cjs
     ├── index.html
+    ├── output.css
+    ├── package.json
+    ├── produto.html
     ├── script.js
+    ├── style.css
     ├── styles.css
-    ├── tailwind.config.js
-    └── package.json
+    └── tailwind.config.js
 ```
 
 Arquivos-chave para comecar rapido:
 
 - `server/index.js`: ponto de entrada da API e middlewares
-- `server/db.js`: camada de persistencia SQLite
+- `server/db.js`: persistencia SQLite, historico de chats e configuracoes
+- `server/backup.js`: exportacao/restauracao e validacao de backups
+- `server/storage.js`: uso e limpeza de armazenamento local
 - `web/index.html`: estrutura da UI
-- `web/script.js`: logica de chat e streaming no cliente
-- `web/styles.css`: estilos Tailwind + customizacoes
+- `web/script.js`: logica de chat, streaming, filtros, health e acoes operacionais no cliente
+- `web/health-indicators.js`: utilitarios de renderizacao e polling de status de saude
+- `scripts/capacity-profile.mjs`: runner operacional de capacidade
 
 ## Requisitos
 
-- Docker e Docker Compose
-- Node.js 20+ (para rodar localmente sem Docker)
-- Ollama instalado localmente apenas se nao usar Docker para o servico Ollama
+- Docker e Docker Compose para o fluxo empacotado/recomendado
+- Node.js 20+ e npm para execucao local, testes e automacoes
+- Ollama instalado localmente apenas se nao usar Docker para o servico de modelo
+- Ambiente Linux/macOS ou Windows com shell compativel para os scripts em `scripts/`
+- OpenSSL e `sha256sum` para verificacao manual de integridade do pacote de distribuicao
 
 ## Setup rapido (Docker)
+
+Fluxo recomendado para subir a stack completa localmente:
 
 1. Build e subida dos servicos:
 
@@ -83,12 +121,15 @@ Arquivos-chave para comecar rapido:
 docker compose up --build
 ```
 
-2. Abra a UI:
+2. Aguarde o backend expor a interface e a API em `http://localhost:3001`.
+
+3. Abra a UI:
 
 - [http://localhost:3001](http://localhost:3001) para acessar a interface web
 - [http://localhost:3001/produto](http://localhost:3001/produto) para a pagina de produto
 - [http://localhost:3001/guia](http://localhost:3001/guia) para o guia rapido do usuario
-- [http://localhost:3001/api/chats](http://localhost:3001/api/chats) para validar a API
+- [http://localhost:3001/healthz](http://localhost:3001/healthz) para validar liveness
+- [http://localhost:3001/api/health](http://localhost:3001/api/health) para validar health operacional
 
 ## Distribuicao para usuario final
 
@@ -137,6 +178,8 @@ Tambem disponivel via npm na raiz do projeto:
 
 ## Setup local (sem Docker para frontend/server)
 
+Fluxo util para desenvolvimento, troubleshooting e execucao das automacoes locais.
+
 ### Backend
 
 ```bash
@@ -149,12 +192,24 @@ API em `http://localhost:3001`.
 
 Com o backend em execucao, a interface tambem fica disponivel em `http://localhost:3001`.
 
+Checks uteis no backend:
+
+```bash
+npm test
+```
+
 ### Frontend
 
 ```bash
 cd web
 npm install
 npm run build:css
+```
+
+Teste unitario atual do frontend:
+
+```bash
+npm test
 ```
 
 Para desenvolvimento com recompilacao de CSS:
@@ -168,47 +223,79 @@ mas o fluxo recomendado e usar `http://localhost:3001` para manter API e UI na m
 
 ## Endpoints principais
 
+Saude e operacao:
+
 - `GET /healthz`: liveness check do servidor
-- `GET /readyz`: readiness check (valida acesso ao store)
-- `GET /api/health`: saude expandida (checks + telemetria + status SLO)
-- `GET /api/slo`: snapshot de confiabilidade por rotas criticas (operator/admin)
+- `GET /readyz`: readiness check do backend
+- `GET /api/health`: saude expandida (checks, alerts, baseline, fila, telemetry e snapshots)
+- `GET /api/slo`: snapshot de confiabilidade por rotas criticas (`operator|admin`)
+- `GET /api/scorecard`: scorecard operacional consolidado (`operator|admin`)
+
+Chat e historico:
+
 - `POST /api/chat`: chat sem streaming
 - `POST /api/chat-stream`: chat com streaming
-- `POST /api/reset`: limpa chat padrao
-- `GET /api/chats`: lista abas
+- `POST /api/reset`: limpa o chat padrao
+- `GET /api/chats`: lista abas com filtros, busca e paginacao
 - `POST /api/chats`: cria aba
-- `GET /api/users`: lista perfis locais
-- `POST /api/users`: cria perfil local
-- `PATCH /api/users/:userId`: renomeia perfil local
-- `GET /api/users/:userId/ui-preferences`: consulta preferencias de UI do perfil
-- `PATCH /api/users/:userId/ui-preferences`: persiste preferencias de UI do perfil, como tema (`light`, `dark`, `system`)
-- `DELETE /api/users/:userId`: exclui perfil e seus dados
-- `POST /api/chats/:chatId/duplicate`: duplica aba com historico (suporta `userOnly: true`)
+- `POST /api/chats/:chatId/duplicate`: duplica aba com historico (`userOnly: true` opcional)
 - `PATCH /api/chats/:chatId`: renomeia aba
 - `DELETE /api/chats/:chatId`: exclui aba
 - `GET /api/chats/:chatId/messages`: carrega mensagens da aba
-- `GET /api/chats/:chatId/search?q=termo&role=all&page=1&limit=20&from=<iso>&to=<iso>`: busca textual no historico da aba com filtros
-- `POST /api/chats/:chatId/rag/documents`: indexa documentos locais (nome + conteudo)
-- `GET /api/chats/:chatId/rag/documents`: lista documentos indexados da aba
-- `GET /api/chats/:chatId/rag/search?q=termo&limit=4`: busca trechos relevantes da base documental
+- `GET /api/chats/:chatId/search?q=termo&role=all&page=1&limit=20&from=<iso>&to=<iso>`: busca textual no historico da aba
 - `POST /api/chats/:chatId/reset`: limpa uma aba
-- `GET /api/chats/:chatId/export?format=markdown|json`: exporta conversa em Markdown ou JSON
-- `GET /api/chats/export?userId=<perfil>&favorites=true&format=markdown`: exporta em lote as conversas favoritas em Markdown
-- `GET /api/backup/export`: exporta backup completo (`.tgz` legado ou `.tgz.enc` protegido por passphrase)
-- `POST /api/backup/restore`: restaura backup completo com deteccao automatica de formato legado/criptografado
-- `GET /api/backup/validate?limit=3`: valida os ultimos backups e retorna status operacional (`ok|alerta|falha`)
-- `POST /api/storage/cleanup`: executa simulacao (`dry-run`) ou limpeza real (`execute`) com retencao inteligente para backups
-- `GET /api/incident/status`: consulta o estado operacional atual do incidente (operator/admin)
-- `PATCH /api/incident/status`: atualiza estado operacional do incidente (somente admin)
-- `POST /api/incident/runbook/execute`: executa runbook operacional por tipo (somente admin)
-- `GET /api/auto-healing/status`: consulta estado e politicas de auto-healing (operator/admin)
-- `PATCH /api/auto-healing/status`: atualiza modo/limites de auto-healing (somente admin)
-- `POST /api/auto-healing/execute`: executa politica de auto-healing sob demanda (somente admin)
-- `POST /api/disaster-recovery/test`: executa cenário automatizado de desastre e restauração (somente admin)
-- `GET /api/integrity/status`: consulta integridade de artefatos críticos em runtime (operator/admin)
-- `POST /api/integrity/verify`: força verificação de integridade e registra auditoria (somente admin)
-- `GET /api/capacity/latest`: consulta o último resumo do perfil local de capacidade (operator/admin)
-- `GET /api/diagnostics/export`: exporta pacote de diagnostico forense (somente admin); inclui estado de saude, SLO, storage, erros recentes, checklist de triagem e audit logs
+- `GET /api/chats/:chatId/export?format=markdown|json`: exporta uma conversa
+- `GET /api/chats/export?userId=<perfil>&favorites=true&format=markdown`: exporta conversas em lote
+
+Prompts, perfis e preferencias:
+
+- `GET /api/users`: lista perfis locais
+- `POST /api/users`: cria perfil local
+- `PATCH /api/users/:userId`: renomeia perfil local
+- `DELETE /api/users/:userId`: exclui perfil e dados vinculados
+- `GET /api/users/:userId/ui-preferences`: consulta preferencias de UI do perfil
+- `PATCH /api/users/:userId/ui-preferences`: persiste preferencias de UI do perfil
+- `PATCH /api/users/:userId/system-prompt-default`: define prompt padrao do perfil
+- `GET /api/chats/:chatId/system-prompt`: consulta prompt da conversa
+- `PATCH /api/chats/:chatId/system-prompt`: atualiza prompt da conversa
+
+RAG local:
+
+- `POST /api/chats/:chatId/rag/documents`: indexa documentos locais
+- `GET /api/chats/:chatId/rag/documents`: lista documentos indexados
+- `GET /api/chats/:chatId/rag/search?q=termo&limit=4`: busca trechos relevantes da base documental
+
+Backup, storage e diagnostico:
+
+- `GET /api/backup/export`: exporta backup completo (`.tgz` ou `.tgz.enc`)
+- `POST /api/backup/restore`: restaura backup com deteccao automatica de formato
+- `GET /api/backup/validate?limit=3`: valida backups recentes
+- `GET /api/storage/usage`: consulta uso de armazenamento (`operator|admin`)
+- `POST /api/storage/cleanup`: executa simulacao ou limpeza real
+- `GET /api/diagnostics/export`: exporta pacote de diagnostico forense (`admin`)
+- `GET /api/capacity/latest`: consulta o ultimo snapshot de capacidade (`operator|admin`)
+- `GET /api/integrity/status`: consulta integridade em runtime (`operator|admin`)
+- `POST /api/integrity/verify`: forca verificacao de integridade (`admin`)
+
+Governanca e operacao segura:
+
+- `GET /api/telemetry`: consulta status e metricas da telemetria
+- `PATCH /api/telemetry`: ativa/desativa telemetria local
+- `GET /api/config/versions`: lista versoes de configuracao (`operator|admin`)
+- `POST /api/config/versions/:versionId/rollback`: executa rollback de configuracao (`admin`)
+- `GET /api/config/baseline`: consulta baseline e drift atual (`operator|admin`)
+- `POST /api/config/baseline`: salva baseline aprovado (`operator|admin`)
+- `GET /api/approvals`: lista solicitacoes de aprovacao (`operator|admin`)
+- `POST /api/approvals`: cria solicitacao de aprovacao (`operator|admin`)
+- `POST /api/approvals/:approvalId/decision`: aprova ou rejeita solicitacao (`admin`)
+- `GET /api/audit/export`: exporta auditoria em JSON (`operator|admin`)
+- `GET /api/incident/status`: consulta estado operacional do incidente (`operator|admin`)
+- `PATCH /api/incident/status`: atualiza estado operacional do incidente (`admin`)
+- `POST /api/incident/runbook/execute`: executa runbook operacional (`admin`)
+- `GET /api/auto-healing/status`: consulta politicas de auto-healing (`operator|admin`)
+- `PATCH /api/auto-healing/status`: atualiza limites/modo de auto-healing (`admin`)
+- `POST /api/auto-healing/execute`: executa politica de auto-healing sob demanda (`admin`)
+- `POST /api/disaster-recovery/test`: executa cenário automatizado de DR (`admin`)
 
 ## Backup criptografado opcional
 
@@ -674,19 +761,19 @@ Mecanismo de aprovacao previa para acoes de alto impacto. Exige que um administr
 
 ```bash
 # Criar solicitacao
-curl -s -X POST http://localhost:3000/api/approvals \
+curl -s -X POST http://localhost:3001/api/approvals \
   -H "Content-Type: application/json" \
   -H "x-user-id: user-operator" \
   -d '{"action":"backup.restore","reason":"Restauracao de emergencia apos falha","windowMinutes":30}'
 
 # Aprovar (como admin)
-curl -s -X POST http://localhost:3000/api/approvals/<approvalId>/decision \
+curl -s -X POST http://localhost:3001/api/approvals/<approvalId>/decision \
   -H "Content-Type: application/json" \
   -H "x-user-id: user-default" \
   -d '{"decision":"approve","approverNote":"Confirmado com oncall"}'
 
 # Executar acao protegida
-curl -s -X POST http://localhost:3000/api/backup/restore \
+curl -s -X POST http://localhost:3001/api/backup/restore \
   -H "Content-Type: application/json" \
   -d '{"archiveBase64":"...","passphrase":"...","approvalId":"<approvalId>"}'
 ```
@@ -823,7 +910,8 @@ Checklist de atualizacao segura:
 7. Envie a mensagem e acompanhe o streaming
 8. Copie qualquer mensagem pelo botao `Copiar mensagem`; para respostas da IA, use tambem `Ouvir resposta` (TTS)
 9. Exporte a conversa por `Exportar Markdown`
-10. Use `Renomear aba` e `Excluir aba` para organizar suas conversas
+10. Use `Renomear aba`, `Duplicar aba`, `Favoritar` e `Excluir aba` para organizar suas conversas
+11. Acompanhe o badge de saude no header para checar status do sistema e latencia do modelo
 
 ## Atalhos de teclado
 
@@ -856,8 +944,6 @@ Observacoes:
 - O tema da interface tambem pode ser persistido por perfil via `GET/PATCH /api/users/:userId/ui-preferences`.
 - O perfil `padrao` existe por default e nao pode ser excluido.
 - A listagem de abas usa `GET /api/chats?userId=<perfil>`.
-
-Exemplos de uso da API:
 
 ## SLO local de confiabilidade
 
@@ -894,19 +980,35 @@ curl -X POST http://localhost:3001/api/chats \
 
 ## Testes automatizados
 
-Execute no backend:
+Backend:
 
 ```bash
 cd server
 npm test
 ```
 
+Frontend:
+
+```bash
+cd web
+npm test
+```
+
+Checks de apoio na raiz:
+
+```bash
+npm run lint
+npm run format:check
+```
+
 Cobertura atual da suite:
 
-- criacao/listagem de abas
-- duplicacao completa e duplicacao apenas de mensagens do usuario
-- renomeacao/exclusao de abas
-- streaming e exportacao de conversa
+- fluxos de chat, streaming, exportacao e busca
+- perfis, prompts e preferencias de UI
+- backup, restore, storage e validacao operacional
+- diagnostico, integridade, capacity profile, scorecard e approvals
+- caos local, DR test e governanca operacional
+- utilitarios de health no frontend
 
 ## CI
 
@@ -1030,7 +1132,7 @@ O envio de imagem e opcional e depende do modelo escolhido suportar imagens.
 - Voz indisponivel:
   - o navegador pode nao suportar Web Speech API
 
-## Hardening (Sprint 1)
+## Seguranca e configuracao do backend
 
 - Security headers via `helmet`
 - Rate limit por IP nas rotas `/api`, `/api/chat` e `/api/chat-stream`
@@ -1040,10 +1142,9 @@ O envio de imagem e opcional e depende do modelo escolhido suportar imagens.
 Variaveis de ambiente opcionais no backend:
 
 - `FRONTEND_ORIGIN`: origem permitida no CORS
-- `JSON_LIMIT`: limite de payload JSON (padrao: `8mb`)
+- `JSON_LIMIT`: limite de payload JSON (padrao atual: `32mb`)
 - `RATE_LIMIT_WINDOW_MS`: janela do rate limit geral (padrao: `900000`)
 - `RATE_LIMIT_MAX`: limite geral de requests na janela (padrao: `400`)
-- `RATE_LIMIT_CHAT_MAX`: limite de requests de chat na janela (padrao: `80`)
 - `OLLAMA_TIMEOUT_MS`: timeout por tentativa de inferencia em milissegundos (padrao: `45000`)
 - `OLLAMA_MAX_ATTEMPTS`: numero maximo de tentativas por requisicao de chat (padrao: `2`, maximo `3`)
 - `OLLAMA_FALLBACK_MODEL`: modelo de fallback quando o principal falha (ex.: `mistral`)
@@ -1051,13 +1152,17 @@ Variaveis de ambiente opcionais no backend:
 - `LOG_LEVEL`: nivel de log (`fatal`, `error`, `warn`, `info`, `debug`, `trace`) (padrao: `info`)
 - `NODE_ENV`: quando `production`, usa logs JSON em vez de formato colorido de desenvolvimento
 - `LOG_PRETTY`: quando `true`, habilita logs legiveis via `pino-pretty` (recomendado apenas para desenvolvimento local)
+- `QUEUE_MAX_CONCURRENCY`: concorrencia maxima da fila local de chat-stream (padrao: `4`)
+- `QUEUE_MAX_SIZE`: tamanho maximo da fila local (padrao: `100`)
+- `QUEUE_TASK_TIMEOUT_MS`: timeout por tarefa da fila (padrao: `30000`)
+- `QUEUE_REJECT_POLICY`: politica quando a fila satura (padrao: `reject`)
 
 Notas sobre CORS:
 
 - Sem `FRONTEND_ORIGIN`, o backend aceita por padrao apenas `http://localhost:3001` e `http://127.0.0.1:3001` (alem de requests sem header `Origin`, como health checks e curl)
 - Para liberar outras origens, defina `FRONTEND_ORIGIN` com uma ou mais URLs separadas por virgula
 
-## Observabilidade e performance (Sprint 4 e 5)
+## Observabilidade e performance
 
 - Logging estruturado com `pino` + `pino-http`
 - `traceId` por request (header `x-trace-id`) para correlacao ponta a ponta
@@ -1065,7 +1170,7 @@ Notas sobre CORS:
 - Cache de assets estaticos com `max-age=1d`
 - `/readyz` inclui tempo de resposta para diagnostico rapido
 
-## Migrations de banco (Sprint 6)
+## Migrations de banco
 
 - Schema versionado em `schema_migrations` (SQLite)
 - Migracoes executadas automaticamente no startup
@@ -1073,12 +1178,12 @@ Notas sobre CORS:
 
 ## Upgrades futuros sugeridos
 
-- Autenticacao e perfis
-- Busca full-text no historico
-- RAG com base local (arquivos/PDF)
-- TTS para leitura da resposta
-- Upload multiplo de imagens
-- Modo colaborativo em tempo real
+- Autenticacao local com login por senha ou chave do dispositivo
+- Busca full-text indexada para historicos extensos
+- Importacao de documentos binarios adicionais no RAG local (ex.: PDF com parsing dedicado)
+- Dashboard operacional dedicado para scorecard, fila e approvals
+- Empacotamento multiplataforma com instalador nativo
+- Modo colaborativo ou compartilhamento controlado entre perfis locais
 
 ## Licenca
 
