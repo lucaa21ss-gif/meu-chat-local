@@ -2401,6 +2401,176 @@ function createOperationalApprovalService({ approvalsPath, now = () => Date.now(
   };
 }
 
+function createScorecardService({ scorecardPath, now = () => new Date().toISOString() }) {
+  function buildStatus(dimensions) {
+    const statuses = dimensions.map((d) => d.status);
+    if (statuses.some((s) => s === "critico")) return "critico";
+    if (statuses.some((s) => s === "alerta")) return "alerta";
+    return "ok";
+  }
+
+  function healthDimension(health) {
+    const s = health?.status;
+    return {
+      name: "health",
+      label: "Saude do sistema",
+      status: s === "healthy" ? "ok" : s === "degraded" ? "alerta" : s === "unhealthy" ? "critico" : "ok",
+      detail: { status: s, checks: health?.checks },
+    };
+  }
+
+  function sloDimension(slo) {
+    const s = slo?.status;
+    return {
+      name: "slo",
+      label: "SLO de disponibilidade e latencia",
+      status: s === "ok" ? "ok" : s === "alerta" ? "alerta" : "ok",
+      detail: { status: s, evaluatedRoutes: slo?.evaluatedRoutes },
+    };
+  }
+
+  function backupDimension(backupValidation) {
+    const s = backupValidation?.status;
+    return {
+      name: "backup",
+      label: "Validacao de backups recentes",
+      status: s === "ok" ? "ok" : s === "alerta" ? "alerta" : s === "falha" ? "critico" : "ok",
+      detail: { status: s, items: backupValidation?.items },
+    };
+  }
+
+  function integrityDimension(integrity) {
+    const s = integrity?.status;
+    return {
+      name: "integrity",
+      label: "Integridade de artefatos criticos",
+      status: s === "ok" ? "ok" : s === "failed" ? "critico" : "ok",
+      detail: { status: s, mismatches: integrity?.mismatches?.length ?? 0 },
+    };
+  }
+
+  function capacityDimension(capacity) {
+    const s = capacity?.status;
+    return {
+      name: "capacity",
+      label: "Orcamento de capacidade",
+      status: s === "approved" ? "ok" : s === "alerta" ? "alerta" : s === "blocked" ? "critico" : "ok",
+      detail: { status: s, totals: capacity?.totals },
+    };
+  }
+
+  function autoHealingDimension(autoHealing) {
+    const circuit = autoHealing?.circuit;
+    const s = autoHealing?.enabled === false ? "alerta" : circuit === "open" ? "alerta" : "ok";
+    return {
+      name: "auto-healing",
+      label: "Auto-healing e recuperacao automatica",
+      status: s,
+      detail: { enabled: autoHealing?.enabled, circuit, attempts: autoHealing?.attemptCount },
+    };
+  }
+
+  function incidentDimension(incident) {
+    const s = incident?.status;
+    return {
+      name: "incident",
+      label: "Status de incidente operacional",
+      status: s === "normal" ? "ok" : s === "resolved" ? "ok" : s === "investigating" || s === "mitigating" ? "alerta" : "ok",
+      detail: { status: s, severity: incident?.severity, summary: incident?.summary },
+    };
+  }
+
+  function baselineDimension(baseline) {
+    const s = baseline?.status;
+    return {
+      name: "baseline",
+      label: "Drift de configuracao",
+      status: s === "ok" ? "ok" : s === "drift" ? "alerta" : "ok",
+      detail: { status: s, driftedKeys: baseline?.driftedKeys, checkedAt: baseline?.checkedAt },
+    };
+  }
+
+  function pendingApprovalsDimension(pendingApprovals) {
+    const count = pendingApprovals ?? 0;
+    return {
+      name: "approvals",
+      label: "Aprovacoes operacionais pendentes",
+      status: count > 0 ? "alerta" : "ok",
+      detail: { pendingCount: count },
+    };
+  }
+
+  function queueDimension(queue) {
+    const saturated = queue && (queue.rejectedCount > 0 || (queue.queuedCount + queue.activeCount) > (queue.maxConcurrency * 2));
+    return {
+      name: "queue",
+      label: "Fila de operacoes",
+      status: saturated ? "alerta" : "ok",
+      detail: { activeCount: queue?.activeCount, queuedCount: queue?.queuedCount, rejectedCount: queue?.rejectedCount },
+    };
+  }
+
+  function buildRecommendations(dimensions) {
+    const recs = [];
+    for (const dim of dimensions) {
+      if (dim.status === "critico") {
+        recs.push({ dimension: dim.name, severity: "critical", action: `Dimensao ${dim.label} em estado critico — intervencao imediata necessaria` });
+      } else if (dim.status === "alerta") {
+        recs.push({ dimension: dim.name, severity: "medium", action: `Dimensao ${dim.label} em alerta — revisar e planejar correcao` });
+      }
+    }
+    if (!recs.length) {
+      recs.push({ dimension: "all", severity: "info", action: "Todos os indicadores operacionais estao saudaveis" });
+    }
+    return recs;
+  }
+
+  async function generate({
+    health,
+    slo,
+    backupValidation,
+    integrity,
+    capacity,
+    autoHealing,
+    incident,
+    baseline,
+    pendingApprovals,
+    queue,
+  }) {
+    const dimensions = [
+      healthDimension(health),
+      sloDimension(slo),
+      backupDimension(backupValidation),
+      integrityDimension(integrity),
+      capacityDimension(capacity),
+      autoHealingDimension(autoHealing),
+      incidentDimension(incident),
+      baselineDimension(baseline),
+      pendingApprovalsDimension(pendingApprovals),
+      queueDimension(queue),
+    ];
+
+    const status = buildStatus(dimensions);
+    const recommendations = buildRecommendations(dimensions);
+    const generatedAt = now();
+
+    const scorecard = {
+      version: 1,
+      generatedAt,
+      status,
+      dimensions,
+      recommendations,
+    };
+
+    await fsMkdir(path.dirname(scorecardPath), { recursive: true });
+    await fsWriteFile(scorecardPath, JSON.stringify(scorecard, null, 2), "utf-8");
+
+    return scorecard;
+  }
+
+  return { generate };
+}
+
 function buildCapacityEmptySummary(reason = "capacity-report-missing") {
   return {
     status: "unknown",
@@ -2995,6 +3165,12 @@ export function createApp(deps = {}) {
         "approvals",
         "operational-approvals.json",
       ),
+    });
+
+  const scorecardService =
+    deps.scorecardService ||
+    createScorecardService({
+      scorecardPath: path.join(serverDir, "artifacts", "scorecard", "scorecard-latest.json"),
     });
 
   const roleLimits = deps.roleLimits ?? {
@@ -4906,6 +5082,67 @@ export function createApp(deps = {}) {
       res.end();
     }
   });
+
+  app.get(
+    "/api/scorecard",
+    requireMinimumRole("operator"),
+    asyncHandler(async (req, res) => {
+      const [healthDb, healthModel, healthDisk] = await Promise.all([
+        healthProviders.checkDb(),
+        healthProviders.checkModel(),
+        healthProviders.checkDisk(),
+      ]);
+
+      const healthChecks = { db: healthDb, model: healthModel, disk: healthDisk };
+      const health = {
+        status: buildOverallHealthStatus(healthChecks),
+        checks: healthChecks,
+      };
+
+      const sloSnapshot = buildSloSnapshot(
+        getTelemetryStats().map((item) => ({
+          ...item,
+          errorRate: item.count ? Math.round((item.errors / item.count) * 100) : 0,
+        })),
+      );
+
+      const backupValidation = await backupService
+        .validateRecentBackups({ limit: 3 })
+        .catch(() => ({ status: "falha", items: [] }));
+
+      const [integrity, capacity, baseline] = await Promise.all([
+        integrityService.getOrRefresh(),
+        capacityService.getLatestSummary(),
+        baselineService.check(),
+      ]);
+
+      const autoHealing = autoHealingService.getStatus();
+      const incident = incidentService.getStatus();
+      const queue = queueService.getMetrics();
+      const pendingResult = await approvalService.list({ status: "pending", limit: 200 });
+      const pendingApprovals = pendingResult.total;
+
+      const scorecard = await scorecardService.generate({
+        health,
+        slo: sloSnapshot,
+        backupValidation,
+        integrity,
+        capacity,
+        autoHealing,
+        incident,
+        baseline,
+        pendingApprovals,
+        queue,
+      });
+
+      await recordAudit("scorecard.generated", null, {
+        status: scorecard.status,
+        dimensionsCount: scorecard.dimensions.length,
+      });
+
+      return res.json({ scorecard });
+    }),
+  );
 
   // Pacote de diagnostico local para suporte tecnico
   app.get(

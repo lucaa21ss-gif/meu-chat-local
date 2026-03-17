@@ -3519,3 +3519,114 @@ test("upload policy: bloqueios de upload ficam registrados no audit log", async 
             .expect(410);
     });
 });
+
+test("GET /api/scorecard retorna scorecard consolidado com todas as dimensoes", async () => {
+    const app = createApp({
+        chatClient: createMockChatClient(),
+        ...createMockStore(),
+        healthProviders: {
+            checkDb: async () => ({ status: "healthy", latencyMs: 1 }),
+            checkModel: async () => ({ status: "healthy", latencyMs: 2, ollama: "online" }),
+            checkDisk: async () => ({ status: "healthy", latencyMs: 1, freePercent: 70, totalBytes: 1000, freeBytes: 700 }),
+        },
+        backupService: {
+            createBackup: async () => ({ fileName: "x.tgz", archiveBuffer: Buffer.from("x") }),
+            restoreBackup: async () => ({ restored: true }),
+            validateRecentBackups: async () => ({ status: "ok", items: [], checkedAt: new Date().toISOString(), limit: 3 }),
+        },
+        integrityService: {
+            getOrRefresh: async () => ({ status: "ok", mismatches: [], missingFiles: [], checkedAt: new Date().toISOString() }),
+        },
+        capacityService: {
+            getLatestSummary: async () => ({ status: "approved", totals: { requestCount: 100, errorRate: 0 }, endpoints: [], generatedAt: new Date().toISOString() }),
+        },
+    });
+
+    const response = await request(app)
+        .get("/api/scorecard")
+        .set("x-user-id", "user-operator")
+        .expect(200);
+
+    assert.equal(typeof response.body.scorecard, "object");
+    assert.equal(response.body.scorecard.version, 1);
+    assert.equal(typeof response.body.scorecard.generatedAt, "string");
+    assert.ok(["ok", "alerta", "critico"].includes(response.body.scorecard.status));
+    assert.ok(Array.isArray(response.body.scorecard.dimensions));
+    assert.ok(response.body.scorecard.dimensions.length >= 10);
+    assert.ok(Array.isArray(response.body.scorecard.recommendations));
+
+    const dimNames = response.body.scorecard.dimensions.map((d) => d.name);
+    assert.ok(dimNames.includes("health"));
+    assert.ok(dimNames.includes("slo"));
+    assert.ok(dimNames.includes("backup"));
+    assert.ok(dimNames.includes("integrity"));
+    assert.ok(dimNames.includes("capacity"));
+    assert.ok(dimNames.includes("auto-healing"));
+    assert.ok(dimNames.includes("incident"));
+    assert.ok(dimNames.includes("baseline"));
+    assert.ok(dimNames.includes("approvals"));
+    assert.ok(dimNames.includes("queue"));
+});
+
+test("GET /api/scorecard sinaliza critico quando integridade falha e alerta quando baseline diverge", async () => {
+    const app = createApp({
+        chatClient: createMockChatClient(),
+        ...createMockStore(),
+        healthProviders: {
+            checkDb: async () => ({ status: "healthy", latencyMs: 1 }),
+            checkModel: async () => ({ status: "healthy", latencyMs: 2, ollama: "online" }),
+            checkDisk: async () => ({ status: "healthy", latencyMs: 1, freePercent: 70, totalBytes: 1000, freeBytes: 700 }),
+        },
+        backupService: {
+            createBackup: async () => ({ fileName: "x.tgz", archiveBuffer: Buffer.from("x") }),
+            restoreBackup: async () => ({ restored: true }),
+            validateRecentBackups: async () => ({ status: "ok", items: [], checkedAt: new Date().toISOString(), limit: 3 }),
+        },
+        integrityService: {
+            getOrRefresh: async () => ({
+                status: "failed",
+                mismatches: [{ file: "docker-compose.yml", expected: "abc", actual: "def" }],
+                missingFiles: [],
+                checkedAt: new Date().toISOString(),
+            }),
+        },
+        capacityService: {
+            getLatestSummary: async () => ({ status: "approved", totals: { requestCount: 10, errorRate: 0 }, endpoints: [] }),
+        },
+        baselineService: {
+            check: async () => ({ status: "drift", driftedKeys: ["telemetryEnabled"], checkedAt: new Date().toISOString() }),
+            load: async () => null,
+            save: async () => {},
+        },
+    });
+
+    const response = await request(app)
+        .get("/api/scorecard")
+        .set("x-user-id", "user-operator")
+        .expect(200);
+
+    assert.equal(response.body.scorecard.status, "critico");
+
+    const intDim = response.body.scorecard.dimensions.find((d) => d.name === "integrity");
+    assert.equal(intDim.status, "critico");
+
+    const baseDim = response.body.scorecard.dimensions.find((d) => d.name === "baseline");
+    assert.equal(baseDim.status, "alerta");
+
+    const recs = response.body.scorecard.recommendations;
+    assert.ok(recs.some((r) => r.dimension === "integrity" && r.severity === "critical"));
+    assert.ok(recs.some((r) => r.dimension === "baseline" && r.severity === "medium"));
+});
+
+test("GET /api/scorecard bloqueado para viewer", async () => {
+    const app = createApp({
+        chatClient: createMockChatClient(),
+        ...createMockStore(),
+    });
+
+    await request(app)
+        .get("/api/scorecard")
+        .set("x-user-id", "user-viewer")
+        .expect(403);
+});
+

@@ -575,6 +575,56 @@ Governanca de configuracao com baseline versionado e deteccao automatica de drif
 - `GET /api/diagnostics/export` — snapshot completo de baseline em `payload.baseline`
 - Audit log — eventos `config.baseline.saved` e `config.baseline.reconciled` com `driftedKeys` e `actorUserId`
 
+## Scorecard Operacional Consolidado
+
+Visao executiva local do estado operacional do sistema. Consolida 10 dimensoes em um status unico (`ok`, `alerta`, `critico`) com recomendacoes objetivas. Cada geracao persiste o snapshot em `server/artifacts/scorecard/scorecard-latest.json` para rastreamento historico.
+
+### Endpoint
+
+| Metodo | Rota             | Role minima | Descricao                                    |
+| ------ | ---------------- | ----------- | -------------------------------------------- |
+| GET    | `/api/scorecard` | operator    | Retorna scorecard consolidado com recomendacoes |
+
+### Dimensoes avaliadas
+
+| Dimensao        | Fonte de dados                        | critico           | alerta                         |
+| --------------- | ------------------------------------- | ----------------- | ------------------------------ |
+| `health`        | `/api/health` (checkDb/Model/Disk)    | unhealthy         | degraded                       |
+| `slo`           | Telemetria (p95/errorRate)            | —                 | status=alerta                  |
+| `backup`        | `backupService.validateRecentBackups` | status=falha      | status=alerta                  |
+| `integrity`     | `integrityService.getOrRefresh`       | status=failed     | —                              |
+| `capacity`      | `capacityService.getLatestSummary`    | status=blocked    | status=alerta                  |
+| `auto-healing`  | `autoHealingService.getStatus`        | —                 | disabled ou circuit=open       |
+| `incident`      | `incidentService.getStatus`           | —                 | investigating/mitigating       |
+| `baseline`      | `baselineService.check`               | —                 | status=drift                   |
+| `approvals`     | Aprovacoes com status=pending         | —                 | pendingCount > 0               |
+| `queue`         | `queueService.getMetrics`             | —                 | rejections ou saturacao        |
+
+### Logica de status geral
+
+- `critico`: ao menos uma dimensao em critico
+- `alerta`: ao menos uma dimensao em alerta (sem critico)
+- `ok`: todas as dimensoes em ok
+
+### Exemplo de resposta
+
+```json
+{
+  "scorecard": {
+    "version": 1,
+    "generatedAt": "2026-03-17T12:00:00.000Z",
+    "status": "alerta",
+    "dimensions": [
+      { "name": "health", "label": "Saude do sistema", "status": "ok", "detail": { "status": "healthy" } },
+      { "name": "baseline", "label": "Drift de configuracao", "status": "alerta", "detail": { "driftedKeys": ["telemetryEnabled"] } }
+    ],
+    "recommendations": [
+      { "dimension": "baseline", "severity": "medium", "action": "Dimensao Drift de configuracao em alerta — revisar e planejar correcao" }
+    ]
+  }
+}
+```
+
 ## Aprovacao auditavel para acoes operacionais criticas
 
 Mecanismo de aprovacao previa para acoes de alto impacto. Exige que um administrador crie e aprove uma solicitacao antes de executar operacoes criticas, com janela de tempo controlada e evidencia completa no audit log.
