@@ -255,6 +255,7 @@
             <input
               id="imageInput"
               type="file"
+              multiple
               accept="image/*"
               class="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-xs text-slate-600 outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400 dark:focus:border-teal-600"
             />
@@ -310,6 +311,22 @@
           <span class="dot"></span>
           <span class="dot"></span>
           <span class="dot"></span>
+        </div>
+
+        <div
+          id="statusBar"
+          class="mx-4 mb-2 hidden items-center justify-between gap-2 rounded-xl border px-3 py-2 text-sm sm:mx-6"
+          role="status"
+          aria-live="polite"
+        >
+          <span id="statusText"></span>
+          <button
+            id="statusRetryBtn"
+            type="button"
+            class="hidden rounded-md border border-current px-2 py-1 text-xs font-semibold"
+          >
+            Tentar novamente
+          </button>
         </div>
 
         <footer
