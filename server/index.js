@@ -3,6 +3,7 @@ import cors from "cors";
 import compression from "compression";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
+import { statfs } from "node:fs/promises";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import { client } from "./ollama.js";
@@ -70,6 +71,12 @@ const MAX_RAG_DOC_NAME_LENGTH = 140;
 const MAX_RAG_DOC_CONTENT_LENGTH = 120_000;
 const MAX_USER_NAME_LENGTH = 40;
 const MAX_SYSTEM_PROMPT_LENGTH = 2500;
+
+const HEALTH_STATUS = {
+  HEALTHY: "healthy",
+  DEGRADED: "degraded",
+  UNHEALTHY: "unhealthy",
+};
 
 class HttpError extends Error {
   constructor(status, message) {
@@ -653,6 +660,96 @@ function createDefaultBackupService(config = {}) {
   };
 }
 
+function buildOverallHealthStatus(checks = {}) {
+  const statuses = Object.values(checks).map((item) => item?.status);
+  if (statuses.some((status) => status === HEALTH_STATUS.UNHEALTHY)) {
+    return HEALTH_STATUS.UNHEALTHY;
+  }
+  if (statuses.some((status) => status === HEALTH_STATUS.DEGRADED)) {
+    return HEALTH_STATUS.DEGRADED;
+  }
+  return HEALTH_STATUS.HEALTHY;
+}
+
+function createDefaultHealthProviders({ store, chatClient, dbPath }) {
+  return {
+    async checkDb() {
+      const start = Date.now();
+      try {
+        await withTimeout(
+          store.listChats("user-default", {
+            favoriteOnly: false,
+            showArchived: false,
+            tag: null,
+          }),
+          4_000,
+          "DB nao respondeu no prazo",
+        );
+        return {
+          status: HEALTH_STATUS.HEALTHY,
+          latencyMs: Date.now() - start,
+        };
+      } catch (error) {
+        return {
+          status: HEALTH_STATUS.UNHEALTHY,
+          latencyMs: Date.now() - start,
+          error: error.message,
+        };
+      }
+    },
+
+    async checkModel() {
+      const start = Date.now();
+      try {
+        await withTimeout(chatClient.list(), 5_000, "Modelo nao respondeu no prazo");
+        return {
+          status: HEALTH_STATUS.HEALTHY,
+          latencyMs: Date.now() - start,
+          ollama: "online",
+        };
+      } catch (error) {
+        return {
+          status: HEALTH_STATUS.DEGRADED,
+          latencyMs: Date.now() - start,
+          ollama: "offline",
+          error: error.message,
+        };
+      }
+    },
+
+    async checkDisk() {
+      const start = Date.now();
+      try {
+        const stats = await statfs(path.dirname(dbPath));
+        const totalBytes = Number(stats.bsize || 0) * Number(stats.blocks || 0);
+        const freeBytes = Number(stats.bsize || 0) * Number(stats.bavail || 0);
+        const freePercent = totalBytes > 0 ? Math.round((freeBytes / totalBytes) * 100) : 0;
+
+        let status = HEALTH_STATUS.HEALTHY;
+        if (freePercent <= 5) {
+          status = HEALTH_STATUS.UNHEALTHY;
+        } else if (freePercent <= 15) {
+          status = HEALTH_STATUS.DEGRADED;
+        }
+
+        return {
+          status,
+          latencyMs: Date.now() - start,
+          totalBytes,
+          freeBytes,
+          freePercent,
+        };
+      } catch (error) {
+        return {
+          status: HEALTH_STATUS.DEGRADED,
+          latencyMs: Date.now() - start,
+          error: error.message,
+        };
+      }
+    },
+  };
+}
+
 function buildCorsOriginValidator(configuredOrigin) {
   if (configuredOrigin === true || configuredOrigin === false) {
     return configuredOrigin;
@@ -778,6 +875,14 @@ export function createApp(deps = {}) {
       baseDir: deps.storageBaseDir || serverDir,
       dbPath: deps.dbPath || getDbPath(),
     });
+  const dbPath = deps.dbPath || getDbPath();
+  const healthProviders =
+    deps.healthProviders ||
+    createDefaultHealthProviders({
+      store,
+      chatClient,
+      dbPath,
+    });
 
   async function recordAudit(eventType, userId = null, meta = {}) {
     try {
@@ -881,17 +986,43 @@ export function createApp(deps = {}) {
   app.get(
     "/api/health",
     asyncHandler(async (req, res) => {
-      const start = Date.now();
-      try {
-        await withTimeout(
-          chatClient.list(),
-          5_000,
-          "Ollama nao respondeu no prazo",
-        );
-        res.json({ ollama: "online", latencyMs: Date.now() - start });
-      } catch (_err) {
-        res.json({ ollama: "offline", latencyMs: Date.now() - start });
+      const [db, model, disk] = await Promise.all([
+        healthProviders.checkDb(),
+        healthProviders.checkModel(),
+        healthProviders.checkDisk(),
+      ]);
+
+      const checks = { db, model, disk };
+      const status = buildOverallHealthStatus(checks);
+      const telemetry = getTelemetryStats().slice(0, 8).map((item) => ({
+        ...item,
+        errorRate: item.count ? Math.round((item.errors / item.count) * 100) : 0,
+      }));
+
+      const alerts = [];
+      if (db.status !== HEALTH_STATUS.HEALTHY) {
+        alerts.push("Banco de dados indisponivel");
       }
+      if (model.status !== HEALTH_STATUS.HEALTHY) {
+        alerts.push("Modelo Ollama em degradacao/offline");
+      }
+      if (disk.status !== HEALTH_STATUS.HEALTHY) {
+        alerts.push("Espaco em disco baixo");
+      }
+
+      res.json({
+        status,
+        generatedAt: new Date().toISOString(),
+        checks,
+        telemetry: {
+          enabled: isTelemetryEnabled(),
+          topRoutes: telemetry,
+        },
+        alerts,
+        // Compatibilidade com frontend legado.
+        ollama: model.ollama || "offline",
+        latencyMs: Number(model.latencyMs || 0),
+      });
     }),
   );
 

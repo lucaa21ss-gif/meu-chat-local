@@ -1148,27 +1148,88 @@ test("GET /api/chats/:chatId/search valida query curta", async () => {
   );
 });
 
-test("GET /api/health retorna status do Ollama", async () => {
-  const appOnline = createApp({
+test("GET /api/health retorna healthy quando dependencias estao ok", async () => {
+  const app = createApp({
     ...createMockStore(),
-    chatClient: { list: async () => ({ models: [] }) },
-  });
-
-  const online = await request(appOnline).get("/api/health").expect(200);
-  assert.equal(online.body.ollama, "online");
-  assert.equal(typeof online.body.latencyMs, "number");
-
-  const appOffline = createApp({
-    ...createMockStore(),
-    chatClient: {
-      list: async () => {
-        throw new Error("connection refused");
-      },
+    healthProviders: {
+      checkDb: async () => ({ status: "healthy", latencyMs: 3 }),
+      checkModel: async () => ({
+        status: "healthy",
+        latencyMs: 5,
+        ollama: "online",
+      }),
+      checkDisk: async () => ({
+        status: "healthy",
+        latencyMs: 1,
+        totalBytes: 1000,
+        freeBytes: 800,
+        freePercent: 80,
+      }),
     },
   });
 
-  const offline = await request(appOffline).get("/api/health").expect(200);
-  assert.equal(offline.body.ollama, "offline");
+  const response = await request(app).get("/api/health").expect(200);
+  assert.equal(response.body.status, "healthy");
+  assert.equal(response.body.ollama, "online");
+  assert.equal(response.body.checks.db.status, "healthy");
+  assert.equal(response.body.checks.model.status, "healthy");
+  assert.equal(response.body.checks.disk.status, "healthy");
+});
+
+test("GET /api/health retorna degraded quando modelo esta offline", async () => {
+  const app = createApp({
+    ...createMockStore(),
+    healthProviders: {
+      checkDb: async () => ({ status: "healthy", latencyMs: 3 }),
+      checkModel: async () => ({
+        status: "degraded",
+        latencyMs: 8,
+        ollama: "offline",
+        error: "connection refused",
+      }),
+      checkDisk: async () => ({
+        status: "healthy",
+        latencyMs: 1,
+        totalBytes: 1000,
+        freeBytes: 700,
+        freePercent: 70,
+      }),
+    },
+  });
+
+  const response = await request(app).get("/api/health").expect(200);
+  assert.equal(response.body.status, "degraded");
+  assert.equal(response.body.ollama, "offline");
+  assert.equal(response.body.alerts.length >= 1, true);
+});
+
+test("GET /api/health retorna unhealthy quando DB falha", async () => {
+  const app = createApp({
+    ...createMockStore(),
+    healthProviders: {
+      checkDb: async () => ({
+        status: "unhealthy",
+        latencyMs: 50,
+        error: "db locked",
+      }),
+      checkModel: async () => ({
+        status: "healthy",
+        latencyMs: 2,
+        ollama: "online",
+      }),
+      checkDisk: async () => ({
+        status: "healthy",
+        latencyMs: 1,
+        totalBytes: 1000,
+        freeBytes: 650,
+        freePercent: 65,
+      }),
+    },
+  });
+
+  const response = await request(app).get("/api/health").expect(200);
+  assert.equal(response.body.status, "unhealthy");
+  assert.equal(response.body.checks.db.status, "unhealthy");
 });
 
 test("POST /api/chat-stream retorna erro padrao quando servico externo falha", async () => {
