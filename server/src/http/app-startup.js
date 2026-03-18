@@ -1,11 +1,13 @@
 import logger from "../../logger.js";
 import { parsePositiveInt } from "../shared/parsers.js";
+import { createConfiguredApp } from "./app-factory.js";
 import { initStoreDb } from "./app-store.js";
 import { scheduleBackupJob } from "./app-backup-scheduler.js";
 import { startHttpServer } from "./app-server-listen.js";
 
 function resolveStartupDeps(startupDeps = {}) {
   return {
+    createApp: startupDeps.createApp || createConfiguredApp,
     initStoreDb: startupDeps.initStoreDb || initStoreDb,
     parsePositiveInt: startupDeps.parsePositiveInt || parsePositiveInt,
     scheduleBackupJob: startupDeps.scheduleBackupJob || scheduleBackupJob,
@@ -16,14 +18,13 @@ function resolveStartupDeps(startupDeps = {}) {
 
 export async function startConfiguredServer({
   port = 3001,
-  createApp,
   startupDeps,
 }) {
   const deps = resolveStartupDeps(startupDeps);
 
   await deps.initStoreDb();
 
-  const app = createApp();
+  const app = deps.createApp();
   const intervalMinutes = deps.parsePositiveInt(
     process.env.BACKUP_INTERVAL_MINUTES,
     0,

@@ -5,16 +5,10 @@ import { startConfiguredServer } from "./src/http/app-startup.js";
 import { createIntegrityRuntimeService } from "./src/modules/governance/integrity-service.js";
 
 export { createIntegrityRuntimeService };
-
-export function createApp(deps = {}) {
-  return createConfiguredApp(deps);
-}
+export const createApp = createConfiguredApp;
 
 export async function startServer(port = 3001) {
-  return startConfiguredServer({
-    port,
-    createApp,
-  });
+  return startConfiguredServer({ port });
 }
 
 runAsMainModule({
