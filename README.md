@@ -48,6 +48,7 @@ Visao resumida dos diretorios e arquivos principais (nao exaustiva):
 
 - A arvore abaixo prioriza pontos de entrada e componentes de manutencao.
 - Arquivos gerados em runtime (ex.: `server/chat.db*` e conteudos de `server/artifacts/`) podem variar por ambiente.
+- Arquivos ocultos relevantes na raiz: `.dockerignore`, `.prettierignore`, `.release-please-config.json`, `.release-please-manifest.json`.
 
 ```text
 .
