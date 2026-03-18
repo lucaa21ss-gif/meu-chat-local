@@ -4,7 +4,6 @@ import path from "node:path";
 import { client } from "./ollama.js";
 import { createRoleLimiterQueue } from "./rateLimiter.js";
 import logger, { createHttpLogger } from "./logger.js";
-import { createStorageService } from "./storage.js";
 import {
   isEnabled as isTelemetryEnabled,
   setEnabled as setTelemetryEnabled,
@@ -88,7 +87,8 @@ import {
   buildRegisterAppRoutesDeps,
   createAuditHelpers,
 } from "./src/http/app-route-deps.js";
-import { createStore, initStoreDb, resolveDbPath } from "./src/http/app-store.js";
+import { createStore, initStoreDb } from "./src/http/app-store.js";
+import { createAppServices } from "./src/http/app-services.js";
 import {
   attachAppLocals,
   buildCorsOriginValidator,
@@ -105,17 +105,6 @@ import { registerStorageRoutes } from "./src/modules/governance/register-storage
 import { registerConfigRoutes } from "./src/modules/governance/register-config-routes.js";
 import { registerAuditRoutes } from "./src/modules/governance/register-audit-routes.js";
 import { registerObservabilityRoutes } from "./src/modules/governance/register-observability-routes.js";
-import { createDefaultIncidentService } from "./src/modules/governance/incident-service.js";
-import { createDefaultBackupService } from "./src/modules/governance/backup-service.js";
-import { createDefaultAutoHealingService } from "./src/modules/governance/auto-healing-service.js";
-import { createDefaultOperationalApprovalService } from "./src/modules/governance/approval-service.js";
-import {
-  buildBaselineConfigSnapshot,
-  createDefaultBaselineService,
-} from "./src/modules/governance/baseline-service.js";
-import { createCapacityProfileService } from "./src/modules/governance/capacity-service.js";
-import { createConfigRollbackService } from "./src/modules/governance/config-rollback-service.js";
-import { createDefaultDisasterRecoveryService } from "./src/modules/governance/disaster-recovery-service.js";
 import { createIntegrityRuntimeService } from "./src/modules/governance/integrity-service.js";
 import { createIncidentRunbookSignalsCollector } from "./src/modules/governance/incident-runbook-signals.js";
 import {
@@ -123,9 +112,6 @@ import {
   buildSloSnapshot,
   buildTriageRecommendations,
 } from "./src/modules/health/health-builders.js";
-import { createDefaultHealthProviders } from "./src/modules/health/health-providers.js";
-import { createQueueService } from "./src/modules/governance/queue-service.js";
-import { createScorecardService } from "./src/modules/governance/scorecard-service.js";
 import { registerChatRoutes } from "./src/modules/chat/register-chat-routes.js";
 import { registerChatsRoutes } from "./src/modules/chat/register-chats-routes.js";
 import { registerRagRoutes } from "./src/modules/chat/register-rag-routes.js";
@@ -168,148 +154,47 @@ export function createApp(deps = {}) {
   const ollamaRetryDelays = Array.isArray(deps.ollamaRetryDelays)
     ? deps.ollamaRetryDelays
     : DEFAULT_RETRY_DELAYS_MS;
-  const backupService =
-    deps.backupService ||
-    createDefaultBackupService({
-      dbPath: resolveDbPath(deps),
-      backupRoot:
-        deps.backupRoot ||
-        process.env.BACKUP_DIR ||
-        path.join(serverDir, "backups"),
-      includeDirs:
-        deps.backupIncludeDirs || process.env.BACKUP_INCLUDE_DIRS || "uploads,documents",
-      backupKeep: deps.backupKeep || process.env.BACKUP_KEEP,
-    });
-  const storageService =
-    deps.storageService ||
-    createStorageService({
-      baseDir: deps.storageBaseDir || serverDir,
-      dbPath: resolveDbPath(deps),
-    });
-  const incidentService =
-    deps.incidentService || createDefaultIncidentService(deps.incidentState);
-  const dbPath = resolveDbPath(deps);
-  const healthProviders =
-    deps.healthProviders ||
-    createDefaultHealthProviders({
-      store,
-      chatClient,
-      dbPath,
-    });
-  const autoHealingService =
-    deps.autoHealingService ||
-    createDefaultAutoHealingService({
-      healthProviders,
-      store,
-      chatClient,
+  const {
+    backupService,
+    storageService,
+    incidentService,
+    healthProviders,
+    autoHealingService,
+    disasterRecoveryService,
+    integrityService,
+    capacityService,
+    queueService,
+    baselineService,
+    approvalService,
+    configRollbackService,
+    scorecardService,
+  } = createAppServices({
+    deps,
+    store,
+    serverDir,
+    chatClient,
+    ollama: {
       ollamaFallbackModel,
       ollamaMaxAttempts,
       ollamaTimeoutMs,
       ollamaRetryDelays,
-      state: deps.autoHealingState,
-    });
-  const disasterRecoveryService =
-    deps.disasterRecoveryService ||
-    createDefaultDisasterRecoveryService({
-      store,
-      backupService,
-      healthProviders,
-      artifactsDir: path.join(serverDir, "artifacts", "dr"),
-    });
-  const integrityService =
-    deps.integrityService ||
-    createIntegrityRuntimeService({
-      baseDir: path.resolve(serverDir, ".."),
-      manifestPath: path.resolve(serverDir, "..", ".integrity-manifest.sha256"),
-      targets: [
-        "docker-compose.yml",
-        "server/package.json",
-        "server/package-lock.json",
-        "web/package.json",
-        "web/package-lock.json",
-        "scripts/install.sh",
-        "scripts/start.sh",
-        "scripts/stop.sh",
-        "scripts/uninstall.sh",
-      ],
-      staleAfterMs: 30_000,
-    });
-  const capacityService =
-    deps.capacityService ||
-    createCapacityProfileService({
-      baseDir: path.resolve(serverDir, ".."),
-      artifactsDir: path.join(serverDir, "artifacts", "capacity"),
-    });
-  const queueService =
-    deps.queueService ||
-    createQueueService({
-      maxConcurrency: parsePositiveInt(
-        process.env.QUEUE_MAX_CONCURRENCY,
-        4,
-        1,
-        32,
-      ),
-      maxQueueSize: parsePositiveInt(
-        process.env.QUEUE_MAX_SIZE,
-        100,
-        1,
-        500,
-      ),
-      taskTimeoutMs: parsePositiveInt(
-        process.env.QUEUE_TASK_TIMEOUT_MS,
-        30000,
-        5000,
-        120000,
-      ),
-      rejectPolicy: (process.env.QUEUE_REJECT_POLICY || "reject").trim(),
-    });
-
-  const baselineService =
-    deps.baselineService ||
-    createDefaultBaselineService({
-      baselinePath: path.join(serverDir, "artifacts", "baseline", "config-baseline.json"),
-      getConfig: () =>
-        buildBaselineConfigSnapshot({
-          isTelemetryEnabled,
-          parsePositiveInt,
-          queueConfig: {
-            maxConcurrency: process.env.QUEUE_MAX_CONCURRENCY,
-            maxSize: process.env.QUEUE_MAX_SIZE,
-            taskTimeoutMs: process.env.QUEUE_TASK_TIMEOUT_MS,
-            rejectPolicy: process.env.QUEUE_REJECT_POLICY || "reject",
-          },
-          autoHealingService,
-        }),
-    });
-  const approvalService =
-    deps.approvalService ||
-    createDefaultOperationalApprovalService({
-      approvalsPath: path.join(
-        serverDir,
-        "artifacts",
-        "approvals",
-        "operational-approvals.json",
-      ),
-    });
-  const configRollbackService =
-    deps.configRollbackService ||
-    createConfigRollbackService({
-      store,
-      configKeys: CONFIG_KEYS,
+    },
+    parsers: {
+      parsePositiveInt,
       parseSystemPrompt,
       parseTheme,
       parseStorageLimitMb,
       parseBooleanLike,
+    },
+    telemetry: {
       isTelemetryEnabled,
       setTelemetryEnabled,
       resetTelemetryStats,
-    });
-
-  const scorecardService =
-    deps.scorecardService ||
-    createScorecardService({
-      scorecardPath: path.join(serverDir, "artifacts", "scorecard", "scorecard-latest.json"),
-    });
+    },
+    constants: {
+      CONFIG_KEYS,
+    },
+  });
 
   const roleLimits = deps.roleLimits ?? {
     admin: { windowMs: requestWindowMs, max: 300, chatMax: 100 },
