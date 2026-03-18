@@ -4,7 +4,7 @@ import { resolveDbPath } from "./app-store.js";
 import { createDefaultIncidentService } from "../modules/governance/incident-service.js";
 import { createDefaultBackupService } from "../modules/governance/backup-service.js";
 import { createDefaultAutoHealingService } from "../modules/governance/auto-healing-service.js";
-import { createDefaultOperationalApprovalService } from "../modules/governance/approval-service.js";
+import { createDefaultOperationalApprovalService } from "../modules/approvals/approval-service.js";
 import {
   buildBaselineConfigSnapshot,
   createDefaultBaselineService,
