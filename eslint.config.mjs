@@ -39,4 +39,20 @@ export default [
       "no-console": "off",
     },
   },
+  {
+    files: ["scripts/**/*.mjs"],
+    languageOptions: {
+      ecmaVersion: "latest",
+      sourceType: "module",
+      globals: {
+        ...globals.node,
+        ...globals.es2021,
+        fetch: "readonly",
+        AbortController: "readonly",
+      },
+    },
+    rules: {
+      "no-console": "off",
+    },
+  },
 ];

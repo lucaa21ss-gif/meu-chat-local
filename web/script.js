@@ -37,16 +37,32 @@ const restoreBackupBtnMobileEl = document.getElementById(
 const backupRestoreInputEl = document.getElementById("backupRestoreInput");
 const importJsonBtnMobileEl = document.getElementById("importJsonBtnMobile");
 const voiceBtnEl = document.getElementById("voiceBtn");
+const voiceHistoryBtnEl = document.getElementById("voiceHistoryBtn");
 const imageInputEl = document.getElementById("imageInput");
+const favoriteBtnEl = document.getElementById("favoriteBtn");
+const archiveBtnEl = document.getElementById("archiveBtn");
+const tagsBtnEl = document.getElementById("tagsBtn");
 const duplicateModalEl = document.getElementById("duplicateModal");
 const duplicateTitleInputEl = document.getElementById("duplicateTitleInput");
 const duplicateModeFullEl = document.getElementById("duplicateModeFull");
 const duplicateModeUserEl = document.getElementById("duplicateModeUser");
 const duplicateCancelBtnEl = document.getElementById("duplicateCancelBtn");
 const duplicateConfirmBtnEl = document.getElementById("duplicateConfirmBtn");
+const voiceHistoryModalEl = document.getElementById("voiceHistoryModal");
+const voiceHistoryListEl = document.getElementById("voiceHistoryList");
+const voiceHistoryCloseBtnEl = document.getElementById("voiceHistoryCloseBtn");
+const clearVoiceHistoryBtnEl = document.getElementById("clearVoiceHistoryBtn");
+const confirmModalEl = document.getElementById("confirmModal");
+const confirmModalTextEl = document.getElementById("confirmModalText");
+const confirmCancelBtnEl = document.getElementById("confirmCancelBtn");
+const confirmOkBtnEl = document.getElementById("confirmOkBtn");
+const onboardingModalEl = document.getElementById("onboardingModal");
 const ollamaStatusBadgeEl = document.getElementById("ollamaStatusBadge");
 const systemHealthBadgeEl = document.getElementById("systemHealthBadge");
 const ollamaLatencyTextEl = document.getElementById("ollamaLatencyText");
+const statusBarEl = document.getElementById("statusBar");
+const statusTextEl = document.getElementById("statusText");
+const statusRetryBtnEl = document.getElementById("statusRetryBtn");
 const userPromptBtnEl = document.getElementById("userPromptBtn");
 const shortcutsHelpBtnEl = document.getElementById("shortcutsHelpBtn");
 const shortcutsModalEl = document.getElementById("shortcutsModal");
@@ -89,11 +105,20 @@ const searchPageInfoEl = document.getElementById("searchPageInfo");
 const searchPrevBtnEl = document.getElementById("searchPrevBtn");
 const searchNextBtnEl = document.getElementById("searchNextBtn");
 const searchResultsEl = document.getElementById("searchResults");
+const ragToggleEl = document.getElementById("ragToggle");
 const docInputEl = document.getElementById("docInput");
+const docUploadBtnEl = document.getElementById("docUploadBtn");
 const ragStatusEl = document.getElementById("ragStatus");
+const newUserBtnEl = document.getElementById("newUserBtn");
+const renameUserBtnEl = document.getElementById("renameUserBtn");
+const deleteUserBtnEl = document.getElementById("deleteUserBtn");
+const onboardingBtnEl = document.getElementById("onboardingBtn");
 const onboardingModelSelectEl = document.getElementById("onboardingModelSelect");
 const onboardingHealthStatusEl = document.getElementById("onboardingHealthStatus");
 const onboardingSmokeStatusEl = document.getElementById("onboardingSmokeStatus");
+const onboardingRunChecksBtnEl = document.getElementById("onboardingRunChecksBtn");
+const onboardingSkipBtnEl = document.getElementById("onboardingSkipBtn");
+const onboardingCompleteBtnEl = document.getElementById("onboardingCompleteBtn");
 const healthIndicators = window.HealthIndicators || null;
 
 const state = {
@@ -659,7 +684,7 @@ async function checkOllamaStatus() {
       rateLimiter: data.rateLimiter || null,
       alerts: Array.isArray(data.alerts) ? data.alerts : [],
     };
-  } catch (_err) {
+  } catch {
     state.ollamaStatus = "offline";
     state.health = {
       status: "unhealthy",
