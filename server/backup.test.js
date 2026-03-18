@@ -7,7 +7,7 @@ import {
   createBackupArchive,
   restoreBackupArchive,
   validateBackupArchive,
-} from "./backup.js";
+} from "./src/infra/backup/backup-archive.js";
 
 async function withTempDir(callback) {
   const dir = await fsp.mkdtemp(path.join(os.tmpdir(), "chat-backup-test-"));

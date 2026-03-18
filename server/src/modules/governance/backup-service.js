@@ -8,7 +8,7 @@ import {
   createBackupArchive,
   restoreBackupArchive,
   validateBackupArchive,
-} from "../../../backup.js";
+} from "../../infra/backup/backup-archive.js";
 import {
   closeDb,
   createDbSnapshot,

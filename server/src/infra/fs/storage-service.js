@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import fsp from "node:fs/promises";
 import path from "node:path";
-import { validateBackupArchive } from "../../../backup.js";
+import { validateBackupArchive } from "../backup/backup-archive.js";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_BACKUP_RETENTION_POLICY = {
