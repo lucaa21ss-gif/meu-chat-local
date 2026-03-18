@@ -51,15 +51,21 @@ Visao resumida dos diretorios e arquivos principais (nao exaustiva):
 
 ```text
 .
+├── CHANGELOG.md
 ├── .github/
 │   └── workflows/
+├── docs/
 ├── dist/
 ├── docker-compose.yml
+├── eslint.config.mjs
 ├── ollama/
 │   └── Modelfile
+├── package-lock.json
+├── package.json
 ├── scripts/
 │   ├── capacity-profile.mjs
 │   ├── disaster-recovery-test.sh
+│   ├── install.sh
 │   ├── package-dist.sh
 │   ├── release-canary.mjs
 │   ├── runbook-incident.sh
