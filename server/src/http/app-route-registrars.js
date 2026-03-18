@@ -9,7 +9,7 @@ import { registerObservabilityRoutes } from "../modules/governance/register-obse
 import { registerChatRoutes } from "../modules/chat/register-chat-routes.js";
 import { registerChatsRoutes } from "../modules/chat/register-chats-routes.js";
 import { registerRagRoutes } from "../modules/chat/register-rag-routes.js";
-import { registerBackupRoutes } from "../modules/governance/register-backup-routes.js";
+import { registerBackupRoutes } from "../modules/backup/register-backup-routes.js";
 import { registerHealthRoutes } from "../modules/health/register-health-routes.js";
 
 export const APP_ROUTE_REGISTRARS = {
