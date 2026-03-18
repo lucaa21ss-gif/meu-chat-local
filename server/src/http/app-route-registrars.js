@@ -4,7 +4,7 @@ import { registerApprovalRoutes } from "../modules/approvals/register-approval-r
 import { registerResilienceRoutes } from "../modules/resilience/register-resilience-routes.js";
 import { registerStorageRoutes } from "../modules/governance/register-storage-routes.js";
 import { registerConfigRoutes } from "../modules/config-governance/register-config-routes.js";
-import { registerAuditRoutes } from "../modules/governance/register-audit-routes.js";
+import { registerAuditRoutes } from "../modules/audit/register-audit-routes.js";
 import { registerObservabilityRoutes } from "../modules/observability/register-observability-routes.js";
 import { registerChatRoutes } from "../modules/chat/register-chat-routes.js";
 import { registerChatsRoutes } from "../modules/chat/register-chats-routes.js";
