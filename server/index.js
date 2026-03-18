@@ -8,6 +8,7 @@ import { asyncHandler } from "./src/http/async-handler.js";
 import { createStore, initStoreDb } from "./src/http/app-store.js";
 import { APP_ROUTE_REGISTRARS } from "./src/http/app-route-registrars.js";
 import { scheduleBackupJob } from "./src/http/app-backup-scheduler.js";
+import { startHttpServer } from "./src/http/app-server-listen.js";
 import { createAppContext } from "./src/http/app-context.js";
 import { attachAppLocals, configureAppBootstrap } from "./src/http/app-bootstrap.js";
 import { registerAppRoutes } from "./src/http/register-app-routes.js";
@@ -79,9 +80,7 @@ export async function startServer(port = 3001) {
 
   scheduleBackupJob({ app, intervalMinutes, logger });
 
-  const server = app.listen(port, () => {
-    logger.info(`API rodando em http://localhost:${port}`);
-  });
+  const server = startHttpServer({ app, port, logger });
   return server;
 }
 
