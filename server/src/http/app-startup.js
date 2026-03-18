@@ -1,5 +1,5 @@
 import logger from "../../logger.js";
-import { createConfiguredApp } from "./app-factory.js";
+import { createConfiguredApp } from "./app-create.js";
 import { initStoreDb } from "./app-store.js";
 import { scheduleBackupJobFromEnv } from "./app-backup-scheduler.js";
 import { startHttpServer } from "./app-server-listen.js";

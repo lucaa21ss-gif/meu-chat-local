@@ -3,7 +3,7 @@ import { startConfiguredServer } from "./src/http/app-startup.js";
 import { createIntegrityRuntimeService } from "./src/modules/governance/integrity-service.js";
 
 export { createIntegrityRuntimeService };
-export { createConfiguredApp as createApp } from "./src/http/app-factory.js";
+export { createConfiguredApp as createApp } from "./src/http/app-create.js";
 
 export async function startServer(port = 3001) {
   return startConfiguredServer({ port });
