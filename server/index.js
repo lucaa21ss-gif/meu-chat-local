@@ -88,31 +88,19 @@ import { createAppServices } from "./src/http/app-services.js";
 import { createGovernanceRuntime } from "./src/http/app-governance-runtime.js";
 import { createAppRuntimeConfig } from "./src/http/app-runtime-config.js";
 import { createAppGuardsAndAudit } from "./src/http/app-guards-and-audit.js";
+import { APP_ROUTE_REGISTRARS } from "./src/http/app-route-registrars.js";
 import {
   attachAppLocals,
   buildCorsOriginValidator,
   configureAppBootstrap,
 } from "./src/http/app-bootstrap.js";
 import { registerAppRoutes } from "./src/http/register-app-routes.js";
-import { registerUserRoutes } from "./src/modules/users/register-users-routes.js";
-import { registerIncidentRoutes } from "./src/modules/governance/register-incident-routes.js";
-import { registerApprovalRoutes } from "./src/modules/governance/register-approval-routes.js";
-import { registerResilienceRoutes } from "./src/modules/governance/register-resilience-routes.js";
-import { registerStorageRoutes } from "./src/modules/governance/register-storage-routes.js";
-import { registerConfigRoutes } from "./src/modules/governance/register-config-routes.js";
-import { registerAuditRoutes } from "./src/modules/governance/register-audit-routes.js";
-import { registerObservabilityRoutes } from "./src/modules/governance/register-observability-routes.js";
 import { createIntegrityRuntimeService } from "./src/modules/governance/integrity-service.js";
 import {
   buildOverallHealthStatus,
   buildSloSnapshot,
   buildTriageRecommendations,
 } from "./src/modules/health/health-builders.js";
-import { registerChatRoutes } from "./src/modules/chat/register-chat-routes.js";
-import { registerChatsRoutes } from "./src/modules/chat/register-chats-routes.js";
-import { registerRagRoutes } from "./src/modules/chat/register-rag-routes.js";
-import { registerBackupRoutes } from "./src/modules/governance/register-backup-routes.js";
-import { registerHealthRoutes } from "./src/modules/health/register-health-routes.js";
 
 export { createIntegrityRuntimeService };
 
@@ -251,21 +239,7 @@ export function createApp(deps = {}) {
       store,
       chatClient,
     },
-    registrars: {
-      registerHealthRoutes,
-      registerChatRoutes,
-      registerRagRoutes,
-      registerUserRoutes,
-      registerChatsRoutes,
-      registerBackupRoutes,
-      registerIncidentRoutes,
-      registerResilienceRoutes,
-      registerStorageRoutes,
-      registerConfigRoutes,
-      registerApprovalRoutes,
-      registerAuditRoutes,
-      registerObservabilityRoutes,
-    },
+    registrars: APP_ROUTE_REGISTRARS,
     guards: {
       requireMinimumRole,
       requireAdminOrSelf,

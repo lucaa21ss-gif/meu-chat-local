@@ -1,0 +1,29 @@
+import { registerUserRoutes } from "../modules/users/register-users-routes.js";
+import { registerIncidentRoutes } from "../modules/governance/register-incident-routes.js";
+import { registerApprovalRoutes } from "../modules/governance/register-approval-routes.js";
+import { registerResilienceRoutes } from "../modules/governance/register-resilience-routes.js";
+import { registerStorageRoutes } from "../modules/governance/register-storage-routes.js";
+import { registerConfigRoutes } from "../modules/governance/register-config-routes.js";
+import { registerAuditRoutes } from "../modules/governance/register-audit-routes.js";
+import { registerObservabilityRoutes } from "../modules/governance/register-observability-routes.js";
+import { registerChatRoutes } from "../modules/chat/register-chat-routes.js";
+import { registerChatsRoutes } from "../modules/chat/register-chats-routes.js";
+import { registerRagRoutes } from "../modules/chat/register-rag-routes.js";
+import { registerBackupRoutes } from "../modules/governance/register-backup-routes.js";
+import { registerHealthRoutes } from "../modules/health/register-health-routes.js";
+
+export const APP_ROUTE_REGISTRARS = {
+  registerHealthRoutes,
+  registerChatRoutes,
+  registerRagRoutes,
+  registerUserRoutes,
+  registerChatsRoutes,
+  registerBackupRoutes,
+  registerIncidentRoutes,
+  registerResilienceRoutes,
+  registerStorageRoutes,
+  registerConfigRoutes,
+  registerApprovalRoutes,
+  registerAuditRoutes,
+  registerObservabilityRoutes,
+};
