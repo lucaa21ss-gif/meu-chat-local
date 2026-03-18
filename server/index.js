@@ -4,7 +4,6 @@ import compression from "compression";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import {
-  statfs,
   readdir as fsReaddir,
   stat as fsStat,
   readFile as fsReadFile,
@@ -72,7 +71,6 @@ import {
   DEFAULT_RETRY_DELAYS_MS,
   executeWithModelRecovery,
   sleep,
-  withTimeout,
 } from "./src/shared/model-recovery.js";
 import {
   AUTO_HEALING_POLICIES,
@@ -155,6 +153,12 @@ import { registerAuditRoutes } from "./src/modules/governance/register-audit-rou
 import { registerObservabilityRoutes } from "./src/modules/governance/register-observability-routes.js";
 import { createDefaultIncidentService } from "./src/modules/governance/incident-service.js";
 import { createDefaultBackupService } from "./src/modules/governance/backup-service.js";
+import {
+  buildOverallHealthStatus,
+  buildSloSnapshot,
+  buildTriageRecommendations,
+} from "./src/modules/health/health-builders.js";
+import { createDefaultHealthProviders } from "./src/modules/health/health-providers.js";
 import { registerChatRoutes } from "./src/modules/chat/register-chat-routes.js";
 import { registerChatsRoutes } from "./src/modules/chat/register-chats-routes.js";
 import { registerRagRoutes } from "./src/modules/chat/register-rag-routes.js";
@@ -1436,225 +1440,6 @@ function createCapacityProfileService({
 
   return {
     getLatestSummary,
-  };
-}
-
-function buildTriageRecommendations({
-  health,
-  slo,
-  backupValidation,
-  rateLimiter,
-  recentErrors,
-  incidentStatus,
-}) {
-  const recommendations = [];
-
-  if (health?.status && health.status !== HEALTH_STATUS.HEALTHY) {
-    recommendations.push({
-      type: "health",
-      severity: "high",
-      action: "Priorize checks degradados/unhealthy e estabilize DB/model/disk antes de novas mudancas",
-    });
-  }
-
-  if (slo?.status === "alerta") {
-    recommendations.push({
-      type: "slo",
-      severity: "medium",
-      action: "Investigue rotas em alerta no SLO e compare p95/erro com janelas anteriores",
-    });
-  }
-
-  if (backupValidation?.status && backupValidation.status !== "ok") {
-    recommendations.push({
-      type: "backup",
-      severity: backupValidation.status === "falha" ? "critical" : "medium",
-      action: "Execute validacao com passphrase quando necessario e regenere backups invalidos",
-    });
-  }
-
-  if (Number(rateLimiter?.rejectedTotal || 0) > 0) {
-    recommendations.push({
-      type: "rate-limiter",
-      severity: "medium",
-      action: "Analise picos de rejeicao/timeout no rate limiter e ajuste limites por papel se necessario",
-    });
-  }
-
-  if (Array.isArray(recentErrors) && recentErrors.length >= 5) {
-    recommendations.push({
-      type: "security",
-      severity: "high",
-      action: "Volume alto de erros/bloqueios recentes; revisar possivel abuso ou regressao operacional",
-    });
-  }
-
-  if (incidentStatus?.status && incidentStatus.status !== "normal") {
-    recommendations.push({
-      type: "manual",
-      severity: incidentStatus.severity || "medium",
-      action: `Incidente em ${incidentStatus.status}; manter atualizacao em ${incidentStatus.nextUpdateAt || "janela curta"
-        } e registrar decisoes no runbook`,
-    });
-  }
-
-  if (!recommendations.length) {
-    recommendations.push({
-      type: "manual",
-      severity: "info",
-      action: "Sem sinais criticos no snapshot atual; manter monitoramento rotineiro",
-    });
-  }
-
-  return recommendations;
-}
-
-function buildOverallHealthStatus(checks = {}) {
-  const statuses = Object.values(checks).map((item) => item?.status);
-  if (statuses.some((status) => status === HEALTH_STATUS.UNHEALTHY)) {
-    return HEALTH_STATUS.UNHEALTHY;
-  }
-  if (statuses.some((status) => status === HEALTH_STATUS.DEGRADED)) {
-    return HEALTH_STATUS.DEGRADED;
-  }
-  return HEALTH_STATUS.HEALTHY;
-}
-
-function buildSloSnapshot(telemetryStats = []) {
-  const objectives = {
-    availabilityMaxErrorRatePct: 5,
-    p95LatencyReadMs: 400,
-    p95LatencyWriteMs: 1200,
-    minSamples: 5,
-  };
-
-  const criticalRoutes = telemetryStats.filter((item) => {
-    const key = `${item.method} ${item.path}`;
-    return [
-      "GET /api/chats",
-      "POST /api/chat",
-      "POST /api/chat-stream",
-      "GET /api/health",
-    ].includes(key);
-  });
-
-  const evaluations = criticalRoutes.map((route) => {
-    const isRead = route.method === "GET";
-    const latencyTarget = isRead
-      ? objectives.p95LatencyReadMs
-      : objectives.p95LatencyWriteMs;
-    const hasSamples = route.count >= objectives.minSamples;
-    const availabilityOk = hasSamples
-      ? (route.errorRate || 0) <= objectives.availabilityMaxErrorRatePct
-      : true;
-    const latencyOk = hasSamples ? (route.p95Ms || 0) <= latencyTarget : true;
-    const status = hasSamples
-      ? availabilityOk && latencyOk
-        ? "ok"
-        : "alerta"
-      : "insuficiente";
-
-    return {
-      route: `${route.method} ${route.path}`,
-      count: route.count || 0,
-      errorRate: route.errorRate || 0,
-      p95Ms: route.p95Ms || 0,
-      target: {
-        errorRate: objectives.availabilityMaxErrorRatePct,
-        p95Ms: latencyTarget,
-      },
-      status,
-    };
-  });
-
-  const considered = evaluations.filter((item) => item.status !== "insuficiente");
-  const allOk = considered.length > 0 && considered.every((item) => item.status === "ok");
-  const hasAlerts = considered.some((item) => item.status === "alerta");
-
-  return {
-    generatedAt: new Date().toISOString(),
-    objectives,
-    status: allOk ? "ok" : hasAlerts ? "alerta" : "insuficiente",
-    evaluatedRoutes: evaluations,
-  };
-}
-
-function createDefaultHealthProviders({ store, chatClient, dbPath }) {
-  return {
-    async checkDb() {
-      const start = Date.now();
-      try {
-        await withTimeout(
-          store.listChats("user-default", {
-            favoriteOnly: false,
-            showArchived: false,
-            tag: null,
-          }),
-          4_000,
-          "DB nao respondeu no prazo",
-        );
-        return {
-          status: HEALTH_STATUS.HEALTHY,
-          latencyMs: Date.now() - start,
-        };
-      } catch (error) {
-        return {
-          status: HEALTH_STATUS.UNHEALTHY,
-          latencyMs: Date.now() - start,
-          error: error.message,
-        };
-      }
-    },
-
-    async checkModel() {
-      const start = Date.now();
-      try {
-        await withTimeout(chatClient.list(), 5_000, "Modelo nao respondeu no prazo");
-        return {
-          status: HEALTH_STATUS.HEALTHY,
-          latencyMs: Date.now() - start,
-          ollama: "online",
-        };
-      } catch (error) {
-        return {
-          status: HEALTH_STATUS.DEGRADED,
-          latencyMs: Date.now() - start,
-          ollama: "offline",
-          error: error.message,
-        };
-      }
-    },
-
-    async checkDisk() {
-      const start = Date.now();
-      try {
-        const stats = await statfs(path.dirname(dbPath));
-        const totalBytes = Number(stats.bsize || 0) * Number(stats.blocks || 0);
-        const freeBytes = Number(stats.bsize || 0) * Number(stats.bavail || 0);
-        const freePercent = totalBytes > 0 ? Math.round((freeBytes / totalBytes) * 100) : 0;
-
-        let status = HEALTH_STATUS.HEALTHY;
-        if (freePercent <= 5) {
-          status = HEALTH_STATUS.UNHEALTHY;
-        } else if (freePercent <= 15) {
-          status = HEALTH_STATUS.DEGRADED;
-        }
-
-        return {
-          status,
-          latencyMs: Date.now() - start,
-          totalBytes,
-          freeBytes,
-          freePercent,
-        };
-      } catch (error) {
-        return {
-          status: HEALTH_STATUS.DEGRADED,
-          latencyMs: Date.now() - start,
-          error: error.message,
-        };
-      }
-    },
   };
 }
 
