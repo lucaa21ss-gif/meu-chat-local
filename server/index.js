@@ -1,13 +1,6 @@
 import express from "express";
-import cors from "cors";
-import compression from "compression";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
-import {
-  readFile as fsReadFile,
-} from "node:fs/promises";
-import { createHash } from "node:crypto";
-import helmet from "helmet";
 import { client } from "./ollama.js";
 import { createRoleLimiterQueue } from "./rateLimiter.js";
 import logger, { createHttpLogger } from "./logger.js";
@@ -105,7 +98,6 @@ import {
   parseIncidentRunbookType,
   parseIncidentSummary,
   parseIncidentUpdatePayload,
-  parseIntegrityManifest,
   parseMessage,
   parseOperationalApprovalAction,
   parseOperationalApprovalDecision,
@@ -135,8 +127,14 @@ import {
   parseUserRole,
 } from "./src/shared/parsers.js";
 import { asyncHandler } from "./src/http/async-handler.js";
+import {
+  attachAppLocals,
+  buildCorsOriginValidator,
+  configureAppBootstrap,
+} from "./src/http/app-bootstrap.js";
 import { createAuthGuards } from "./src/http/auth-guards.js";
 import { createOperationalGuards } from "./src/http/operational-guards.js";
+import { registerAppRoutes } from "./src/http/register-app-routes.js";
 import { registerUserRoutes } from "./src/modules/users/register-users-routes.js";
 import { registerIncidentRoutes } from "./src/modules/governance/register-incident-routes.js";
 import { registerApprovalRoutes } from "./src/modules/governance/register-approval-routes.js";
@@ -156,6 +154,7 @@ import {
 import { createCapacityProfileService } from "./src/modules/governance/capacity-service.js";
 import { createConfigRollbackService } from "./src/modules/governance/config-rollback-service.js";
 import { createDefaultDisasterRecoveryService } from "./src/modules/governance/disaster-recovery-service.js";
+import { createIntegrityRuntimeService } from "./src/modules/governance/integrity-service.js";
 import { createIncidentRunbookSignalsCollector } from "./src/modules/governance/incident-runbook-signals.js";
 import {
   buildOverallHealthStatus,
@@ -171,163 +170,7 @@ import { registerRagRoutes } from "./src/modules/chat/register-rag-routes.js";
 import { registerBackupRoutes } from "./src/modules/governance/register-backup-routes.js";
 import { registerHealthRoutes } from "./src/modules/health/register-health-routes.js";
 
-export function createIntegrityRuntimeService({
-  baseDir,
-  manifestPath,
-  targets = [],
-  staleAfterMs = 30_000,
-} = {}) {
-  const state = {
-    lastCheckedAt: null,
-    status: "unknown",
-    mismatches: [],
-    missingFiles: [],
-    checkedFiles: [],
-    reason: "integrity-check-not-run",
-    staleAfterMs,
-  };
-
-  async function computeSha256(filePath) {
-    const content = await fsReadFile(filePath);
-    return createHash("sha256").update(content).digest("hex");
-  }
-
-  async function runCheck() {
-    const now = new Date().toISOString();
-    const resolvedTargets = [...new Set(targets.map((item) => String(item || "").trim()).filter(Boolean))];
-
-    if (!manifestPath) {
-      state.lastCheckedAt = now;
-      state.status = "unknown";
-      state.reason = "manifest-path-not-configured";
-      state.checkedFiles = [];
-      state.mismatches = [];
-      state.missingFiles = [];
-      return getStatus();
-    }
-
-    let manifestEntries = [];
-    try {
-      const manifestContent = await fsReadFile(manifestPath, "utf8");
-      manifestEntries = parseIntegrityManifest(manifestContent);
-    } catch {
-      state.lastCheckedAt = now;
-      state.status = "unknown";
-      state.reason = "manifest-not-found";
-      state.checkedFiles = [];
-      state.mismatches = [];
-      state.missingFiles = [];
-      return getStatus();
-    }
-
-    const manifestMap = new Map(manifestEntries.map((entry) => [entry.file, entry.hash]));
-    const filesToCheck = resolvedTargets.length ? resolvedTargets : Array.from(manifestMap.keys());
-
-    const mismatches = [];
-    const missingFiles = [];
-    const checkedFiles = [];
-
-    for (const relativePath of filesToCheck) {
-      const expectedHash = manifestMap.get(relativePath) || null;
-      if (!expectedHash) {
-        mismatches.push({
-          file: relativePath,
-          reason: "missing-from-manifest",
-        });
-        continue;
-      }
-
-      const fullPath = path.join(baseDir, relativePath);
-      try {
-        const actualHash = await computeSha256(fullPath);
-        checkedFiles.push(relativePath);
-        if (actualHash !== expectedHash) {
-          mismatches.push({
-            file: relativePath,
-            reason: "hash-mismatch",
-          });
-        }
-      } catch {
-        missingFiles.push(relativePath);
-      }
-    }
-
-    state.lastCheckedAt = now;
-    state.checkedFiles = checkedFiles;
-    state.mismatches = mismatches;
-    state.missingFiles = missingFiles;
-
-    if (mismatches.length || missingFiles.length) {
-      state.status = "failed";
-      state.reason = "integrity-divergence-detected";
-    } else {
-      state.status = "ok";
-      state.reason = "integrity-verified";
-    }
-
-    return getStatus();
-  }
-
-  function getStatus() {
-    return {
-      status: state.status,
-      reason: state.reason,
-      lastCheckedAt: state.lastCheckedAt,
-      staleAfterMs: state.staleAfterMs,
-      checkedFiles: [...state.checkedFiles],
-      mismatches: [...state.mismatches],
-      missingFiles: [...state.missingFiles],
-    };
-  }
-
-  async function getOrRefresh({ force = false } = {}) {
-    if (!force && state.lastCheckedAt) {
-      const ageMs = Date.now() - new Date(state.lastCheckedAt).getTime();
-      if (ageMs <= state.staleAfterMs) {
-        return getStatus();
-      }
-    }
-    return runCheck();
-  }
-
-  return {
-    runCheck,
-    getStatus,
-    getOrRefresh,
-  };
-}
-
-function buildCorsOriginValidator(configuredOrigin) {
-  if (configuredOrigin === true || configuredOrigin === false) {
-    return configuredOrigin;
-  }
-
-  const configuredOrigins = Array.isArray(configuredOrigin)
-    ? configuredOrigin.map((origin) => String(origin).trim()).filter(Boolean)
-    : parseOriginList(configuredOrigin);
-
-  const allowlist = new Set(
-    configuredOrigins.length
-      ? configuredOrigins
-      : ["http://localhost:3001", "http://127.0.0.1:3001"],
-  );
-
-  return (origin, callback) => {
-    // Requests sem header Origin (curl, health checks e chamadas same-origin)
-    // continuam permitidos.
-    if (!origin) {
-      callback(null, true);
-      return;
-    }
-
-    if (allowlist.has(origin)) {
-      callback(null, true);
-      return;
-    }
-
-    callback(new HttpError(403, "Origem nao permitida pelo CORS"));
-  };
-}
+export { createIntegrityRuntimeService };
 
 export function createApp(deps = {}) {
   const chatClient = deps.chatClient || client;
@@ -382,6 +225,8 @@ export function createApp(deps = {}) {
   const webDir = deps.webDir || path.resolve(serverDir, "../web");
   const corsOrigin = buildCorsOriginValidator(
     deps.allowedOrigin ?? process.env.FRONTEND_ORIGIN,
+    parseOriginList,
+    HttpError,
   );
   const requestWindowMs = Number.parseInt(
     process.env.RATE_LIMIT_WINDOW_MS || `${15 * 60 * 1000}`,
@@ -635,352 +480,266 @@ export function createApp(deps = {}) {
       HttpError,
     });
 
-  app.disable("x-powered-by");
-  app.use(
-    helmet({
-      contentSecurityPolicy: {
-        useDefaults: true,
-        directives: {
-          defaultSrc: ["'self'"],
-          scriptSrc: ["'self'", "'unsafe-inline'"],
-          styleSrc: ["'self'", "'unsafe-inline'"],
-          imgSrc: ["'self'", "data:", "blob:"],
-          connectSrc: ["'self'"],
-          objectSrc: ["'none'"],
-          frameAncestors: ["'none'"],
-          baseUri: ["'self'"],
-          formAction: ["'self'"],
-        },
-      },
-      crossOriginEmbedderPolicy: false,
-    }),
-  );
-  app.use(cors({ origin: corsOrigin }));
-  app.use(express.json({ limit: process.env.JSON_LIMIT || "32mb" }));
-
-  // Response compression for JSON and text
-  app.use(compression());
-
-  // HTTP logging with trace IDs
-  app.use(createHttpLogger());
-  app.use((req, res, next) => {
-    req.logger = logger.child({ traceId: req.id });
-    next();
-  });
-  // Devolve o traceId em toda resposta API para correlacao com o frontend.
-  app.use((req, res, next) => {
-    if (req.id) res.setHeader("x-trace-id", req.id);
-    next();
-  });
-  app.use(createTelemetryMiddleware());
-
-  // Cache headers for static assets
-  app.use(
-    express.static(webDir, {
-      maxAge: "1d",
-      etag: false,
-      dotfiles: "ignore",
-    }),
-  );
-
-  app.use("/api", roleLimiter.createMiddleware("api"));
-  app.use("/api/chat", roleLimiter.createMiddleware("chat"));
-  app.use("/api/chat-stream", roleLimiter.createMiddleware("chat"));
-
-  app.locals.backupService = backupService;
-  app.locals.storageService = storageService;
-  app.locals.capacityService = capacityService;
-  app.locals.queueService = queueService;
-  app.locals.baselineService = baselineService;
-  app.locals.approvalService = approvalService;
-
-  app.get("/healthz", (req, res) => {
-    req.logger?.info({ uptime: process.uptime() }, "Liveness check");
-    res.status(200).json({ status: "ok", service: "chat-server" });
+  configureAppBootstrap(app, {
+    corsOrigin,
+    webDir,
+    roleLimiter,
+    createHttpLogger,
+    logger,
+    createTelemetryMiddleware,
+    express,
   });
 
-  registerHealthRoutes(app, {
-    asyncHandler,
-    requireMinimumRole,
-    assertBodyObject,
-    parseBooleanLike,
-    resolveActor,
-    recordAudit,
-    recordConfigVersion,
-    buildOverallHealthStatus,
-    buildSloSnapshot,
-    getTelemetryStats,
-    isTelemetryEnabled,
-    setTelemetryEnabled,
-    resetTelemetryStats,
-    HEALTH_STATUS,
-    healthProviders,
-    integrityService,
-    autoHealingService,
+  attachAppLocals(app, {
+    backupService,
+    storageService,
     capacityService,
     queueService,
     baselineService,
-    roleLimiter,
-    CONFIG_KEYS,
-    store,
-  });
-
-  registerChatRoutes(app, {
-    asyncHandler,
-    assertBodyObject,
-    parseMessage,
-    getChatId,
-    parseOptions,
-    parseRagOptions,
-    getMessageImages,
-    recordBlockedAttempt,
-    buildRagSystemMessage,
-    buildSystemMessages,
-    executeWithModelRecovery,
-    ollamaFallbackModel,
-    ollamaMaxAttempts,
-    ollamaTimeoutMs,
-    ollamaRetryDelays,
-    chatClient,
-    queueService,
-    store,
-    HttpError,
-  });
-
-  registerRagRoutes(app, {
-    asyncHandler,
-    assertBodyObject,
-    parseChatId,
-    parseRagDocuments,
-    parseSearchQuery,
-    recordBlockedAttempt,
-    clamp,
-    store,
-  });
-
-  registerUserRoutes(app, {
-    asyncHandler,
-    requireMinimumRole,
-    requireAdminOrSelf,
-    assertBodyObject,
-    parseUserId,
-    parseUserName,
-    parseUserRole,
-    parseChatId,
-    parseSystemPrompt,
-    parseTheme,
-    parseUiPreferences,
-    parseStorageLimitMb,
-    resolveActor,
-    recordAudit,
-    recordConfigVersion,
-    CONFIG_KEYS,
-    HttpError,
-    store,
-  });
-
-  registerChatsRoutes(app, {
-    asyncHandler,
-    assertBodyObject,
-    parseChatId,
-    parseTitle,
-    parseUserId,
-    parseChatListFilters,
-    parseBooleanLike,
-    parseTags,
-    parseSystemPrompt,
-    parseSearchQuery,
-    parseSearchPage,
-    parseSearchLimit,
-    parseSearchRole,
-    parseSearchDate,
-    parseChatImportPayload,
-    parseUserOnly,
-    recordBlockedAttempt,
-    resolveActor,
-    recordAudit,
-    recordConfigVersion,
-    requireMinimumRole,
-    CONFIG_KEYS,
-    store,
-    HttpError,
-  });
-
-  registerBackupRoutes(app, {
-    asyncHandler,
-    requireMinimumRole,
-    assertBodyObject,
-    resolveActor,
-    requireOperationalApproval,
-    parseBackupPassphrase,
-    parseBackupPayload,
-    parsePositiveInt,
-    recordAudit,
-    backupService,
-    HttpError,
-  });
-
-  registerIncidentRoutes(app, {
-    asyncHandler,
-    requireMinimumRole,
-    assertBodyObject,
-    resolveActor,
-    recordAudit,
-    requireOperationalApproval,
-    parseIncidentUpdatePayload,
-    parseIncidentRunbookType,
-    parseIncidentRunbookMode,
-    parseIncidentOwner,
-    parseIncidentSummary,
-    parseIncidentNextUpdateAt,
-    parseBackupPassphrase,
-    collectIncidentRunbookSignals,
-    incidentService,
-    INCIDENT_RUNBOOK_TYPES,
-  });
-
-  registerResilienceRoutes(app, {
-    asyncHandler,
-    requireMinimumRole,
-    assertBodyObject,
-    resolveActor,
-    recordAudit,
-    requireOperationalApproval,
-    parseAutoHealingConfigPatch,
-    parseAutoHealingPolicy,
-    parseDisasterScenarioId,
-    parseBackupPassphrase,
-    parseBooleanLike,
-    autoHealingService,
-    disasterRecoveryService,
-    integrityService,
-  });
-
-  registerStorageRoutes(app, {
-    asyncHandler,
-    requireMinimumRole,
-    assertBodyObject,
-    parseUserId,
-    parseCleanupMode,
-    parseCleanupTarget,
-    parseCleanupOlderThanDays,
-    parseCleanupMaxDeleteMb,
-    parseCleanupPreserveValidatedBackups,
-    parseBackupPassphrase,
-    resolveActor,
-    requireOperationalApproval,
-    storageService,
-    store,
-  });
-
-  registerConfigRoutes(app, {
-    asyncHandler,
-    requireMinimumRole,
-    resolveActor,
-    recordAudit,
-    recordConfigVersion,
-    parseConfigVersionFilters,
-    parseConfigVersionId,
-    areConfigValuesEqual,
-    readCurrentConfigValue,
-    applyConfigValue,
-    baselineService,
-    store,
-    HttpError,
-  });
-
-  registerApprovalRoutes(app, {
-    asyncHandler,
-    requireMinimumRole,
-    assertBodyObject,
-    resolveActor,
-    recordAudit,
-    parseOperationalApprovalStatus,
-    parsePositiveInt,
-    parseOperationalApprovalAction,
-    parseOperationalApprovalReason,
-    parseOperationalApprovalWindowMinutes,
-    parseOperationalApprovalId,
-    parseOperationalApprovalDecision,
     approvalService,
   });
 
-  registerAuditRoutes(app, {
-    asyncHandler,
-    requireMinimumRole,
-    parseAuditFilters,
-    store,
-  });
-
-  registerObservabilityRoutes(app, {
-    asyncHandler,
-    requireMinimumRole,
-    recordAudit,
-    buildOverallHealthStatus,
-    buildSloSnapshot,
-    buildTriageRecommendations,
-    getTelemetryStats,
-    isTelemetryEnabled,
-    healthProviders,
-    backupService,
-    integrityService,
-    capacityService,
-    baselineService,
-    autoHealingService,
-    incidentService,
-    queueService,
-    scorecardService,
-    approvalService,
-    storageService,
-    roleLimiter,
-    store,
-  });
-
-  app.use("/api", (_req, res) => {
-    res.status(404).json({ error: "Endpoint nao encontrado" });
-  });
-
-  app.get("/app", (_req, res) => {
-    res.sendFile(path.join(webDir, "index.html"));
-  });
-
-  app.get("/produto", (_req, res) => {
-    res.sendFile(path.join(webDir, "produto.html"));
-  });
-
-  app.get("/guia", (_req, res) => {
-    res.sendFile(path.join(webDir, "guia.html"));
-  });
-
-  app.get("/", (_req, res) => {
-    res.sendFile(path.join(webDir, "index.html"));
-  });
-
-  // eslint-disable-next-line no-unused-vars
-  app.use((err, req, res, _next) => {
-    const status = err instanceof HttpError ? err.status : 500;
-    const message =
-      err instanceof HttpError ? err.message : "Erro interno do servidor";
-
-    req.logger?.error(
-      {
-        error: err.message,
-        stack: err.stack,
-        traceId: req.id,
-      },
-      `${status} ${message}`,
-    );
-
-    if (res.headersSent) {
-      return;
-    }
-
-    if (req.path.startsWith("/api")) {
-      res.status(status).json({ error: message, traceId: req.id || null });
-      return;
-    }
-
-    res.status(status).send(message);
+  registerAppRoutes(app, {
+    webDir,
+    logger,
+    HttpError,
+    registerHealthRoutes,
+    registerChatRoutes,
+    registerRagRoutes,
+    registerUserRoutes,
+    registerChatsRoutes,
+    registerBackupRoutes,
+    registerIncidentRoutes,
+    registerResilienceRoutes,
+    registerStorageRoutes,
+    registerConfigRoutes,
+    registerApprovalRoutes,
+    registerAuditRoutes,
+    registerObservabilityRoutes,
+    healthRoutes: {
+      asyncHandler,
+      requireMinimumRole,
+      assertBodyObject,
+      parseBooleanLike,
+      resolveActor,
+      recordAudit,
+      recordConfigVersion,
+      buildOverallHealthStatus,
+      buildSloSnapshot,
+      getTelemetryStats,
+      isTelemetryEnabled,
+      setTelemetryEnabled,
+      resetTelemetryStats,
+      HEALTH_STATUS,
+      healthProviders,
+      integrityService,
+      autoHealingService,
+      capacityService,
+      queueService,
+      baselineService,
+      roleLimiter,
+      CONFIG_KEYS,
+      store,
+    },
+    chatRoutes: {
+      asyncHandler,
+      assertBodyObject,
+      parseMessage,
+      getChatId,
+      parseOptions,
+      parseRagOptions,
+      getMessageImages,
+      recordBlockedAttempt,
+      buildRagSystemMessage,
+      buildSystemMessages,
+      executeWithModelRecovery,
+      ollamaFallbackModel,
+      ollamaMaxAttempts,
+      ollamaTimeoutMs,
+      ollamaRetryDelays,
+      chatClient,
+      queueService,
+      store,
+      HttpError,
+    },
+    ragRoutes: {
+      asyncHandler,
+      assertBodyObject,
+      parseChatId,
+      parseRagDocuments,
+      parseSearchQuery,
+      recordBlockedAttempt,
+      clamp,
+      store,
+    },
+    userRoutes: {
+      asyncHandler,
+      requireMinimumRole,
+      requireAdminOrSelf,
+      assertBodyObject,
+      parseUserId,
+      parseUserName,
+      parseUserRole,
+      parseChatId,
+      parseSystemPrompt,
+      parseTheme,
+      parseUiPreferences,
+      parseStorageLimitMb,
+      resolveActor,
+      recordAudit,
+      recordConfigVersion,
+      CONFIG_KEYS,
+      HttpError,
+      store,
+    },
+    chatsRoutes: {
+      asyncHandler,
+      assertBodyObject,
+      parseChatId,
+      parseTitle,
+      parseUserId,
+      parseChatListFilters,
+      parseBooleanLike,
+      parseTags,
+      parseSystemPrompt,
+      parseSearchQuery,
+      parseSearchPage,
+      parseSearchLimit,
+      parseSearchRole,
+      parseSearchDate,
+      parseChatImportPayload,
+      parseUserOnly,
+      recordBlockedAttempt,
+      resolveActor,
+      recordAudit,
+      recordConfigVersion,
+      requireMinimumRole,
+      CONFIG_KEYS,
+      store,
+      HttpError,
+    },
+    backupRoutes: {
+      asyncHandler,
+      requireMinimumRole,
+      assertBodyObject,
+      resolveActor,
+      requireOperationalApproval,
+      parseBackupPassphrase,
+      parseBackupPayload,
+      parsePositiveInt,
+      recordAudit,
+      backupService,
+      HttpError,
+    },
+    incidentRoutes: {
+      asyncHandler,
+      requireMinimumRole,
+      assertBodyObject,
+      resolveActor,
+      recordAudit,
+      requireOperationalApproval,
+      parseIncidentUpdatePayload,
+      parseIncidentRunbookType,
+      parseIncidentRunbookMode,
+      parseIncidentOwner,
+      parseIncidentSummary,
+      parseIncidentNextUpdateAt,
+      parseBackupPassphrase,
+      collectIncidentRunbookSignals,
+      incidentService,
+      INCIDENT_RUNBOOK_TYPES,
+    },
+    resilienceRoutes: {
+      asyncHandler,
+      requireMinimumRole,
+      assertBodyObject,
+      resolveActor,
+      recordAudit,
+      requireOperationalApproval,
+      parseAutoHealingConfigPatch,
+      parseAutoHealingPolicy,
+      parseDisasterScenarioId,
+      parseBackupPassphrase,
+      parseBooleanLike,
+      autoHealingService,
+      disasterRecoveryService,
+      integrityService,
+    },
+    storageRoutes: {
+      asyncHandler,
+      requireMinimumRole,
+      assertBodyObject,
+      parseUserId,
+      parseCleanupMode,
+      parseCleanupTarget,
+      parseCleanupOlderThanDays,
+      parseCleanupMaxDeleteMb,
+      parseCleanupPreserveValidatedBackups,
+      parseBackupPassphrase,
+      resolveActor,
+      requireOperationalApproval,
+      storageService,
+      store,
+    },
+    configRoutes: {
+      asyncHandler,
+      requireMinimumRole,
+      resolveActor,
+      recordAudit,
+      recordConfigVersion,
+      parseConfigVersionFilters,
+      parseConfigVersionId,
+      areConfigValuesEqual,
+      readCurrentConfigValue,
+      applyConfigValue,
+      baselineService,
+      store,
+      HttpError,
+    },
+    approvalRoutes: {
+      asyncHandler,
+      requireMinimumRole,
+      assertBodyObject,
+      resolveActor,
+      recordAudit,
+      parseOperationalApprovalStatus,
+      parsePositiveInt,
+      parseOperationalApprovalAction,
+      parseOperationalApprovalReason,
+      parseOperationalApprovalWindowMinutes,
+      parseOperationalApprovalId,
+      parseOperationalApprovalDecision,
+      approvalService,
+    },
+    auditRoutes: {
+      asyncHandler,
+      requireMinimumRole,
+      parseAuditFilters,
+      store,
+    },
+    observabilityRoutes: {
+      asyncHandler,
+      requireMinimumRole,
+      recordAudit,
+      buildOverallHealthStatus,
+      buildSloSnapshot,
+      buildTriageRecommendations,
+      getTelemetryStats,
+      isTelemetryEnabled,
+      healthProviders,
+      backupService,
+      integrityService,
+      capacityService,
+      baselineService,
+      autoHealingService,
+      incidentService,
+      queueService,
+      scorecardService,
+      approvalService,
+      storageService,
+      roleLimiter,
+      store,
+    },
   });
 
   return app;
