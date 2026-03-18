@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import os from "node:os";
 import path from "node:path";
 import fs from "node:fs/promises";
-import { createStorageService } from "./storage.js";
+import { createStorageService } from "./src/infra/fs/storage-service.js";
 import { createBackupArchive } from "./backup.js";
 
 async function touchFile(filePath, content, mtimeMsOffset = 0) {
