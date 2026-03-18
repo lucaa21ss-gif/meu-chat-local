@@ -141,7 +141,6 @@ export function createAppContext({
     requestWindowMs: runtimeConfig.requestWindowMs ?? requestWindowMsFallback,
     store,
     normalizeRole,
-    parsePositiveInt,
     getTelemetryStats,
     backupService: services.backupService,
     incidentService: services.incidentService,
