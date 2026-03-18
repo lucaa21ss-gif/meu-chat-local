@@ -1,23 +1,37 @@
+import logger from "../../logger.js";
+import { parsePositiveInt } from "../shared/parsers.js";
+import { initStoreDb } from "./app-store.js";
+import { scheduleBackupJob } from "./app-backup-scheduler.js";
+import { startHttpServer } from "./app-server-listen.js";
+
+function resolveStartupDeps(startupDeps = {}) {
+  return {
+    initStoreDb: startupDeps.initStoreDb || initStoreDb,
+    parsePositiveInt: startupDeps.parsePositiveInt || parsePositiveInt,
+    scheduleBackupJob: startupDeps.scheduleBackupJob || scheduleBackupJob,
+    startHttpServer: startupDeps.startHttpServer || startHttpServer,
+    logger: startupDeps.logger || logger,
+  };
+}
+
 export async function startConfiguredServer({
   port = 3001,
   createApp,
-  initStoreDb,
-  parsePositiveInt,
-  scheduleBackupJob,
-  startHttpServer,
-  logger,
+  startupDeps,
 }) {
-  await initStoreDb();
+  const deps = resolveStartupDeps(startupDeps);
+
+  await deps.initStoreDb();
 
   const app = createApp();
-  const intervalMinutes = parsePositiveInt(
+  const intervalMinutes = deps.parsePositiveInt(
     process.env.BACKUP_INTERVAL_MINUTES,
     0,
     0,
     24 * 60,
   );
 
-  scheduleBackupJob({ app, intervalMinutes, logger });
+  deps.scheduleBackupJob({ app, intervalMinutes, logger: deps.logger });
 
-  return startHttpServer({ app, port, logger });
+  return deps.startHttpServer({ app, port, logger: deps.logger });
 }
