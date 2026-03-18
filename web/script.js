@@ -1,6 +1,7 @@
 import { createApiClient } from "./app/shared/api.js";
 import { escapeRegExp, formatBytes, formatDateLabel } from "./app/shared/format.js";
 import { filesToBase64, filesToDocuments, readFileAsBase64 } from "./app/shared/files.js";
+import { createChatListController } from "./app/shared/chat-list.js";
 import { createModalPresenter } from "./app/shared/modal.js";
 import { createShortcutsController } from "./app/shared/shortcuts.js";
 import { createStatusPresenter } from "./app/shared/status.js";
@@ -225,6 +226,15 @@ const {
   openVoiceHistoryModal,
 } = modalPresenter;
 
+const chatListController = createChatListController({
+  state,
+  chatListPaginationInfoEl,
+  chatListLoadMoreBtnEl,
+  onScheduledSearch: () => {
+    loadChats().catch(console.error);
+  },
+});
+
 const shortcutsController = createShortcutsController({
   shortcutsListEl,
   inputEl,
@@ -278,20 +288,6 @@ function updateThemeToggleUi(mode) {
   }
 }
 
-function applyThemeMode(mode, options = {}) {
-  const { persistLocal = true } = options;
-  const safeMode = normalizeThemeMode(mode);
-  state.themeMode = safeMode;
-  state.isDarkMode = isDarkForMode(safeMode);
-
-  document.documentElement.classList.toggle("dark", state.isDarkMode);
-  updateThemeToggleUi(safeMode);
-
-  if (persistLocal) {
-    localStorage.setItem("themeMode", safeMode);
-  }
-}
-
 function cycleThemeMode() {
   const order = ["light", "dark", "system"];
   const idx = order.indexOf(normalizeThemeMode(state.themeMode));
@@ -336,11 +332,10 @@ async function loadUsers() {
 
 async function switchUser(userId) {
   state.userId = userId;
-  resetChatListPagination();
+  chatListController.resetPagination();
   localStorage.setItem("chatUserId", userId);
   try {
     await fetchJson("/api/audit/profile-switch", {
-      method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ userId }),
     });
@@ -445,61 +440,19 @@ async function deleteCurrentProfile() {
 }
 
 function buildChatsQueryString() {
-  const params = new URLSearchParams();
-  params.set("userId", state.userId);
-  params.set("page", String(state.chatList.page));
-  params.set("limit", String(state.chatList.limit));
-
-  if (state.chatFilters.mode === "favorites") {
-    params.set("favorite", "true");
-  }
-  if (state.chatFilters.mode === "archived") {
-    params.set("archived", "true");
-  }
-  if (state.chatFilters.tag) {
-    params.set("tag", state.chatFilters.tag);
-  }
-  if (state.chatList.search) {
-    params.set("search", state.chatList.search);
-  }
-
-  return params.toString();
+  return chatListController.buildQueryString();
 }
 
 function updateChatListPaginationUi() {
-  if (chatListPaginationInfoEl) {
-    const total = state.chatList.total;
-    const loaded = state.chats.length;
-    if (state.chatList.search) {
-      chatListPaginationInfoEl.textContent = `Busca ativa: ${total} conversa(s), ${loaded} carregada(s).`;
-    } else {
-      chatListPaginationInfoEl.textContent = `Conversas carregadas: ${loaded} de ${total}.`;
-    }
-  }
-
-  if (!chatListLoadMoreBtnEl) return;
-  const hasMore = state.chatList.page < state.chatList.totalPages;
-  chatListLoadMoreBtnEl.classList.toggle("hidden", !hasMore);
-  chatListLoadMoreBtnEl.disabled = !hasMore;
+  chatListController.updatePaginationUi();
 }
 
 function resetChatListPagination(options = {}) {
-  state.chatList.page = 1;
-  if (options.keepScroll !== true) {
-    state.chatList.scrollTop = 0;
-  }
+  chatListController.resetPagination(options);
 }
 
 function scheduleChatListSearch() {
-  if (state.chatList.searchTimer) {
-    window.clearTimeout(state.chatList.searchTimer);
-  }
-
-  state.chatList.searchTimer = window.setTimeout(() => {
-    state.chatList.searchTimer = null;
-    resetChatListPagination();
-    loadChats().catch(console.error);
-  }, 300);
+  chatListController.scheduleSearch();
 }
 
 function renderStorageUsage() {
