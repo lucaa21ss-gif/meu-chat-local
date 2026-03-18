@@ -89,6 +89,7 @@ import { createGovernanceRuntime } from "./src/http/app-governance-runtime.js";
 import { createAppRuntimeConfig } from "./src/http/app-runtime-config.js";
 import { createAppGuardsAndAudit } from "./src/http/app-guards-and-audit.js";
 import { APP_ROUTE_REGISTRARS } from "./src/http/app-route-registrars.js";
+import { scheduleBackupJob } from "./src/http/app-backup-scheduler.js";
 import {
   attachAppLocals,
   buildCorsOriginValidator,
@@ -358,25 +359,7 @@ export async function startServer(port = 3001) {
     24 * 60,
   );
 
-  if (intervalMinutes > 0 && app?.locals?.backupService?.createBackup) {
-    const intervalMs = intervalMinutes * 60 * 1000;
-    const timer = setInterval(async () => {
-      try {
-        const backup = await app.locals.backupService.createBackup();
-        logger.info(
-          { fileName: backup.fileName, sizeBytes: backup.sizeBytes },
-          "Backup agendado concluido",
-        );
-      } catch (error) {
-        logger.error({ error: error.message }, "Falha no backup agendado");
-      }
-    }, intervalMs);
-    timer.unref();
-    logger.info(
-      { intervalMinutes },
-      "Backup agendado habilitado por BACKUP_INTERVAL_MINUTES",
-    );
-  }
+  scheduleBackupJob({ app, intervalMinutes, logger });
 
   const server = app.listen(port, () => {
     logger.info(`API rodando em http://localhost:${port}`);
