@@ -1,4 +1,3 @@
-import logger from "./logger.js";
 import { createConfiguredApp } from "./src/http/app-factory.js";
 import { runAsMainModule } from "./src/http/app-main-module.js";
 import { startConfiguredServer } from "./src/http/app-startup.js";
@@ -14,5 +13,4 @@ export async function startServer(port = 3001) {
 runAsMainModule({
   metaUrl: import.meta.url,
   startServer,
-  logger,
 });

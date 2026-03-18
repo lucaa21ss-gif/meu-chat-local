@@ -1,4 +1,5 @@
 import { fileURLToPath } from "node:url";
+import logger from "../../logger.js";
 
 export function isMainModule(metaUrl, argv = process.argv) {
   return Boolean(argv[1] && fileURLToPath(metaUrl) === argv[1]);
@@ -7,7 +8,7 @@ export function isMainModule(metaUrl, argv = process.argv) {
 export function runAsMainModule({
   metaUrl,
   startServer,
-  logger,
+  logger: mainLogger = logger,
   exit = process.exit,
   argv = process.argv,
 }) {
@@ -16,7 +17,7 @@ export function runAsMainModule({
   }
 
   startServer().catch((err) => {
-    logger.error(err, "Falha ao inicializar servidor");
+    mainLogger.error(err, "Falha ao inicializar servidor");
     exit(1);
   });
 
