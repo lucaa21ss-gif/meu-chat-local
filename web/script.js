@@ -2,6 +2,7 @@ import { createApiClient } from "./app/shared/api.js";
 import { escapeRegExp, formatBytes, formatDateLabel } from "./app/shared/format.js";
 import { filesToBase64, filesToDocuments, readFileAsBase64 } from "./app/shared/files.js";
 import { createModalPresenter } from "./app/shared/modal.js";
+import { createShortcutsController } from "./app/shared/shortcuts.js";
 import { createStatusPresenter } from "./app/shared/status.js";
 import { isDarkForMode, normalizeThemeMode } from "./app/shared/theme.js";
 import { buildHeaderPresentation, createHealthPoller } from "./health-indicators.js";
@@ -224,60 +225,26 @@ const {
   openVoiceHistoryModal,
 } = modalPresenter;
 
-const SHORTCUT_DEFINITIONS = [
-  {
-    keys: "Shift+?",
-    description: "Abrir a ajuda de atalhos",
-    match: (event) =>
-      !event.altKey &&
-      !event.ctrlKey &&
-      !event.metaKey &&
-      event.shiftKey &&
-      (event.key === "?" || event.code === "Slash"),
-    run: () => openShortcutsModal(),
-  },
-  {
-    keys: "Alt+Shift+N",
-    description: "Criar nova conversa",
-    match: (event) => isAltShiftShortcut(event, "n"),
-    run: () => createNewChat().catch(console.error),
-  },
-  {
-    keys: "Alt+Shift+F",
-    description: "Focar a busca no historico",
-    match: (event) => isAltShiftShortcut(event, "f"),
-    run: () => focusSearchField(),
-  },
-  {
-    keys: "Alt+Shift+M",
-    description: "Focar a caixa de mensagem",
-    match: (event) => isAltShiftShortcut(event, "m"),
-    run: () => focusComposerField(),
-  },
-  {
-    keys: "Alt+Shift+ArrowUp",
-    description: "Ir para a aba anterior",
-    match: (event) => isAltShiftShortcut(event, "arrowup"),
-    run: () => navigateRelativeTab(-1),
-  },
-  {
-    keys: "Alt+Shift+ArrowDown",
-    description: "Ir para a proxima aba",
-    match: (event) => isAltShiftShortcut(event, "arrowdown"),
-    run: () => navigateRelativeTab(1),
-  },
-  {
-    keys: "Alt+Shift+D",
-    description: "Duplicar a aba ativa",
-    match: (event) => isAltShiftShortcut(event, "d"),
-    run: () => duplicateActiveChat().catch(console.error),
-  },
-  {
-    keys: "Esc",
-    description: "Fechar o modal aberto",
-    helpOnly: true,
-  },
-];
+const shortcutsController = createShortcutsController({
+  shortcutsListEl,
+  inputEl,
+  searchInputEl,
+  openShortcutsModal,
+  closeShortcutsModal,
+  isShortcutsModalOpen,
+  hasBlockingModalOpen,
+  hasDuplicatePending: () => modalPresenter.hasDuplicatePending(),
+  closeDuplicateModal,
+  hasConfirmPending: () => modalPresenter.hasConfirmPending(),
+  closeConfirmModal,
+  isVoiceHistoryOpen,
+  closeVoiceHistoryModal,
+  isOnboardingOpen: () => !!onboardingModalEl && !onboardingModalEl.classList.contains("hidden"),
+  closeOnboardingModal,
+  onCreateNewChat: () => createNewChat().catch(console.error),
+  onNavigateRelativeTab: (step) => navigateRelativeTab(step),
+  onDuplicateActiveChat: () => duplicateActiveChat().catch(console.error),
+});
 
 function renderUsers() {
   if (!userSelectEl) return;
@@ -2646,39 +2613,6 @@ function updateSendButtonState() {
   sendBtnEl.disabled = inputEl.value.trim() === "";
 }
 
-function isTextInputLike(element) {
-  if (!element) return false;
-  const tag = String(element.tagName || "").toLowerCase();
-  return (
-    tag === "input" ||
-    tag === "textarea" ||
-    element.isContentEditable === true
-  );
-}
-
-function isAltShiftShortcut(event, expectedKey) {
-  return (
-    event.altKey &&
-    event.shiftKey &&
-    !event.ctrlKey &&
-    !event.metaKey &&
-    String(event.key || "").toLowerCase() === expectedKey
-  );
-}
-
-function focusComposerField() {
-  if (!inputEl) return;
-  inputEl.focus();
-  inputEl.select?.();
-}
-
-function focusSearchField() {
-  const searchInput = document.getElementById("searchInput");
-  if (!searchInput) return;
-  searchInput.focus();
-  searchInput.select?.();
-}
-
 function navigateRelativeTab(step) {
   const totalChats = state.chats.length;
   if (!totalChats) return;
@@ -2691,71 +2625,6 @@ function navigateRelativeTab(step) {
   const chat = state.chats[nextIndex];
   if (!chat?.id) return;
   switchChat(chat.id).catch(console.error);
-}
-
-function renderShortcutsHelp() {
-  if (!shortcutsListEl) return;
-
-  shortcutsListEl.innerHTML = "";
-  SHORTCUT_DEFINITIONS.forEach((shortcut) => {
-    const item = document.createElement("li");
-    item.className =
-      "flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 dark:border-slate-700 dark:bg-slate-800/70";
-
-    const description = document.createElement("span");
-    description.className = "text-sm text-slate-700 dark:text-slate-200";
-    description.textContent = shortcut.description;
-
-    const keys = document.createElement("kbd");
-    keys.className =
-      "rounded-lg border border-slate-300 bg-white px-2 py-1 text-xs font-semibold text-slate-700 shadow-sm dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200";
-    keys.textContent = shortcut.keys;
-
-    item.append(description, keys);
-    shortcutsListEl.appendChild(item);
-  });
-}
-
-function handleGlobalShortcuts(event) {
-  if (event.key === "Escape") {
-    if (isShortcutsModalOpen()) {
-      event.preventDefault();
-      closeShortcutsModal();
-      return;
-    }
-    if (modalPresenter.hasDuplicatePending()) {
-      event.preventDefault();
-      closeDuplicateModal(null);
-      return;
-    }
-    if (modalPresenter.hasConfirmPending()) {
-      event.preventDefault();
-      closeConfirmModal(false);
-      return;
-    }
-    if (isVoiceHistoryOpen()) {
-      event.preventDefault();
-      closeVoiceHistoryModal();
-      return;
-    }
-    if (onboardingModalEl && !onboardingModalEl.classList.contains("hidden")) {
-      event.preventDefault();
-      closeOnboardingModal();
-    }
-    return;
-  }
-
-  if (isTextInputLike(event.target) || hasBlockingModalOpen()) {
-    return;
-  }
-
-  const shortcut = SHORTCUT_DEFINITIONS.find(
-    (entry) => !entry.helpOnly && entry.match?.(event),
-  );
-  if (!shortcut) return;
-
-  event.preventDefault();
-  shortcut.run?.();
 }
 
 function setupDragAndDrop() {
@@ -2800,7 +2669,7 @@ function loadDarkMode() {
     });
 }
 
-renderShortcutsHelp();
+shortcutsController.renderShortcutsHelp();
 
 inputEl.addEventListener("input", updateSendButtonState);
 
@@ -2811,7 +2680,7 @@ inputEl.addEventListener("keydown", (event) => {
   }
 });
 
-document.addEventListener("keydown", handleGlobalShortcuts);
+document.addEventListener("keydown", shortcutsController.handleGlobalShortcuts);
 
 if (duplicateModalEl) {
   duplicateModalEl.addEventListener("click", (event) => {
