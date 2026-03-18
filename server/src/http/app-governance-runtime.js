@@ -1,5 +1,5 @@
-import { createIncidentRunbookSignalsCollector } from "../modules/governance/incident-runbook-signals.js";
 import { createAppRoleLimiter } from "./app-role-limiter.js";
+import { createIncidentSignalsRuntime } from "./app-incident-signals-runtime.js";
 
 export function createGovernanceRuntime({
   deps,
@@ -21,19 +21,18 @@ export function createGovernanceRuntime({
     normalizeRole,
   });
 
-  const collectIncidentRunbookSignals =
-    deps.collectIncidentRunbookSignals ||
-    createIncidentRunbookSignalsCollector({
-      healthProviders,
-      store,
-      getTelemetryStats,
-      backupService,
-      roleLimiter,
-      incidentService,
-      buildOverallHealthStatus,
-      buildSloSnapshot,
-      buildTriageRecommendations,
-    });
+  const collectIncidentRunbookSignals = createIncidentSignalsRuntime({
+    deps,
+    healthProviders,
+    store,
+    getTelemetryStats,
+    backupService,
+    roleLimiter,
+    incidentService,
+    buildOverallHealthStatus,
+    buildSloSnapshot,
+    buildTriageRecommendations,
+  });
 
   return {
     roleLimiter,
