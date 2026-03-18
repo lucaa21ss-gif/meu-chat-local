@@ -4,7 +4,7 @@ import path from "node:path";
 import { tmpdir } from "node:os";
 import { mkdtemp, rm } from "node:fs/promises";
 
-const dbModuleUrl = new URL("./db.js", import.meta.url);
+const dbModuleUrl = new URL("./src/infra/db/db.js", import.meta.url);
 
 async function loadDbModuleWithFreshCache() {
   return import(`${dbModuleUrl.href}?cacheBust=${Date.now()}-${Math.random()}`);

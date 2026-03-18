@@ -41,7 +41,7 @@ import {
   ensureUser,
   getUiPreferences,
   setUiPreferences,
-} from "../../db.js";
+} from "../infra/db/db.js";
 
 export function createStore(deps = {}) {
   return {

@@ -13,7 +13,7 @@ import {
   closeDb,
   createDbSnapshot,
   initDb,
-} from "../../../db.js";
+} from "../../infra/db/db.js";
 import { parseDirList, parsePositiveInt } from "../../shared/parsers.js";
 
 async function pruneBackups(backupRoot, maxFiles) {
