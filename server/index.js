@@ -5,6 +5,7 @@ import { initStoreDb } from "./src/http/app-store.js";
 import { scheduleBackupJob } from "./src/http/app-backup-scheduler.js";
 import { startHttpServer } from "./src/http/app-server-listen.js";
 import { createConfiguredApp } from "./src/http/app-factory.js";
+import { startConfiguredServer } from "./src/http/app-startup.js";
 import { createIntegrityRuntimeService } from "./src/modules/governance/integrity-service.js";
 
 export { createIntegrityRuntimeService };
@@ -14,19 +15,15 @@ export function createApp(deps = {}) {
 }
 
 export async function startServer(port = 3001) {
-  await initStoreDb();
-  const app = createApp();
-  const intervalMinutes = parsePositiveInt(
-    process.env.BACKUP_INTERVAL_MINUTES,
-    0,
-    0,
-    24 * 60,
-  );
-
-  scheduleBackupJob({ app, intervalMinutes, logger });
-
-  const server = startHttpServer({ app, port, logger });
-  return server;
+  return startConfiguredServer({
+    port,
+    createApp,
+    initStoreDb,
+    parsePositiveInt,
+    scheduleBackupJob,
+    startHttpServer,
+    logger,
+  });
 }
 
 const isMainModule =
