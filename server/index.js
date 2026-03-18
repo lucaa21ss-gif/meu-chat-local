@@ -86,7 +86,6 @@ import {
   CONFIG_KEYS,
   HEALTH_STATUS,
   INCIDENT_RUNBOOK_TYPES,
-  INCIDENT_STATUS_TRANSITIONS,
 } from "./src/shared/app-constants.js";
 import {
   areConfigValuesEqual,
@@ -118,11 +117,8 @@ import {
   parseDisasterScenarioId,
   parseIncidentNextUpdateAt,
   parseIncidentOwner,
-  parseIncidentRecommendationType,
   parseIncidentRunbookMode,
   parseIncidentRunbookType,
-  parseIncidentSeverity,
-  parseIncidentStatus,
   parseIncidentSummary,
   parseIncidentUpdatePayload,
   parseIntegrityManifest,
@@ -165,6 +161,7 @@ import { registerStorageRoutes } from "./src/modules/governance/register-storage
 import { registerConfigRoutes } from "./src/modules/governance/register-config-routes.js";
 import { registerAuditRoutes } from "./src/modules/governance/register-audit-routes.js";
 import { registerObservabilityRoutes } from "./src/modules/governance/register-observability-routes.js";
+import { createDefaultIncidentService } from "./src/modules/governance/incident-service.js";
 import { registerChatRoutes } from "./src/modules/chat/register-chat-routes.js";
 import { registerChatsRoutes } from "./src/modules/chat/register-chats-routes.js";
 import { registerRagRoutes } from "./src/modules/chat/register-rag-routes.js";
@@ -335,82 +332,6 @@ function createDefaultBackupService(config = {}) {
         status: summarizeValidationStatus(items),
         items,
       };
-    },
-  };
-}
-
-function createDefaultIncidentService(config = {}) {
-  const now = new Date().toISOString();
-  const initial = {
-    version: 1,
-    status: parseIncidentStatus(config.status, "normal"),
-    severity: parseIncidentSeverity(config.severity, "info"),
-    summary:
-      parseIncidentSummary(config.summary) ||
-      "Operacao normal - nenhum incidente ativo",
-    owner: parseIncidentOwner(config.owner),
-    recommendationType: parseIncidentRecommendationType(
-      config.recommendationType,
-    ),
-    startedAt: now,
-    nextUpdateAt: parseIncidentNextUpdateAt(config.nextUpdateAt),
-    updatedAt: now,
-    updatedBy: null,
-    history: [],
-  };
-
-  let state = initial;
-
-  return {
-    getStatus() {
-      return {
-        ...state,
-        history: [...state.history],
-      };
-    },
-    updateStatus(patch = {}, actorUserId = null) {
-      const nextStatus = patch.status || state.status;
-      const hasStatusChange = patch.status && patch.status !== state.status;
-
-      if (hasStatusChange) {
-        const allowed = INCIDENT_STATUS_TRANSITIONS[state.status] || new Set();
-        if (!allowed.has(nextStatus)) {
-          throw new HttpError(
-            400,
-            `Transicao de incidente invalida: ${state.status} -> ${nextStatus}`,
-          );
-        }
-      }
-
-      const timestamp = new Date().toISOString();
-      const updated = {
-        ...state,
-        ...patch,
-        status: nextStatus,
-        severity: patch.severity || state.severity,
-        summary: patch.summary === null ? state.summary : patch.summary || state.summary,
-        owner: patch.owner === undefined ? state.owner : patch.owner,
-        recommendationType:
-          patch.recommendationType === undefined
-            ? state.recommendationType
-            : patch.recommendationType,
-        nextUpdateAt:
-          patch.nextUpdateAt === undefined ? state.nextUpdateAt : patch.nextUpdateAt,
-        updatedAt: timestamp,
-        updatedBy: actorUserId,
-      };
-
-      const transitionEntry = {
-        at: timestamp,
-        fromStatus: state.status,
-        toStatus: updated.status,
-        severity: updated.severity,
-        by: actorUserId,
-      };
-
-      updated.history = [transitionEntry, ...(state.history || [])].slice(0, 20);
-      state = updated;
-      return this.getStatus();
     },
   };
 }
