@@ -82,21 +82,17 @@ import {
   parseUserRole,
 } from "./src/shared/parsers.js";
 import { asyncHandler } from "./src/http/async-handler.js";
-import {
-  createAuditHelpers,
-} from "./src/http/app-route-deps.js";
 import { createRouteDepsForApp } from "./src/http/app-route-wiring.js";
 import { createStore, initStoreDb } from "./src/http/app-store.js";
 import { createAppServices } from "./src/http/app-services.js";
 import { createGovernanceRuntime } from "./src/http/app-governance-runtime.js";
 import { createAppRuntimeConfig } from "./src/http/app-runtime-config.js";
+import { createAppGuardsAndAudit } from "./src/http/app-guards-and-audit.js";
 import {
   attachAppLocals,
   buildCorsOriginValidator,
   configureAppBootstrap,
 } from "./src/http/app-bootstrap.js";
-import { createAuthGuards } from "./src/http/auth-guards.js";
-import { createOperationalGuards } from "./src/http/operational-guards.js";
 import { registerAppRoutes } from "./src/http/register-app-routes.js";
 import { registerUserRoutes } from "./src/modules/users/register-users-routes.js";
 import { registerIncidentRoutes } from "./src/modules/governance/register-incident-routes.js";
@@ -201,31 +197,28 @@ export function createApp(deps = {}) {
       buildTriageRecommendations,
     });
 
-  const { recordAudit, recordConfigVersion } = createAuditHelpers({
+  const {
+    recordAudit,
+    recordConfigVersion,
+    readCurrentConfigValue,
+    applyConfigValue,
+    resolveActor,
+    requireMinimumRole,
+    requireAdminOrSelf,
+    recordBlockedAttempt,
+    requireOperationalApproval,
+  } = createAppGuardsAndAudit({
     store,
     logger,
+    configRollbackService,
+    approvalService,
+    parseUserId,
+    normalizeRole,
+    hasRequiredRole,
+    asyncHandler,
+    HttpError,
+    parseOperationalApprovalId,
   });
-
-  const { readCurrentConfigValue, applyConfigValue } = configRollbackService;
-
-  const { resolveActor, requireMinimumRole, requireAdminOrSelf } =
-    createAuthGuards({
-      store,
-      parseUserId,
-      normalizeRole,
-      hasRequiredRole,
-      asyncHandler,
-      HttpError,
-    });
-
-  const { recordBlockedAttempt, requireOperationalApproval } =
-    createOperationalGuards({
-      resolveActor,
-      recordAudit,
-      approvalService,
-      parseOperationalApprovalId,
-      HttpError,
-    });
 
   configureAppBootstrap(app, {
     corsOrigin,
