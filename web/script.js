@@ -1,4 +1,5 @@
 import { escapeRegExp, formatBytes, formatDateLabel } from "./app/shared/format.js";
+import { filesToBase64, filesToDocuments, readFileAsBase64 } from "./app/shared/files.js";
 import { isDarkForMode, normalizeThemeMode } from "./app/shared/theme.js";
 import { buildHeaderPresentation, createHealthPoller } from "./health-indicators.js";
 
@@ -1096,23 +1097,6 @@ async function loadRagDocuments() {
   }
 }
 
-async function filesToDocuments(files) {
-  const selected = Array.isArray(files) ? files : [];
-  const docs = [];
-
-  for (const file of selected.slice(0, 6)) {
-    const content = await file.text();
-    const normalized = String(content || "").trim();
-    if (!normalized) continue;
-    docs.push({
-      name: file.name,
-      content: normalized,
-    });
-  }
-
-  return docs;
-}
-
 async function uploadRagDocuments() {
   if (!state.activeChatId) {
     showStatus("Selecione uma aba para enviar documentos.", { type: "error" });
@@ -2191,36 +2175,6 @@ function getControls() {
   };
 }
 
-async function imageToBase64(file) {
-  if (!file) return null;
-
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const value = String(reader.result || "");
-      const base64 = value.includes(",") ? value.split(",")[1] : value;
-      resolve(base64);
-    };
-    reader.onerror = () => reject(new Error("Falha ao converter imagem"));
-    reader.readAsDataURL(file);
-  });
-}
-
-async function filesToBase64(files) {
-  const list = Array.isArray(files) ? files : [];
-  const converted = await Promise.all(
-    list.map(async (file) => {
-      const base64 = await imageToBase64(file);
-      return {
-        base64,
-        mimeType: file.type || "image/*",
-      };
-    }),
-  );
-
-  return converted.filter((item) => Boolean(item.base64));
-}
-
 async function enviar() {
   const texto = inputEl.value.trim();
   if (!texto) return;
@@ -2642,23 +2596,6 @@ async function pickBackupFile() {
   return file;
 }
 
-async function fileToBase64(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onerror = () => reject(new Error("Falha ao ler arquivo"));
-    reader.onload = () => {
-      const raw = String(reader.result || "");
-      const base64 = raw.includes(",") ? raw.split(",")[1] : "";
-      if (!base64) {
-        reject(new Error("Arquivo de backup invalido"));
-        return;
-      }
-      resolve(base64);
-    };
-    reader.readAsDataURL(file);
-  });
-}
-
 async function restoreFullBackup() {
   const confirmed = await openConfirmModal(
     "Restaurar backup ira substituir o banco atual. Deseja continuar?",
@@ -2684,7 +2621,10 @@ async function restoreFullBackup() {
       return;
     }
 
-    const archiveBase64 = await fileToBase64(file);
+    const archiveBase64 = await readFileAsBase64(file, {
+      readErrorMessage: "Falha ao ler arquivo",
+      emptyFileMessage: "Arquivo de backup invalido",
+    });
     await fetchJson("/api/backup/restore", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
