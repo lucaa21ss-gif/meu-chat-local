@@ -1,9 +1,11 @@
+import { createApiClient } from "./app/shared/api.js";
 import { escapeRegExp, formatBytes, formatDateLabel } from "./app/shared/format.js";
 import { filesToBase64, filesToDocuments, readFileAsBase64 } from "./app/shared/files.js";
 import { isDarkForMode, normalizeThemeMode } from "./app/shared/theme.js";
 import { buildHeaderPresentation, createHealthPoller } from "./health-indicators.js";
 
 const API_BASE = window.location.origin;
+const { fetchJson } = createApiClient({ baseUrl: API_BASE });
 
 const chatEl = document.getElementById("chat");
 const inputEl = document.getElementById("msg");
@@ -1719,33 +1721,6 @@ function renderTabs() {
       tabsEl.scrollTop = state.chatList.scrollTop;
     }
   });
-}
-
-async function fetchJson(path, options = {}) {
-  const response = await fetch(`${API_BASE}${path}`, options);
-  const responseTraceId = response.headers.get("x-trace-id") || null;
-  if (!response.ok) {
-    let detail = "";
-    let serverTraceId = responseTraceId;
-    try {
-      const data = await response.json();
-      detail = data?.error || "";
-      if (data?.traceId) serverTraceId = data.traceId;
-    } catch {
-      try {
-        detail = await response.text();
-      } catch {
-        detail = "";
-      }
-    }
-
-    const fallback = `Falha na requisicao (${response.status})`;
-    const err = new Error((detail || fallback).trim());
-    err.traceId = serverTraceId;
-    err.status = response.status;
-    throw err;
-  }
-  return response.json();
 }
 
 async function loadChats(options = {}) {
