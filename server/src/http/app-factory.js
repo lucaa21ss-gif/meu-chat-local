@@ -1,9 +1,8 @@
 import express from "express";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { client } from "../../ollama.js";
 import logger, { createHttpLogger } from "../../logger.js";
 import { asyncHandler } from "./async-handler.js";
+import { resolveServerDir } from "./app-paths.js";
 import { createStore } from "./app-store.js";
 import { APP_ROUTE_REGISTRARS } from "./app-route-registrars.js";
 import { createAppContext } from "./app-context.js";
@@ -15,8 +14,7 @@ export function createConfiguredApp(deps = {}) {
   const store = createStore(deps);
 
   const app = express();
-  const moduleDir = path.dirname(fileURLToPath(import.meta.url));
-  const serverDir = deps.serverDir || path.resolve(moduleDir, "..", "..");
+  const serverDir = resolveServerDir(import.meta.url, deps.serverDir);
   const {
     webDir,
     corsOrigin,
