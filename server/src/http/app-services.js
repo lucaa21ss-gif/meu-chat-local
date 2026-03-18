@@ -9,13 +9,13 @@ import {
   buildBaselineConfigSnapshot,
   createDefaultBaselineService,
 } from "../modules/config-governance/baseline-service.js";
-import { createCapacityProfileService } from "../modules/governance/capacity-service.js";
+import { createCapacityProfileService } from "../modules/capacity/capacity-service.js";
 import { createConfigRollbackService } from "../modules/config-governance/config-rollback-service.js";
 import { createDefaultDisasterRecoveryService } from "../modules/resilience/disaster-recovery-service.js";
 import { createIntegrityRuntimeService } from "../modules/resilience/integrity-service.js";
 import { createDefaultHealthProviders } from "../modules/health/health-providers.js";
-import { createQueueService } from "../modules/governance/queue-service.js";
-import { createScorecardService } from "../modules/governance/scorecard-service.js";
+import { createQueueService } from "../modules/capacity/queue-service.js";
+import { createScorecardService } from "../modules/capacity/scorecard-service.js";
 
 export function createAppServices({
   deps,
