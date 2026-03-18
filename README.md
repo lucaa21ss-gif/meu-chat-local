@@ -49,6 +49,7 @@ Visao resumida dos diretorios e arquivos principais (nao exaustiva):
 - A arvore abaixo prioriza pontos de entrada e componentes de manutencao.
 - Arquivos gerados em runtime (ex.: `server/chat.db*` e conteudos de `server/artifacts/`) podem variar por ambiente.
 - Arquivos ocultos relevantes na raiz: `.dockerignore`, `.prettierignore`, `.release-please-config.json`, `.release-please-manifest.json`.
+- Em `docs/`, o arquivo `docs/plano-rearquitetura-modular.md` descreve a evolucao da modularizacao do backend.
 
 ```text
 .
@@ -56,6 +57,7 @@ Visao resumida dos diretorios e arquivos principais (nao exaustiva):
 ├── .github/
 │   └── workflows/
 ├── docs/
+│   └── plano-rearquitetura-modular.md
 ├── dist/
 ├── docker-compose.yml
 ├── eslint.config.mjs
