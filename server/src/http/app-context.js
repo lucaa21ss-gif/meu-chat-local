@@ -3,6 +3,7 @@ import { createAppServices } from "./app-services.js";
 import { createGovernanceRuntime } from "./app-governance-runtime.js";
 import { createAppGuardsAndAudit } from "./app-guards-and-audit.js";
 import { createRouteDepsForApp } from "./app-route-wiring.js";
+import { APP_ROUTE_REGISTRARS } from "./app-route-registrars.js";
 import {
   isEnabled as isTelemetryEnabled,
   setEnabled as setTelemetryEnabled,
@@ -96,6 +97,8 @@ export function createAppContext({
   asyncHandler,
   registrars,
 }) {
+  const routeRegistrars = registrars || APP_ROUTE_REGISTRARS;
+
   const runtimeConfig = createAppRuntimeConfig({
     deps,
     serverDir,
@@ -176,7 +179,7 @@ export function createAppContext({
       store,
       chatClient,
     },
-    registrars,
+    registrars: routeRegistrars,
     guards: {
       requireMinimumRole: guardsAndAudit.requireMinimumRole,
       requireAdminOrSelf: guardsAndAudit.requireAdminOrSelf,

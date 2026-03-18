@@ -4,7 +4,6 @@ import logger, { createHttpLogger } from "../../logger.js";
 import { asyncHandler } from "./async-handler.js";
 import { resolveServerDir } from "./app-paths.js";
 import { createStore } from "./app-store.js";
-import { APP_ROUTE_REGISTRARS } from "./app-route-registrars.js";
 import { createAppContext } from "./app-context.js";
 import { attachAppLocals, configureAppBootstrap } from "./app-bootstrap.js";
 import { registerAppRoutes } from "./register-app-routes.js";
@@ -34,7 +33,6 @@ export function createConfiguredApp(deps = {}) {
     chatClient,
     logger,
     asyncHandler,
-    registrars: APP_ROUTE_REGISTRARS,
   });
 
   configureAppBootstrap(app, {
