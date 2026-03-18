@@ -2,7 +2,6 @@ import express from "express";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import { client } from "./ollama.js";
-import { createRoleLimiterQueue } from "./rateLimiter.js";
 import logger, { createHttpLogger } from "./logger.js";
 import {
   isEnabled as isTelemetryEnabled,
@@ -89,6 +88,7 @@ import {
 } from "./src/http/app-route-deps.js";
 import { createStore, initStoreDb } from "./src/http/app-store.js";
 import { createAppServices } from "./src/http/app-services.js";
+import { createGovernanceRuntime } from "./src/http/app-governance-runtime.js";
 import {
   attachAppLocals,
   buildCorsOriginValidator,
@@ -106,7 +106,6 @@ import { registerConfigRoutes } from "./src/modules/governance/register-config-r
 import { registerAuditRoutes } from "./src/modules/governance/register-audit-routes.js";
 import { registerObservabilityRoutes } from "./src/modules/governance/register-observability-routes.js";
 import { createIntegrityRuntimeService } from "./src/modules/governance/integrity-service.js";
-import { createIncidentRunbookSignalsCollector } from "./src/modules/governance/incident-runbook-signals.js";
 import {
   buildOverallHealthStatus,
   buildSloSnapshot,
@@ -196,36 +195,17 @@ export function createApp(deps = {}) {
     },
   });
 
-  const roleLimits = deps.roleLimits ?? {
-    admin: { windowMs: requestWindowMs, max: 300, chatMax: 100 },
-    operator: { windowMs: requestWindowMs, max: 150, chatMax: 50 },
-    viewer: { windowMs: requestWindowMs, max: 60, chatMax: 20 },
-  };
-  const roleLimiter = deps.roleLimiter ?? createRoleLimiterQueue({
-    roleLimits,
-    queueMax: Number.parseInt(process.env.RATE_LIMIT_QUEUE_MAX || "30", 10),
-    queueTimeoutMs: Number.parseInt(
-      process.env.RATE_LIMIT_QUEUE_TIMEOUT_MS || "8000",
-      10,
-    ),
-    getRoleForUser: async (userId) => {
-      try {
-        const user = await store.getUserById(userId);
-        return normalizeRole(user?.role, "viewer");
-      } catch {
-        return "viewer";
-      }
-    },
-  });
-  const collectIncidentRunbookSignals =
-    deps.collectIncidentRunbookSignals ||
-    createIncidentRunbookSignalsCollector({
-      healthProviders,
+  const { roleLimiter, collectIncidentRunbookSignals } =
+    createGovernanceRuntime({
+      deps,
+      requestWindowMs,
       store,
+      normalizeRole,
+      parsePositiveInt,
       getTelemetryStats,
       backupService,
-      roleLimiter,
       incidentService,
+      healthProviders,
       buildOverallHealthStatus,
       buildSloSnapshot,
       buildTriageRecommendations,
