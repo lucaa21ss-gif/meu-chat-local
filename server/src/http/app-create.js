@@ -1,6 +1,6 @@
 import express from "express";
 import { client } from "../../ollama.js";
-import logger, { createHttpLogger } from "../../logger.js";
+import logger, { createHttpLogger } from "../infra/logging/logger.js";
 import { asyncHandler } from "./async-handler.js";
 import { resolveServerDir } from "./app-paths.js";
 import { createStore } from "./app-store.js";

@@ -1,4 +1,4 @@
-import logger from "../../../logger.js";
+import logger from "../../infra/logging/logger.js";
 import { HttpError } from "../../shared/errors/HttpError.js";
 import {
   AUTO_HEALING_POLICIES,

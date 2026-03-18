@@ -1,5 +1,5 @@
 import { fileURLToPath } from "node:url";
-import logger from "../../logger.js";
+import logger from "../infra/logging/logger.js";
 
 export function isMainModule(metaUrl, argv = process.argv) {
   return Boolean(argv[1] && fileURLToPath(metaUrl) === argv[1]);
