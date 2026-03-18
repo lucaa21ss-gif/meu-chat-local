@@ -4,7 +4,7 @@ import { readFile as fsReadFile, writeFile as fsWriteFile } from "node:fs/promis
 import path from "node:path";
 import request from "supertest";
 import { createApp } from "./index.js";
-import { createRoleLimiterQueue } from "./rateLimiter.js";
+import { createRoleLimiterQueue } from "./src/infra/queue/rate-limiter.js";
 
 function createMockStore() {
     const chats = new Map([
