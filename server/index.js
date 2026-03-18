@@ -82,14 +82,10 @@ import {
   parseUserRole,
 } from "./src/shared/parsers.js";
 import { asyncHandler } from "./src/http/async-handler.js";
-import { createRouteDepsForApp } from "./src/http/app-route-wiring.js";
 import { createStore, initStoreDb } from "./src/http/app-store.js";
-import { createAppServices } from "./src/http/app-services.js";
-import { createGovernanceRuntime } from "./src/http/app-governance-runtime.js";
-import { createAppRuntimeConfig } from "./src/http/app-runtime-config.js";
-import { createAppGuardsAndAudit } from "./src/http/app-guards-and-audit.js";
 import { APP_ROUTE_REGISTRARS } from "./src/http/app-route-registrars.js";
 import { scheduleBackupJob } from "./src/http/app-backup-scheduler.js";
+import { createAppContext } from "./src/http/app-context.js";
 import {
   attachAppLocals,
   buildCorsOriginValidator,
@@ -114,169 +110,53 @@ export function createApp(deps = {}) {
   const {
     webDir,
     corsOrigin,
-    requestWindowMs,
-    ollamaTimeoutMs,
-    ollamaMaxAttempts,
-    ollamaFallbackModel,
-    ollamaRetryDelays,
-  } = createAppRuntimeConfig({
-    deps,
-    serverDir,
-    parseOriginList,
-    HttpError,
-    parsePositiveInt,
-    DEFAULT_RETRY_DELAYS_MS,
-    buildCorsOriginValidator,
-  });
-  const {
     backupService,
     storageService,
-    incidentService,
-    healthProviders,
-    autoHealingService,
-    disasterRecoveryService,
-    integrityService,
     capacityService,
     queueService,
     baselineService,
     approvalService,
-    configRollbackService,
-    scorecardService,
-  } = createAppServices({
+    roleLimiter,
+    routeDeps,
+  } = createAppContext({
     deps,
     store,
     serverDir,
     chatClient,
-    ollama: {
-      ollamaFallbackModel,
-      ollamaMaxAttempts,
-      ollamaTimeoutMs,
-      ollamaRetryDelays,
-    },
-    parsers: {
-      parsePositiveInt,
-      parseSystemPrompt,
-      parseTheme,
-      parseStorageLimitMb,
-      parseBooleanLike,
-    },
+    logger,
+    HttpError,
+    asyncHandler,
+    parseOriginList,
+    parsePositiveInt,
+    DEFAULT_RETRY_DELAYS_MS,
+    buildCorsOriginValidator,
     telemetry: {
       isTelemetryEnabled,
       setTelemetryEnabled,
       resetTelemetryStats,
+      getTelemetryStats,
     },
     constants: {
       CONFIG_KEYS,
+      HEALTH_STATUS,
+      INCIDENT_RUNBOOK_TYPES,
     },
-  });
-
-  const { roleLimiter, collectIncidentRunbookSignals } =
-    createGovernanceRuntime({
-      deps,
-      requestWindowMs,
-      store,
-      normalizeRole,
-      parsePositiveInt,
-      getTelemetryStats,
-      backupService,
-      incidentService,
-      healthProviders,
-      buildOverallHealthStatus,
-      buildSloSnapshot,
-      buildTriageRecommendations,
-    });
-
-  const {
-    recordAudit,
-    recordConfigVersion,
-    readCurrentConfigValue,
-    applyConfigValue,
-    resolveActor,
-    requireMinimumRole,
-    requireAdminOrSelf,
-    recordBlockedAttempt,
-    requireOperationalApproval,
-  } = createAppGuardsAndAudit({
-    store,
-    logger,
-    configRollbackService,
-    approvalService,
-    parseUserId,
     normalizeRole,
     hasRequiredRole,
-    asyncHandler,
-    HttpError,
+    parseUserId,
     parseOperationalApprovalId,
-  });
-
-  configureAppBootstrap(app, {
-    corsOrigin,
-    webDir,
-    roleLimiter,
-    createHttpLogger,
-    logger,
-    createTelemetryMiddleware,
-    express,
-  });
-
-  attachAppLocals(app, {
-    backupService,
-    storageService,
-    capacityService,
-    queueService,
-    baselineService,
-    approvalService,
-  });
-
-  const routeDeps = createRouteDepsForApp({
-    core: {
-      webDir,
-      logger,
-      HttpError,
-      asyncHandler,
-      HEALTH_STATUS,
-      CONFIG_KEYS,
-      INCIDENT_RUNBOOK_TYPES,
-      store,
-      chatClient,
-    },
+    requestWindowMsFallback: Number.parseInt(
+      process.env.RATE_LIMIT_WINDOW_MS || `${15 * 60 * 1000}`,
+      10,
+    ),
+    buildOverallHealthStatus,
+    buildSloSnapshot,
+    buildTriageRecommendations,
     registrars: APP_ROUTE_REGISTRARS,
-    guards: {
-      requireMinimumRole,
-      requireAdminOrSelf,
-      resolveActor,
-      recordBlockedAttempt,
-      requireOperationalApproval,
-    },
-    runtime: {
-      getTelemetryStats,
-      isTelemetryEnabled,
-      setTelemetryEnabled,
-      resetTelemetryStats,
-      roleLimiter,
-      ollamaFallbackModel,
-      ollamaMaxAttempts,
-      ollamaTimeoutMs,
-      ollamaRetryDelays,
-    },
-    services: {
-      healthProviders,
-      integrityService,
-      autoHealingService,
-      capacityService,
-      queueService,
-      baselineService,
-      backupService,
-      collectIncidentRunbookSignals,
-      incidentService,
-      disasterRecoveryService,
-      storageService,
-      readCurrentConfigValue,
-      applyConfigValue,
-      approvalService,
-      scorecardService,
-    },
     parsers: {
+      parseSystemPrompt,
+      parseTheme,
+      parseStorageLimitMb,
       parseBooleanLike,
       parseMessage,
       parseOptions,
@@ -287,10 +167,7 @@ export function createApp(deps = {}) {
       parseUserId,
       parseUserName,
       parseUserRole,
-      parseSystemPrompt,
-      parseTheme,
       parseUiPreferences,
-      parseStorageLimitMb,
       parseTitle,
       parseChatListFilters,
       parseTags,
@@ -302,7 +179,6 @@ export function createApp(deps = {}) {
       parseUserOnly,
       parseBackupPassphrase,
       parseBackupPayload,
-      parsePositiveInt,
       parseIncidentUpdatePayload,
       parseIncidentRunbookType,
       parseIncidentRunbookMode,
@@ -329,10 +205,6 @@ export function createApp(deps = {}) {
     },
     features: {
       assertBodyObject,
-      recordAudit,
-      recordConfigVersion,
-      buildOverallHealthStatus,
-      buildSloSnapshot,
       getChatId,
       getMessageImages,
       buildRagSystemMessage,
@@ -340,8 +212,26 @@ export function createApp(deps = {}) {
       executeWithModelRecovery,
       clamp,
       areConfigValuesEqual,
-      buildTriageRecommendations,
     },
+  });
+
+  configureAppBootstrap(app, {
+    corsOrigin,
+    webDir,
+    roleLimiter,
+    createHttpLogger,
+    logger,
+    createTelemetryMiddleware,
+    express,
+  });
+
+  attachAppLocals(app, {
+    backupService,
+    storageService,
+    capacityService,
+    queueService,
+    baselineService,
+    approvalService,
   });
 
   registerAppRoutes(app, routeDeps);
