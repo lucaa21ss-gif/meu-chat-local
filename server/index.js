@@ -40,11 +40,6 @@ export function createApp(deps = {}) {
     chatClient,
     logger,
     asyncHandler,
-    parsePositiveInt,
-    requestWindowMsFallback: Number.parseInt(
-      process.env.RATE_LIMIT_WINDOW_MS || `${15 * 60 * 1000}`,
-      10,
-    ),
     registrars: APP_ROUTE_REGISTRARS,
   });
 

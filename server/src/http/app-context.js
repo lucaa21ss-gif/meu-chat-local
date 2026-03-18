@@ -94,7 +94,6 @@ export function createAppContext({
   chatClient,
   logger,
   asyncHandler,
-  requestWindowMsFallback,
   registrars,
 }) {
   const runtimeConfig = createAppRuntimeConfig({
@@ -138,7 +137,9 @@ export function createAppContext({
 
   const governanceRuntime = createGovernanceRuntime({
     deps,
-    requestWindowMs: runtimeConfig.requestWindowMs ?? requestWindowMsFallback,
+    requestWindowMs:
+      runtimeConfig.requestWindowMs ??
+      Number.parseInt(process.env.RATE_LIMIT_WINDOW_MS || `${15 * 60 * 1000}`, 10),
     store,
     normalizeRole,
     getTelemetryStats,
