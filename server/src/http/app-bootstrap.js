@@ -81,6 +81,7 @@ export function configureAppBootstrap(app, {
       maxAge: "1d",
       etag: false,
       dotfiles: "ignore",
+      redirect: false,
     }),
   );
   app.use("/api", roleLimiter.createMiddleware("api"));

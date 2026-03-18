@@ -1,17 +1,16 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 
-const {
-    buildHeaderPresentation,
-    computePollDelayMs,
-    createHealthPoller,
-} = require("./health-indicators.js");
+async function loadHealthIndicators() {
+    return import("./health-indicators.js");
+}
 
 function flushAsync() {
     return new Promise((resolve) => setTimeout(resolve, 0));
 }
 
-test("buildHeaderPresentation gera badge e tooltip coerentes", () => {
+test("buildHeaderPresentation gera badge e tooltip coerentes", async () => {
+    const { buildHeaderPresentation } = await loadHealthIndicators();
     const view = buildHeaderPresentation({
         status: "degraded",
         checks: {
@@ -31,7 +30,8 @@ test("buildHeaderPresentation gera badge e tooltip coerentes", () => {
     assert.match(view.latencyClassName, /amber/);
 });
 
-test("computePollDelayMs aplica backoff com teto", () => {
+test("computePollDelayMs aplica backoff com teto", async () => {
+    const { computePollDelayMs } = await loadHealthIndicators();
     assert.equal(computePollDelayMs(0, 30000, 300000), 30000);
     assert.equal(computePollDelayMs(1, 30000, 300000), 60000);
     assert.equal(computePollDelayMs(2, 30000, 300000), 120000);
@@ -39,6 +39,7 @@ test("computePollDelayMs aplica backoff com teto", () => {
 });
 
 test("createHealthPoller usa backoff e volta ao intervalo base apos sucesso", async () => {
+    const { createHealthPoller } = await loadHealthIndicators();
     const queue = [];
     const cycles = [];
     const results = [false, false, true];

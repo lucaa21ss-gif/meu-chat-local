@@ -1,3 +1,7 @@
+import { escapeRegExp, formatBytes, formatDateLabel } from "./app/shared/format.js";
+import { isDarkForMode, normalizeThemeMode } from "./app/shared/theme.js";
+import { buildHeaderPresentation, createHealthPoller } from "./health-indicators.js";
+
 const API_BASE = window.location.origin;
 
 const chatEl = document.getElementById("chat");
@@ -119,8 +123,6 @@ const onboardingSmokeStatusEl = document.getElementById("onboardingSmokeStatus")
 const onboardingRunChecksBtnEl = document.getElementById("onboardingRunChecksBtn");
 const onboardingSkipBtnEl = document.getElementById("onboardingSkipBtn");
 const onboardingCompleteBtnEl = document.getElementById("onboardingCompleteBtn");
-const healthIndicators = window.HealthIndicators || null;
-
 const state = {
   chats: [],
   activeChatId: null,
@@ -242,10 +244,6 @@ const SHORTCUT_DEFINITIONS = [
   },
 ];
 
-function escapeRegExp(value) {
-  return String(value || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
 function renderUsers() {
   if (!userSelectEl) return;
   userSelectEl.innerHTML = "";
@@ -258,19 +256,8 @@ function renderUsers() {
   });
 }
 
-function normalizeThemeMode(mode) {
-  return ["light", "dark", "system"].includes(mode) ? mode : "system";
-}
-
 function getCurrentUser() {
   return (state.users || []).find((user) => user.id === state.userId) || null;
-}
-
-function isDarkForMode(mode) {
-  const safeMode = normalizeThemeMode(mode);
-  if (safeMode === "dark") return true;
-  if (safeMode === "light") return false;
-  return window.matchMedia("(prefers-color-scheme: dark)").matches;
 }
 
 function updateThemeToggleUi(mode) {
@@ -513,14 +500,6 @@ function scheduleChatListSearch() {
   }, 300);
 }
 
-function formatBytes(value) {
-  const bytes = Number.parseInt(value, 10) || 0;
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`;
-}
-
 function renderStorageUsage() {
   if (!storageUsageTextEl) return;
   const storage = state.storage || {};
@@ -718,17 +697,15 @@ async function checkOllamaStatus() {
     }
   }
 
-  if (healthIndicators) {
-    const headerView = healthIndicators.buildHeaderPresentation(state.health);
-    if (systemHealthBadgeEl) {
-      systemHealthBadgeEl.textContent = headerView.badgeText;
-      systemHealthBadgeEl.className = headerView.badgeClassName;
-      systemHealthBadgeEl.title = headerView.badgeTitle;
-    }
-    if (ollamaLatencyTextEl) {
-      ollamaLatencyTextEl.textContent = headerView.latencyText;
-      ollamaLatencyTextEl.className = `text-[11px] ${headerView.latencyClassName}`;
-    }
+  const headerView = buildHeaderPresentation(state.health);
+  if (systemHealthBadgeEl) {
+    systemHealthBadgeEl.textContent = headerView.badgeText;
+    systemHealthBadgeEl.className = headerView.badgeClassName;
+    systemHealthBadgeEl.title = headerView.badgeTitle;
+  }
+  if (ollamaLatencyTextEl) {
+    ollamaLatencyTextEl.textContent = headerView.latencyText;
+    ollamaLatencyTextEl.className = `text-[11px] ${headerView.latencyClassName}`;
   }
 
   if (healthSummaryTextEl) {
@@ -993,13 +970,6 @@ async function openConfigHistoryRollback() {
       autoHideMs: 3000,
     },
   );
-}
-
-function formatDateLabel(isoString) {
-  if (!isoString) return "";
-  const date = new Date(isoString);
-  if (Number.isNaN(date.getTime())) return "";
-  return date.toLocaleString("pt-BR");
 }
 
 function getCurrentUserRole() {
@@ -3724,20 +3694,12 @@ window.resetar = resetar;
     console.error(error);
   }
 
-  if (healthIndicators?.createHealthPoller) {
-    state.healthPoller = healthIndicators.createHealthPoller({
-      checkHealth: () => checkOllamaStatus(),
-      baseIntervalMs: 30_000,
-      maxIntervalMs: 300_000,
-    });
-    state.healthPoller.start();
-  } else {
-    // Fallback para ambientes sem o utilitario carregado.
-    await checkOllamaStatus();
-    setInterval(() => {
-      checkOllamaStatus().catch(() => { });
-    }, 30_000);
-  }
+  state.healthPoller = createHealthPoller({
+    checkHealth: () => checkOllamaStatus(),
+    baseIntervalMs: 30_000,
+    maxIntervalMs: 300_000,
+  });
+  state.healthPoller.start();
 
   if (localStorage.getItem("onboardingDone") !== "true") {
     openOnboardingModal();
