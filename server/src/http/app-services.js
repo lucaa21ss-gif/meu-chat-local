@@ -1,7 +1,7 @@
 import path from "node:path";
 import { createStorageService } from "../infra/fs/storage-service.js";
 import { resolveDbPath } from "./app-store.js";
-import { createDefaultIncidentService } from "../modules/governance/incident-service.js";
+import { createDefaultIncidentService } from "../modules/incident/incident-service.js";
 import { createDefaultBackupService } from "../modules/backup/backup-service.js";
 import { createDefaultAutoHealingService } from "../modules/governance/auto-healing-service.js";
 import { createDefaultOperationalApprovalService } from "../modules/approvals/approval-service.js";

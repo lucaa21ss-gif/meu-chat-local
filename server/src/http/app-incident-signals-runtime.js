@@ -1,4 +1,4 @@
-import { createIncidentRunbookSignalsCollector } from "../modules/governance/incident-runbook-signals.js";
+import { createIncidentRunbookSignalsCollector } from "../modules/incident/incident-runbook-signals.js";
 
 export function createIncidentSignalsRuntime({
   deps,
