@@ -1,6 +1,6 @@
 import { runAsMainModule } from "./src/http/app-main-module.js";
 import { startConfiguredServer } from "./src/http/app-startup.js";
-import { createIntegrityRuntimeService } from "./src/modules/governance/integrity-service.js";
+import { createIntegrityRuntimeService } from "./src/modules/resilience/integrity-service.js";
 
 export { createIntegrityRuntimeService };
 export { createConfiguredApp as createApp } from "./src/http/app-create.js";

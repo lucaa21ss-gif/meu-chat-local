@@ -3,7 +3,7 @@ import { createStorageService } from "../infra/fs/storage-service.js";
 import { resolveDbPath } from "./app-store.js";
 import { createDefaultIncidentService } from "../modules/incident/incident-service.js";
 import { createDefaultBackupService } from "../modules/backup/backup-service.js";
-import { createDefaultAutoHealingService } from "../modules/governance/auto-healing-service.js";
+import { createDefaultAutoHealingService } from "../modules/resilience/auto-healing-service.js";
 import { createDefaultOperationalApprovalService } from "../modules/approvals/approval-service.js";
 import {
   buildBaselineConfigSnapshot,
@@ -11,8 +11,8 @@ import {
 } from "../modules/config-governance/baseline-service.js";
 import { createCapacityProfileService } from "../modules/governance/capacity-service.js";
 import { createConfigRollbackService } from "../modules/config-governance/config-rollback-service.js";
-import { createDefaultDisasterRecoveryService } from "../modules/governance/disaster-recovery-service.js";
-import { createIntegrityRuntimeService } from "../modules/governance/integrity-service.js";
+import { createDefaultDisasterRecoveryService } from "../modules/resilience/disaster-recovery-service.js";
+import { createIntegrityRuntimeService } from "../modules/resilience/integrity-service.js";
 import { createDefaultHealthProviders } from "../modules/health/health-providers.js";
 import { createQueueService } from "../modules/governance/queue-service.js";
 import { createScorecardService } from "../modules/governance/scorecard-service.js";
