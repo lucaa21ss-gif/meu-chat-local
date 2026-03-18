@@ -3,7 +3,7 @@ import { registerIncidentRoutes } from "../modules/incident/register-incident-ro
 import { registerApprovalRoutes } from "../modules/approvals/register-approval-routes.js";
 import { registerResilienceRoutes } from "../modules/governance/register-resilience-routes.js";
 import { registerStorageRoutes } from "../modules/governance/register-storage-routes.js";
-import { registerConfigRoutes } from "../modules/governance/register-config-routes.js";
+import { registerConfigRoutes } from "../modules/config-governance/register-config-routes.js";
 import { registerAuditRoutes } from "../modules/governance/register-audit-routes.js";
 import { registerObservabilityRoutes } from "../modules/observability/register-observability-routes.js";
 import { registerChatRoutes } from "../modules/chat/register-chat-routes.js";

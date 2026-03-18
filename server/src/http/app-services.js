@@ -8,9 +8,9 @@ import { createDefaultOperationalApprovalService } from "../modules/approvals/ap
 import {
   buildBaselineConfigSnapshot,
   createDefaultBaselineService,
-} from "../modules/governance/baseline-service.js";
+} from "../modules/config-governance/baseline-service.js";
 import { createCapacityProfileService } from "../modules/governance/capacity-service.js";
-import { createConfigRollbackService } from "../modules/governance/config-rollback-service.js";
+import { createConfigRollbackService } from "../modules/config-governance/config-rollback-service.js";
 import { createDefaultDisasterRecoveryService } from "../modules/governance/disaster-recovery-service.js";
 import { createIntegrityRuntimeService } from "../modules/governance/integrity-service.js";
 import { createDefaultHealthProviders } from "../modules/health/health-providers.js";
