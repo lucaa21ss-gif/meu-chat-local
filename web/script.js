@@ -1,11 +1,18 @@
 import { createApiClient } from "./app/shared/api.js";
 import { escapeRegExp, formatBytes, formatDateLabel } from "./app/shared/format.js";
 import { filesToBase64, filesToDocuments, readFileAsBase64 } from "./app/shared/files.js";
+import { createStatusPresenter } from "./app/shared/status.js";
 import { isDarkForMode, normalizeThemeMode } from "./app/shared/theme.js";
 import { buildHeaderPresentation, createHealthPoller } from "./health-indicators.js";
 
 const API_BASE = window.location.origin;
 const { fetchJson } = createApiClient({ baseUrl: API_BASE });
+const statusPresenter = createStatusPresenter({
+  statusBarEl,
+  statusTextEl,
+  statusRetryBtnEl,
+});
+const { hideStatus, showStatus } = statusPresenter;
 
 const chatEl = document.getElementById("chat");
 const inputEl = document.getElementById("msg");
@@ -135,8 +142,6 @@ const state = {
   confirmResolver: null,
   voiceHistory: [],
   isDarkMode: false,
-  retryAction: null,
-  statusTimer: null,
   onboardingChecksOk: false,
   search: {
     query: "",
@@ -1406,87 +1411,6 @@ async function runOnboardingChecks() {
   }
 }
 
-function hideStatus() {
-  if (!statusBarEl) return;
-  statusBarEl.classList.add("hidden");
-  statusBarEl.classList.remove("flex");
-  state.retryAction = null;
-
-  if (state.statusTimer) {
-    clearTimeout(state.statusTimer);
-    state.statusTimer = null;
-  }
-}
-
-function showStatus(message, options = {}) {
-  if (!statusBarEl || !statusTextEl) return;
-
-  const type = options.type || "error";
-  const retryAction = options.retryAction || null;
-  const autoHideMs = options.autoHideMs ?? (type === "success" ? 3000 : 0);
-
-  const traceId = options.traceId || null;
-  const displayText =
-    traceId && type === "error"
-      ? `${message} [ocorrencia: ${traceId.slice(0, 8)}]`
-      : message;
-  statusTextEl.textContent = displayText;
-  statusBarEl.classList.remove("hidden");
-  statusBarEl.classList.add("flex");
-
-  statusBarEl.className =
-    "mx-4 mb-2 flex items-center justify-between gap-2 rounded-xl border px-3 py-2 text-sm sm:mx-6";
-
-  if (type === "error") {
-    statusBarEl.classList.add(
-      "border-rose-300",
-      "bg-rose-50",
-      "text-rose-700",
-      "dark:border-rose-900",
-      "dark:bg-rose-950/30",
-      "dark:text-rose-300",
-    );
-  } else if (type === "success") {
-    statusBarEl.classList.add(
-      "border-emerald-300",
-      "bg-emerald-50",
-      "text-emerald-700",
-      "dark:border-emerald-900",
-      "dark:bg-emerald-950/30",
-      "dark:text-emerald-300",
-    );
-  } else {
-    statusBarEl.classList.add(
-      "border-slate-300",
-      "bg-slate-50",
-      "text-slate-700",
-      "dark:border-slate-700",
-      "dark:bg-slate-900/30",
-      "dark:text-slate-300",
-    );
-  }
-
-  state.retryAction = retryAction;
-  if (statusRetryBtnEl) {
-    if (retryAction) {
-      statusRetryBtnEl.classList.remove("hidden");
-    } else {
-      statusRetryBtnEl.classList.add("hidden");
-    }
-  }
-
-  if (state.statusTimer) {
-    clearTimeout(state.statusTimer);
-    state.statusTimer = null;
-  }
-
-  if (autoHideMs > 0) {
-    state.statusTimer = setTimeout(() => {
-      hideStatus();
-    }, autoHideMs);
-  }
-}
-
 function smoothScrollToBottom() {
   chatEl.scrollTo({ top: chatEl.scrollHeight, behavior: "smooth" });
 }
@@ -2288,7 +2212,7 @@ async function enviar() {
             "Nao foi possivel gerar resposta agora. Tente novamente.";
           showStatus(`Falha ao tentar novamente: ${retryError.message}`, {
             type: "error",
-            retryAction: state.retryAction,
+            retryAction: statusPresenter.getRetryAction(),
           });
         } finally {
           hideTyping();
@@ -3340,8 +3264,8 @@ if (shortcutsModalEl) {
 
 if (statusRetryBtnEl) {
   statusRetryBtnEl.addEventListener("click", async () => {
-    if (!state.retryAction) return;
-    const action = state.retryAction;
+    const action = statusPresenter.getRetryAction();
+    if (!action) return;
     try {
       await action();
     } catch (error) {
