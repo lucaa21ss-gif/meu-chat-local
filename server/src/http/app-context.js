@@ -10,7 +10,7 @@ import {
   getStats as getTelemetryStats,
   resetStats as resetTelemetryStats,
   createTelemetryMiddleware,
-} from "../../telemetry.js";
+} from "../infra/telemetry/telemetry.js";
 import { HttpError } from "../shared/errors/HttpError.js";
 import {
   CONFIG_KEYS,

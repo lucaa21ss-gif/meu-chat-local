@@ -7,7 +7,7 @@ import { createApp } from "./index.js";
 import {
     setEnabled as setTelemetryEnabled,
     resetStats as resetTelemetryStats,
-} from "./telemetry.js";
+} from "./src/infra/telemetry/telemetry.js";
 
 function createChaosStore() {
     const users = new Map([
