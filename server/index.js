@@ -153,6 +153,13 @@ import { registerAuditRoutes } from "./src/modules/governance/register-audit-rou
 import { registerObservabilityRoutes } from "./src/modules/governance/register-observability-routes.js";
 import { createDefaultIncidentService } from "./src/modules/governance/incident-service.js";
 import { createDefaultBackupService } from "./src/modules/governance/backup-service.js";
+import { createDefaultOperationalApprovalService } from "./src/modules/governance/approval-service.js";
+import {
+  buildBaselineConfigSnapshot,
+  createDefaultBaselineService,
+} from "./src/modules/governance/baseline-service.js";
+import { createConfigRollbackService } from "./src/modules/governance/config-rollback-service.js";
+import { createIncidentRunbookSignalsCollector } from "./src/modules/governance/incident-runbook-signals.js";
 import {
   buildOverallHealthStatus,
   buildSloSnapshot,
@@ -885,249 +892,6 @@ function createQueueService({
   };
 }
 
-function createBaselineService({ baselinePath, getConfig }) {
-  async function load() {
-    try {
-      const raw = await fsReadFile(baselinePath, "utf-8");
-      return JSON.parse(raw);
-    } catch {
-      return null;
-    }
-  }
-
-  async function save() {
-    const config = getConfig();
-    const record = { config, savedAt: new Date().toISOString() };
-    await fsMkdir(path.dirname(baselinePath), { recursive: true });
-    await fsWriteFile(baselinePath, JSON.stringify(record, null, 2), "utf-8");
-    return record;
-  }
-
-  async function check() {
-    const checkedAt = new Date().toISOString();
-    const saved = await load();
-    const current = getConfig();
-
-    if (!saved) {
-      return {
-        hasSaved: false,
-        status: "not-configured",
-        baseline: null,
-        current,
-        driftedKeys: [],
-        checkedAt,
-      };
-    }
-
-    const baseline = saved.config;
-    const driftedKeys = [];
-
-    function deepEqual(a, b) {
-      return JSON.stringify(a) === JSON.stringify(b);
-    }
-
-    for (const key of Object.keys(baseline)) {
-      if (!deepEqual(baseline[key], current[key])) {
-        driftedKeys.push(key);
-      }
-    }
-    for (const key of Object.keys(current)) {
-      if (!(key in baseline) && !driftedKeys.includes(key)) {
-        driftedKeys.push(key);
-      }
-    }
-
-    return {
-      hasSaved: true,
-      status: driftedKeys.length > 0 ? "drift" : "ok",
-      baseline,
-      current,
-      driftedKeys,
-      savedAt: saved.savedAt,
-      checkedAt,
-    };
-  }
-
-  return { load, save, check };
-}
-
-function createOperationalApprovalService({ approvalsPath, now = () => Date.now() }) {
-  async function readApprovals() {
-    try {
-      const raw = await fsReadFile(approvalsPath, "utf-8");
-      const parsed = JSON.parse(raw);
-      return Array.isArray(parsed?.approvals) ? parsed.approvals : [];
-    } catch {
-      return [];
-    }
-  }
-
-  async function writeApprovals(approvals) {
-    await fsMkdir(path.dirname(approvalsPath), { recursive: true });
-    await fsWriteFile(
-      approvalsPath,
-      JSON.stringify({ approvals, updatedAt: new Date(now()).toISOString() }, null, 2),
-      "utf-8",
-    );
-  }
-
-  function applyExpiration(approvals) {
-    const nowIso = new Date(now()).toISOString();
-    let changed = false;
-    const next = approvals.map((item) => {
-      if (item.status === "approved" && item.windowEndAt && new Date(item.windowEndAt).getTime() < now()) {
-        changed = true;
-        return {
-          ...item,
-          status: "expired",
-          result: "expired",
-          updatedAt: nowIso,
-        };
-      }
-      return item;
-    });
-    return { approvals: next, changed };
-  }
-
-  async function createRequest({ action, requestedBy, reason, windowMinutes }) {
-    const approvals = await readApprovals();
-    const timestamp = now();
-    const createdAt = new Date(timestamp).toISOString();
-    const request = {
-      id: `approval-${timestamp}-${Math.random().toString(36).slice(2, 8)}`,
-      action,
-      status: "pending",
-      requestedBy,
-      requestReason: reason,
-      decisionReason: null,
-      approvedBy: null,
-      deniedBy: null,
-      consumedBy: null,
-      result: "pending",
-      windowMinutes,
-      windowStartAt: null,
-      windowEndAt: null,
-      createdAt,
-      decidedAt: null,
-      consumedAt: null,
-      updatedAt: createdAt,
-    };
-    approvals.unshift(request);
-    await writeApprovals(approvals);
-    return request;
-  }
-
-  async function decide({ approvalId, decision, decidedBy, reason }) {
-    const approvals = await readApprovals();
-    const { approvals: withExpiration, changed } = applyExpiration(approvals);
-    const idx = withExpiration.findIndex((item) => item.id === approvalId);
-    if (idx < 0) throw new HttpError(404, "Aprovacao nao encontrada");
-
-    const current = withExpiration[idx];
-    if (current.status !== "pending") {
-      throw new HttpError(409, "Aprovacao nao esta pendente");
-    }
-
-    const decidedAt = new Date(now()).toISOString();
-    if (decision === "approve") {
-      withExpiration[idx] = {
-        ...current,
-        status: "approved",
-        result: "approved",
-        approvedBy: decidedBy,
-        decisionReason: reason,
-        decidedAt,
-        windowStartAt: decidedAt,
-        windowEndAt: new Date(now() + current.windowMinutes * 60 * 1000).toISOString(),
-        updatedAt: decidedAt,
-      };
-    } else {
-      withExpiration[idx] = {
-        ...current,
-        status: "denied",
-        result: "denied",
-        deniedBy: decidedBy,
-        decisionReason: reason,
-        decidedAt,
-        updatedAt: decidedAt,
-      };
-    }
-
-    await writeApprovals(withExpiration);
-    if (changed) {
-      return withExpiration[idx];
-    }
-    return withExpiration[idx];
-  }
-
-  async function consume({ approvalId, action, actorUserId }) {
-    const approvals = await readApprovals();
-    const { approvals: withExpiration } = applyExpiration(approvals);
-    const idx = withExpiration.findIndex((item) => item.id === approvalId);
-    if (idx < 0) throw new HttpError(403, "Aprovacao operacional invalida");
-
-    const approval = withExpiration[idx];
-    if (approval.action !== action) {
-      throw new HttpError(403, "Aprovacao nao corresponde a acao solicitada");
-    }
-    if (approval.status === "expired") {
-      await writeApprovals(withExpiration);
-      throw new HttpError(410, "Aprovacao operacional expirada");
-    }
-    if (approval.status === "denied") {
-      throw new HttpError(403, "Aprovacao operacional negada");
-    }
-    if (approval.status !== "approved") {
-      throw new HttpError(403, "Aprovacao operacional pendente");
-    }
-    if (approval.consumedAt) {
-      throw new HttpError(409, "Aprovacao operacional ja consumida");
-    }
-
-    const consumedAt = new Date(now()).toISOString();
-    withExpiration[idx] = {
-      ...approval,
-      status: "consumed",
-      result: "executed",
-      consumedBy: actorUserId,
-      consumedAt,
-      updatedAt: consumedAt,
-    };
-    await writeApprovals(withExpiration);
-    return withExpiration[idx];
-  }
-
-  async function list({ status = "all", page = 1, limit = 20 } = {}) {
-    const approvals = await readApprovals();
-    const { approvals: withExpiration, changed } = applyExpiration(approvals);
-    if (changed) {
-      await writeApprovals(withExpiration);
-    }
-    const filtered =
-      status === "all"
-        ? withExpiration
-        : withExpiration.filter((item) => item.status === status);
-    const safePage = parsePositiveInt(page, 1, 1, 1000);
-    const safeLimit = parsePositiveInt(limit, 20, 1, 200);
-    const start = (safePage - 1) * safeLimit;
-    const items = filtered.slice(start, start + safeLimit);
-    return {
-      items,
-      page: safePage,
-      limit: safeLimit,
-      total: filtered.length,
-      totalPages: Math.max(1, Math.ceil(filtered.length / safeLimit)),
-    };
-  }
-
-  return {
-    createRequest,
-    decide,
-    consume,
-    list,
-  };
-}
-
 function createScorecardService({ scorecardPath, now = () => new Date().toISOString() }) {
   function buildStatus(dimensions) {
     const statuses = dimensions.map((d) => d.status);
@@ -1649,32 +1413,43 @@ export function createApp(deps = {}) {
 
   const baselineService =
     deps.baselineService ||
-    createBaselineService({
+    createDefaultBaselineService({
       baselinePath: path.join(serverDir, "artifacts", "baseline", "config-baseline.json"),
-      getConfig: () => ({
-        telemetryEnabled: isTelemetryEnabled(),
-        queue: {
-          maxConcurrency: parsePositiveInt(process.env.QUEUE_MAX_CONCURRENCY, 4, 1, 32),
-          maxSize: parsePositiveInt(process.env.QUEUE_MAX_SIZE, 100, 1, 500),
-          taskTimeoutMs: parsePositiveInt(process.env.QUEUE_TASK_TIMEOUT_MS, 30000, 5000, 120000),
-          rejectPolicy: (process.env.QUEUE_REJECT_POLICY || "reject").trim(),
-        },
-        autoHealing: {
-          enabled: autoHealingService.getStatus().enabled,
-          cooldownMs: autoHealingService.getStatus().cooldownMs,
-          maxAttempts: autoHealingService.getStatus().maxAttempts,
-        },
-      }),
+      getConfig: () =>
+        buildBaselineConfigSnapshot({
+          isTelemetryEnabled,
+          parsePositiveInt,
+          queueConfig: {
+            maxConcurrency: process.env.QUEUE_MAX_CONCURRENCY,
+            maxSize: process.env.QUEUE_MAX_SIZE,
+            taskTimeoutMs: process.env.QUEUE_TASK_TIMEOUT_MS,
+            rejectPolicy: process.env.QUEUE_REJECT_POLICY || "reject",
+          },
+          autoHealingService,
+        }),
     });
   const approvalService =
     deps.approvalService ||
-    createOperationalApprovalService({
+    createDefaultOperationalApprovalService({
       approvalsPath: path.join(
         serverDir,
         "artifacts",
         "approvals",
         "operational-approvals.json",
       ),
+    });
+  const configRollbackService =
+    deps.configRollbackService ||
+    createConfigRollbackService({
+      store,
+      configKeys: CONFIG_KEYS,
+      parseSystemPrompt,
+      parseTheme,
+      parseStorageLimitMb,
+      parseBooleanLike,
+      isTelemetryEnabled,
+      setTelemetryEnabled,
+      resetTelemetryStats,
     });
 
   const scorecardService =
@@ -1704,64 +1479,19 @@ export function createApp(deps = {}) {
       }
     },
   });
-
-  async function collectIncidentRunbookSignals({ backupPassphrase = null } = {}) {
-    const [healthDb, healthModel, healthDisk, auditPage] = await Promise.all([
-      healthProviders.checkDb(),
-      healthProviders.checkModel(),
-      healthProviders.checkDisk(),
-      store.listAuditLogs({ page: 1, limit: 50 }),
-    ]);
-
-    const telemetryStats = getTelemetryStats().map((item) => ({
-      ...item,
-      errorRate: item.count ? Math.round((item.errors / item.count) * 100) : 0,
-    }));
-
-    const backupValidation = await backupService
-      .validateRecentBackups({ limit: 3, passphrase: backupPassphrase })
-      .catch((error) => ({
-        checkedAt: new Date().toISOString(),
-        limit: 3,
-        status: "falha",
-        items: [],
-        error: String(error?.message || "Falha ao validar backups"),
-      }));
-
-    const rateLimiter = roleLimiter.getMetrics();
-    const recentErrors = auditPage.items
-      .filter(
-        (entry) =>
-          typeof entry.eventType === "string" &&
-          (entry.eventType.includes("blocked") || entry.eventType.includes("error")),
-      )
-      .slice(0, 20);
-
-    const health = {
-      status: buildOverallHealthStatus({ db: healthDb, model: healthModel, disk: healthDisk }),
-      checks: { db: healthDb, model: healthModel, disk: healthDisk },
-    };
-    const slo = buildSloSnapshot(telemetryStats);
-    const incidentStatus = incidentService.getStatus();
-    const recommendations = buildTriageRecommendations({
-      health,
-      slo,
-      backupValidation,
-      rateLimiter,
-      recentErrors,
-      incidentStatus,
+  const collectIncidentRunbookSignals =
+    deps.collectIncidentRunbookSignals ||
+    createIncidentRunbookSignalsCollector({
+      healthProviders,
+      store,
+      getTelemetryStats,
+      backupService,
+      roleLimiter,
+      incidentService,
+      buildOverallHealthStatus,
+      buildSloSnapshot,
+      buildTriageRecommendations,
     });
-
-    return {
-      health,
-      slo,
-      backupValidation,
-      rateLimiter,
-      recentErrors,
-      incidentStatus,
-      recommendations,
-    };
-  }
 
   async function recordAudit(eventType, userId = null, meta = {}) {
     try {
@@ -1794,73 +1524,7 @@ export function createApp(deps = {}) {
     }
   }
 
-  async function readCurrentConfigValue(version) {
-    switch (version.configKey) {
-      case CONFIG_KEYS.CHAT_SYSTEM_PROMPT: {
-        const promptContext = await store.getChatSystemPrompts(version.targetId);
-        if (!promptContext) throw new HttpError(404, "Chat nao encontrado");
-        return promptContext.systemPrompt || "";
-      }
-      case CONFIG_KEYS.USER_DEFAULT_SYSTEM_PROMPT: {
-        const user = await store.getUserById(version.targetId);
-        if (!user) throw new HttpError(404, "Perfil nao encontrado");
-        return user.defaultSystemPrompt || "";
-      }
-      case CONFIG_KEYS.USER_THEME: {
-        const user = await store.getUserById(version.targetId);
-        if (!user) throw new HttpError(404, "Perfil nao encontrado");
-        return user.theme || "system";
-      }
-      case CONFIG_KEYS.USER_STORAGE_LIMIT_MB: {
-        const user = await store.getUserById(version.targetId);
-        if (!user) throw new HttpError(404, "Perfil nao encontrado");
-        return Number.parseInt(user.storageLimitMb, 10) || 512;
-      }
-      case CONFIG_KEYS.APP_TELEMETRY_ENABLED:
-        return !!isTelemetryEnabled();
-      default:
-        throw new HttpError(400, "configKey nao suportada para rollback");
-    }
-  }
-
-  async function applyConfigValue(version) {
-    switch (version.configKey) {
-      case CONFIG_KEYS.CHAT_SYSTEM_PROMPT: {
-        const value = parseSystemPrompt(version.value);
-        const updated = await store.setChatSystemPrompt(version.targetId, value);
-        if (!updated) throw new HttpError(404, "Chat nao encontrado");
-        return updated;
-      }
-      case CONFIG_KEYS.USER_DEFAULT_SYSTEM_PROMPT: {
-        const value = parseSystemPrompt(version.value);
-        const updated = await store.setUserDefaultSystemPrompt(version.targetId, value);
-        if (!updated) throw new HttpError(404, "Perfil nao encontrado");
-        return updated;
-      }
-      case CONFIG_KEYS.USER_THEME: {
-        const value = parseTheme(version.value);
-        const updated = await store.setUserTheme(version.targetId, value);
-        if (!updated) throw new HttpError(404, "Perfil nao encontrado");
-        return updated;
-      }
-      case CONFIG_KEYS.USER_STORAGE_LIMIT_MB: {
-        const value = parseStorageLimitMb(version.value);
-        const updated = await store.setUserStorageLimit(version.targetId, value);
-        if (!updated) throw new HttpError(404, "Perfil nao encontrado");
-        return updated;
-      }
-      case CONFIG_KEYS.APP_TELEMETRY_ENABLED: {
-        const value = parseBooleanLike(version.value, false);
-        setTelemetryEnabled(value);
-        if (!value) {
-          resetTelemetryStats();
-        }
-        return { enabled: isTelemetryEnabled() };
-      }
-      default:
-        throw new HttpError(400, "configKey nao suportada para rollback");
-    }
-  }
+  const { readCurrentConfigValue, applyConfigValue } = configRollbackService;
 
   const { resolveActor, requireMinimumRole, requireAdminOrSelf } =
     createAuthGuards({
