@@ -44,6 +44,8 @@ Camadas por responsabilidade:
 
 ## Estrutura fisica
 
+Visao resumida dos diretorios e arquivos principais (nao exaustiva):
+
 ```text
 .
 ├── .github/
@@ -105,6 +107,8 @@ Arquivos-chave para comecar rapido:
 - `server/index.js`: ponto de entrada da API (bootstrap/main)
 - `server/src/http/app-create.js`: composicao principal da aplicacao Express
 - `server/src/http/app-context.js`: montagem de contexto, servicos e dependencias de rota
+- `server/src/http/app-route-registrars.js`: mapa centralizado dos registradores de rota
+- `server/src/modules/`: modulos de dominio (chat, governanca, health e users)
 - `server/db.js`: persistencia SQLite, historico de chats e configuracoes
 - `server/backup.js`: exportacao/restauracao e validacao de backups
 - `server/storage.js`: uso e limpeza de armazenamento local
