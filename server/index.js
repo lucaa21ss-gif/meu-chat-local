@@ -1,71 +1,16 @@
-import express from "express";
 import { fileURLToPath } from "node:url";
-import path from "node:path";
-import { client } from "./ollama.js";
-import logger, { createHttpLogger } from "./logger.js";
+import logger from "./logger.js";
 import { parsePositiveInt } from "./src/shared/parsers.js";
-import { asyncHandler } from "./src/http/async-handler.js";
-import { createStore, initStoreDb } from "./src/http/app-store.js";
-import { APP_ROUTE_REGISTRARS } from "./src/http/app-route-registrars.js";
+import { initStoreDb } from "./src/http/app-store.js";
 import { scheduleBackupJob } from "./src/http/app-backup-scheduler.js";
 import { startHttpServer } from "./src/http/app-server-listen.js";
-import { createAppContext } from "./src/http/app-context.js";
-import { attachAppLocals, configureAppBootstrap } from "./src/http/app-bootstrap.js";
-import { registerAppRoutes } from "./src/http/register-app-routes.js";
+import { createConfiguredApp } from "./src/http/app-factory.js";
 import { createIntegrityRuntimeService } from "./src/modules/governance/integrity-service.js";
 
 export { createIntegrityRuntimeService };
 
 export function createApp(deps = {}) {
-  const chatClient = deps.chatClient || client;
-  const store = createStore(deps);
-
-  const app = express();
-  const serverDir = path.dirname(fileURLToPath(import.meta.url));
-  const {
-    webDir,
-    corsOrigin,
-    backupService,
-    storageService,
-    capacityService,
-    queueService,
-    baselineService,
-    approvalService,
-    roleLimiter,
-    createTelemetryMiddleware,
-    routeDeps,
-  } = createAppContext({
-    deps,
-    store,
-    serverDir,
-    chatClient,
-    logger,
-    asyncHandler,
-    registrars: APP_ROUTE_REGISTRARS,
-  });
-
-  configureAppBootstrap(app, {
-    corsOrigin,
-    webDir,
-    roleLimiter,
-    createHttpLogger,
-    logger,
-    createTelemetryMiddleware,
-    express,
-  });
-
-  attachAppLocals(app, {
-    backupService,
-    storageService,
-    capacityService,
-    queueService,
-    baselineService,
-    approvalService,
-  });
-
-  registerAppRoutes(app, routeDeps);
-
-  return app;
+  return createConfiguredApp(deps);
 }
 
 export async function startServer(port = 3001) {
