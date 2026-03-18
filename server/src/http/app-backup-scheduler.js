@@ -1,3 +1,5 @@
+import { parsePositiveInt } from "../shared/parsers.js";
+
 export function scheduleBackupJob({ app, intervalMinutes, logger }) {
   if (intervalMinutes <= 0 || !app?.locals?.backupService?.createBackup) {
     return null;
@@ -21,4 +23,19 @@ export function scheduleBackupJob({ app, intervalMinutes, logger }) {
     "Backup agendado habilitado por BACKUP_INTERVAL_MINUTES",
   );
   return timer;
+}
+
+export function scheduleBackupJobFromEnv({
+  app,
+  logger,
+  env = process.env,
+  parseInterval = parsePositiveInt,
+}) {
+  const intervalMinutes = parseInterval(
+    env.BACKUP_INTERVAL_MINUTES,
+    0,
+    0,
+    24 * 60,
+  );
+  return scheduleBackupJob({ app, intervalMinutes, logger });
 }
