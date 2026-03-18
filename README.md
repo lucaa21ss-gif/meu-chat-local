@@ -36,9 +36,7 @@ Camadas por responsabilidade:
 - Entrypoint e bootstrap (`server/index.js`, `server/src/http/app-startup.js`, `server/src/http/app-main-module.js`): inicializacao do servidor, modo main e agendamento operacional
 - HTTP e composicao (`server/src/http/`): montagem da aplicacao Express, middlewares, wiring de rotas e contexto de dependencias
 - Modulos de dominio (`server/src/modules/`): registro de rotas por dominio e servicos de governanca/saude/chat/usuarios
-- Persistencia e servicos base (`server/db.js`, `server/storage.js`, `server/backup.js`, `server/rateLimiter.js`): dados, backup, fila local, storage e controles operacionais
-- Integracao de modelo (`server/ollama.js`): comunicacao com Ollama, retries e fallback de inferencia
-- Observabilidade (`server/logger.js`, `server/telemetry.js`): logs estruturados, `traceId`, metricas e snapshots operacionais
+- Infraestrutura (`server/src/infra/`): SQLite, backup, storage local, fila/rate limiting, integracao com Ollama, logs e telemetria
 - Automacao operacional (`scripts/`): empacotamento, instalacao, canary, DR test, runbook de incidente e capacity profile
 - Infra local (`docker-compose.yml`, `server/Dockerfile`, `ollama/Modelfile`): orquestracao, build e modelo base
 
@@ -77,27 +75,22 @@ Visao resumida dos diretorios e arquivos principais (nao exaustiva):
 │   └── uninstall.sh
 ├── server/
 │   ├── artifacts/
-│   ├── backup.js
 │   ├── backup.test.js
 │   ├── chaos.test.js
-│   ├── db.js
 │   ├── db.migrations.test.js
 │   ├── Dockerfile
 │   ├── index.js
 │   ├── index.test.js
 │   ├── integrity.test.js
-│   ├── logger.js
-│   ├── ollama.js
 │   ├── package-lock.json
 │   ├── package.json
-│   ├── rateLimiter.js
 │   ├── src/
 │   │   ├── http/
+│   │   ├── infra/
 │   │   ├── modules/
 │   │   └── shared/
-│   ├── storage.js
 │   ├── storage.test.js
-│   └── telemetry.js
+│   └── chat.db*
 └── web/
     ├── assets/
     ├── guia.html
@@ -117,6 +110,7 @@ Visao resumida dos diretorios e arquivos principais (nao exaustiva):
 Mapa rapido do backend modular:
 
 - `server/src/http/`: bootstrap HTTP, middlewares, composicao do app e wiring de rotas
+- `server/src/infra/`: adaptadores locais de banco, backup, filesystem, logging, Ollama, fila e telemetria
 - `server/src/modules/chat/`: rotas de chat, chats e RAG
 - `server/src/modules/governance/`: rotas e servicos operacionais (backup, approvals, scorecard, DR, auto-healing)
 - `server/src/modules/health/`: health checks e agregadores de saude/SLO
@@ -129,10 +123,13 @@ Arquivos-chave para comecar rapido:
 - `server/src/http/app-create.js`: composicao principal da aplicacao Express
 - `server/src/http/app-context.js`: montagem de contexto, servicos e dependencias de rota
 - `server/src/http/app-route-registrars.js`: mapa centralizado dos registradores de rota
+- `server/src/infra/db/db.js`: persistencia SQLite, historico de chats e configuracoes
+- `server/src/infra/backup/backup-archive.js`: exportacao/restauracao e validacao de backups
+- `server/src/infra/fs/storage-service.js`: uso e limpeza de armazenamento local
+- `server/src/infra/ollama/ollama-client.js`: integracao local com Ollama
+- `server/src/infra/queue/rate-limiter.js`: fila local e rate limiting por papel
+- `server/src/infra/telemetry/telemetry.js`: metricas por endpoint e middleware de telemetria
 - `server/src/modules/`: modulos de dominio (chat, governanca, health e users)
-- `server/db.js`: persistencia SQLite, historico de chats e configuracoes
-- `server/backup.js`: exportacao/restauracao e validacao de backups
-- `server/storage.js`: uso e limpeza de armazenamento local
 - `web/index.html`: estrutura da UI
 - `web/script.js`: logica de chat, streaming, filtros, health e acoes operacionais no cliente
 - `web/health-indicators.js`: utilitarios de renderizacao e polling de status de saude
@@ -845,7 +842,7 @@ curl -s -X POST http://localhost:3001/api/backup/restore \
 
 ## Teste automatizado de restauração de desastre (DR)
 
-Execução por comando único:
+Execucao por comando unico:
 
 ```bash
 npm run dr:test
