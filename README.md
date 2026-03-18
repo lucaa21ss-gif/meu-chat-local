@@ -33,8 +33,10 @@ Fluxo principal da aplicacao:
 Camadas por responsabilidade:
 
 - Interface (`web/`): paginas do produto/chat/guia, eventos, streaming no cliente, atalhos e indicadores de health
-- Aplicacao (`server/index.js`): rotas HTTP, middlewares, RBAC, validacoes, scorecard e coordenacao dos fluxos
-- Persistencia e servicos (`server/db.js`, `server/storage.js`, `server/backup.js`, `server/rateLimiter.js`): dados, backup, fila local, storage e controles operacionais
+- Entrypoint e bootstrap (`server/index.js`, `server/src/http/app-startup.js`, `server/src/http/app-main-module.js`): inicializacao do servidor, modo main e agendamento operacional
+- HTTP e composicao (`server/src/http/`): montagem da aplicacao Express, middlewares, wiring de rotas e contexto de dependencias
+- Modulos de dominio (`server/src/modules/`): registro de rotas por dominio e servicos de governanca/saude/chat/usuarios
+- Persistencia e servicos base (`server/db.js`, `server/storage.js`, `server/backup.js`, `server/rateLimiter.js`): dados, backup, fila local, storage e controles operacionais
 - Integracao de modelo (`server/ollama.js`): comunicacao com Ollama, retries e fallback de inferencia
 - Observabilidade (`server/logger.js`, `server/telemetry.js`): logs estruturados, `traceId`, metricas e snapshots operacionais
 - Automacao operacional (`scripts/`): empacotamento, instalacao, canary, DR test, runbook de incidente e capacity profile
@@ -72,8 +74,13 @@ Camadas por responsabilidade:
 │   ├── integrity.test.js
 │   ├── logger.js
 │   ├── ollama.js
+│   ├── package-lock.json
 │   ├── package.json
 │   ├── rateLimiter.js
+│   ├── src/
+│   │   ├── http/
+│   │   ├── modules/
+│   │   └── shared/
 │   ├── storage.js
 │   ├── storage.test.js
 │   └── telemetry.js
@@ -84,6 +91,7 @@ Camadas por responsabilidade:
     ├── health-indicators.test.cjs
     ├── index.html
     ├── output.css
+    ├── package-lock.json
     ├── package.json
     ├── produto.html
     ├── script.js
@@ -94,7 +102,9 @@ Camadas por responsabilidade:
 
 Arquivos-chave para comecar rapido:
 
-- `server/index.js`: ponto de entrada da API e middlewares
+- `server/index.js`: ponto de entrada da API (bootstrap/main)
+- `server/src/http/app-create.js`: composicao principal da aplicacao Express
+- `server/src/http/app-context.js`: montagem de contexto, servicos e dependencias de rota
 - `server/db.js`: persistencia SQLite, historico de chats e configuracoes
 - `server/backup.js`: exportacao/restauracao e validacao de backups
 - `server/storage.js`: uso e limpeza de armazenamento local
