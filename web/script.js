@@ -1,18 +1,13 @@
 import { createApiClient } from "./app/shared/api.js";
 import { escapeRegExp, formatBytes, formatDateLabel } from "./app/shared/format.js";
 import { filesToBase64, filesToDocuments, readFileAsBase64 } from "./app/shared/files.js";
+import { createModalPresenter } from "./app/shared/modal.js";
 import { createStatusPresenter } from "./app/shared/status.js";
 import { isDarkForMode, normalizeThemeMode } from "./app/shared/theme.js";
 import { buildHeaderPresentation, createHealthPoller } from "./health-indicators.js";
 
 const API_BASE = window.location.origin;
 const { fetchJson } = createApiClient({ baseUrl: API_BASE });
-const statusPresenter = createStatusPresenter({
-  statusBarEl,
-  statusTextEl,
-  statusRetryBtnEl,
-});
-const { hideStatus, showStatus } = statusPresenter;
 
 const chatEl = document.getElementById("chat");
 const inputEl = document.getElementById("msg");
@@ -138,8 +133,6 @@ const state = {
   activeChatId: null,
   recognition: null,
   isListening: false,
-  duplicateResolver: null,
-  confirmResolver: null,
   voiceHistory: [],
   isDarkMode: false,
   onboardingChecksOk: false,
@@ -196,6 +189,40 @@ const state = {
     alerts: [],
   },
 };
+
+const statusPresenter = createStatusPresenter({
+  statusBarEl,
+  statusTextEl,
+  statusRetryBtnEl,
+});
+const { hideStatus, showStatus } = statusPresenter;
+
+const modalPresenter = createModalPresenter({
+  duplicateModalEl,
+  duplicateTitleInputEl,
+  duplicateModeFullEl,
+  duplicateModeUserEl,
+  confirmModalEl,
+  confirmModalTextEl,
+  voiceHistoryModalEl,
+  shortcutsModalEl,
+  shortcutsCloseBtnEl,
+  onboardingModalEl,
+});
+
+const {
+  closeConfirmModal,
+  closeDuplicateModal,
+  closeShortcutsModal,
+  closeVoiceHistoryModal,
+  hasBlockingModalOpen,
+  isShortcutsModalOpen,
+  isVoiceHistoryOpen,
+  openConfirmModal,
+  openDuplicateModal,
+  openShortcutsModal,
+  openVoiceHistoryModal,
+} = modalPresenter;
 
 const SHORTCUT_DEFINITIONS = [
   {
@@ -1968,76 +1995,6 @@ async function duplicateActiveChat() {
   }
 }
 
-function getFocusableElements(element) {
-  return Array.from(
-    element.querySelectorAll(
-      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
-    ),
-  ).filter((el) => !el.hasAttribute("disabled"));
-}
-
-function handleModalKeydown(e) {
-  if (e.key !== "Tab") return;
-
-  const focusableElements = getFocusableElements(duplicateModalEl);
-  if (focusableElements.length === 0) return;
-
-  const firstElement = focusableElements[0];
-  const lastElement = focusableElements[focusableElements.length - 1];
-  const activeElement = document.activeElement;
-
-  if (e.shiftKey) {
-    if (activeElement === firstElement) {
-      e.preventDefault();
-      lastElement.focus();
-    }
-  } else {
-    if (activeElement === lastElement) {
-      e.preventDefault();
-      firstElement.focus();
-    }
-  }
-}
-
-function closeDuplicateModal(result = null) {
-  duplicateModalEl.classList.add("modal-exit-active");
-  duplicateModalEl.removeEventListener("keydown", handleModalKeydown);
-
-  setTimeout(() => {
-    duplicateModalEl.classList.remove("modal-exit-active");
-    duplicateModalEl.classList.add("hidden");
-    duplicateModalEl.classList.remove("flex");
-
-    if (state.duplicateResolver) {
-      const resolve = state.duplicateResolver;
-      state.duplicateResolver = null;
-      resolve(result);
-    }
-  }, 250);
-}
-
-function openDuplicateModal(defaultTitle) {
-  duplicateTitleInputEl.value = defaultTitle;
-  duplicateModeFullEl.checked = true;
-  duplicateModeUserEl.checked = false;
-
-  duplicateModalEl.classList.remove("hidden");
-  duplicateModalEl.classList.add("flex");
-  duplicateModalEl.classList.add("modal-enter-active");
-
-  duplicateModalEl.addEventListener("keydown", handleModalKeydown);
-
-  setTimeout(() => {
-    duplicateModalEl.classList.remove("modal-enter-active");
-    duplicateTitleInputEl.focus();
-    duplicateTitleInputEl.select();
-  }, 0);
-
-  return new Promise((resolve) => {
-    state.duplicateResolver = resolve;
-  });
-}
-
 async function deleteActiveChat() {
   if (!state.activeChatId) return;
   const currentId = state.activeChatId;
@@ -2680,39 +2637,13 @@ function renderVoiceHistory() {
   });
 }
 
-function openVoiceHistoryModal() {
+function openVoiceHistoryModalWithRender() {
   renderVoiceHistory();
-  voiceHistoryModalEl.classList.remove("hidden");
-  voiceHistoryModalEl.classList.add("flex");
-}
-
-function closeVoiceHistoryModal() {
-  voiceHistoryModalEl.classList.add("hidden");
-  voiceHistoryModalEl.classList.remove("flex");
+  openVoiceHistoryModal();
 }
 
 function updateSendButtonState() {
   sendBtnEl.disabled = inputEl.value.trim() === "";
-}
-
-function openConfirmModal(text) {
-  confirmModalTextEl.textContent = text;
-  confirmModalEl.classList.remove("hidden");
-  confirmModalEl.classList.add("flex");
-
-  return new Promise((resolve) => {
-    state.confirmResolver = resolve;
-  });
-}
-
-function closeConfirmModal(result) {
-  confirmModalEl.classList.add("hidden");
-  confirmModalEl.classList.remove("flex");
-  if (state.confirmResolver) {
-    const resolve = state.confirmResolver;
-    state.confirmResolver = null;
-    resolve(result);
-  }
 }
 
 function isTextInputLike(element) {
@@ -2746,37 +2677,6 @@ function focusSearchField() {
   if (!searchInput) return;
   searchInput.focus();
   searchInput.select?.();
-}
-
-function openShortcutsModal() {
-  if (!shortcutsModalEl) return;
-  shortcutsModalEl.classList.remove("hidden");
-  shortcutsModalEl.classList.add("flex");
-  shortcutsCloseBtnEl?.focus();
-}
-
-function closeShortcutsModal() {
-  if (!shortcutsModalEl) return;
-  shortcutsModalEl.classList.add("hidden");
-  shortcutsModalEl.classList.remove("flex");
-}
-
-function isShortcutsModalOpen() {
-  return shortcutsModalEl && !shortcutsModalEl.classList.contains("hidden");
-}
-
-function isModalVisible(element) {
-  return !!element && !element.classList.contains("hidden");
-}
-
-function hasBlockingModalOpen() {
-  return (
-    isShortcutsModalOpen() ||
-    isModalVisible(duplicateModalEl) ||
-    isModalVisible(confirmModalEl) ||
-    isModalVisible(voiceHistoryModalEl) ||
-    isModalVisible(onboardingModalEl)
-  );
 }
 
 function navigateRelativeTab(step) {
@@ -2823,17 +2723,17 @@ function handleGlobalShortcuts(event) {
       closeShortcutsModal();
       return;
     }
-    if (state.duplicateResolver) {
+    if (modalPresenter.hasDuplicatePending()) {
       event.preventDefault();
       closeDuplicateModal(null);
       return;
     }
-    if (state.confirmResolver) {
+    if (modalPresenter.hasConfirmPending()) {
       event.preventDefault();
       closeConfirmModal(false);
       return;
     }
-    if (voiceHistoryModalEl && !voiceHistoryModalEl.classList.contains("hidden")) {
+    if (isVoiceHistoryOpen()) {
       event.preventDefault();
       closeVoiceHistoryModal();
       return;
@@ -3133,7 +3033,7 @@ if (restoreBackupBtnMobileEl) {
 }
 
 if (voiceHistoryBtnEl) {
-  voiceHistoryBtnEl.addEventListener("click", openVoiceHistoryModal);
+  voiceHistoryBtnEl.addEventListener("click", openVoiceHistoryModalWithRender);
 }
 
 if (voiceHistoryCloseBtnEl) {
