@@ -74,6 +74,23 @@ import {
   resetStats as resetTelemetryStats,
   createTelemetryMiddleware,
 } from "./telemetry.js";
+import { HttpError } from "./src/shared/errors/HttpError.js";
+import { asyncHandler } from "./src/http/async-handler.js";
+import { createAuthGuards } from "./src/http/auth-guards.js";
+import { createOperationalGuards } from "./src/http/operational-guards.js";
+import { registerUserRoutes } from "./src/modules/users/register-users-routes.js";
+import { registerIncidentRoutes } from "./src/modules/governance/register-incident-routes.js";
+import { registerApprovalRoutes } from "./src/modules/governance/register-approval-routes.js";
+import { registerResilienceRoutes } from "./src/modules/governance/register-resilience-routes.js";
+import { registerStorageRoutes } from "./src/modules/governance/register-storage-routes.js";
+import { registerConfigRoutes } from "./src/modules/governance/register-config-routes.js";
+import { registerAuditRoutes } from "./src/modules/governance/register-audit-routes.js";
+import { registerObservabilityRoutes } from "./src/modules/governance/register-observability-routes.js";
+import { registerChatRoutes } from "./src/modules/chat/register-chat-routes.js";
+import { registerChatsRoutes } from "./src/modules/chat/register-chats-routes.js";
+import { registerRagRoutes } from "./src/modules/chat/register-rag-routes.js";
+import { registerBackupRoutes } from "./src/modules/governance/register-backup-routes.js";
+import { registerHealthRoutes } from "./src/modules/health/register-health-routes.js";
 
 const CHAT_ID_REGEX = /^[a-zA-Z0-9:_-]{1,80}$/;
 const MAX_TITLE_LENGTH = 120;
@@ -166,19 +183,6 @@ const ALLOWED_IMAGE_MIME_TYPES = new Set([
   "image/webp",
   "image/gif",
 ]);
-
-class HttpError extends Error {
-  constructor(status, message) {
-    super(message);
-    this.status = status;
-  }
-}
-
-function asyncHandler(fn) {
-  return (req, res, next) => {
-    Promise.resolve(fn(req, res, next)).catch(next);
-  };
-}
 
 function isPlainObject(value) {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -900,7 +904,7 @@ function parseRagDocuments(body = {}) {
     if (name.includes("/") || name.includes("\\")) {
       throw new HttpError(400, "Nome do documento invalido");
     }
-    if (/[\u0000-\u001f]/.test(name)) {
+    if ([...name].some((char) => char.charCodeAt(0) < 32)) {
       throw new HttpError(400, "Nome do documento contem caracteres invalidos");
     }
     if (!content) {
@@ -2185,7 +2189,7 @@ function createQueueService({
 function createBaselineService({ baselinePath, getConfig }) {
   async function load() {
     try {
-      const raw = await fs.readFile(baselinePath, "utf-8");
+      const raw = await fsReadFile(baselinePath, "utf-8");
       return JSON.parse(raw);
     } catch {
       return null;
@@ -2195,8 +2199,8 @@ function createBaselineService({ baselinePath, getConfig }) {
   async function save() {
     const config = getConfig();
     const record = { config, savedAt: new Date().toISOString() };
-    await fs.mkdir(path.dirname(baselinePath), { recursive: true });
-    await fs.writeFile(baselinePath, JSON.stringify(record, null, 2), "utf-8");
+    await fsMkdir(path.dirname(baselinePath), { recursive: true });
+    await fsWriteFile(baselinePath, JSON.stringify(record, null, 2), "utf-8");
     return record;
   }
 
@@ -3378,91 +3382,24 @@ export function createApp(deps = {}) {
     }
   }
 
-  async function resolveActor(req) {
-    if (req.actor) return req.actor;
-
-    const headerUserId = req.get("x-user-id");
-    const bodyUserId =
-      req.body && typeof req.body === "object" ? req.body.userId : undefined;
-    const queryUserId = req.query?.userId;
-    const actorId = parseUserId(
-      headerUserId || queryUserId || bodyUserId || "user-default",
-    );
-    const actorUser = await store.getUserById(actorId);
-
-    if (!actorUser) {
-      throw new HttpError(401, "Perfil de acesso nao encontrado");
-    }
-
-    req.actor = {
-      userId: actorId,
-      role: normalizeRole(actorUser.role, "viewer"),
-    };
-
-    return req.actor;
-  }
-
-  async function recordBlockedAttempt(req, eventType, error, meta = {}) {
-    if (!(error instanceof HttpError)) return;
-
-    const actor = await resolveActor(req).catch(() => null);
-    await recordAudit(eventType, actor?.userId || null, {
-      reason: error.message,
-      ...meta,
+  const { resolveActor, requireMinimumRole, requireAdminOrSelf } =
+    createAuthGuards({
+      store,
+      parseUserId,
+      normalizeRole,
+      hasRequiredRole,
+      asyncHandler,
+      HttpError,
     });
-  }
 
-  function requireMinimumRole(minimumRole) {
-    return asyncHandler(async (req, _res, next) => {
-      const actor = await resolveActor(req);
-      if (!hasRequiredRole(actor.role, minimumRole)) {
-        throw new HttpError(403, "Permissao insuficiente para esta acao");
-      }
-      next();
+  const { recordBlockedAttempt, requireOperationalApproval } =
+    createOperationalGuards({
+      resolveActor,
+      recordAudit,
+      approvalService,
+      parseOperationalApprovalId,
+      HttpError,
     });
-  }
-
-  function requireAdminOrSelf(userIdParam = "userId") {
-    return asyncHandler(async (req, _res, next) => {
-      const actor = await resolveActor(req);
-      const targetUserId = parseUserId(req.params[userIdParam]);
-      if (actor.userId === targetUserId || actor.role === "admin") {
-        next();
-        return;
-      }
-      throw new HttpError(403, "Permissao insuficiente para esta acao");
-    });
-  }
-
-  async function requireOperationalApproval(req, { action, actorUserId }) {
-    const approvalId = parseOperationalApprovalId(
-      req.body?.approvalId || req.get("x-approval-id"),
-      "approvalId",
-    );
-    try {
-      const approval = await approvalService.consume({
-        approvalId,
-        action,
-        actorUserId,
-      });
-      await recordAudit("approval.consumed", actorUserId, {
-        approvalId: approval.id,
-        action,
-        requestedBy: approval.requestedBy,
-        approvedBy: approval.approvedBy,
-        windowStartAt: approval.windowStartAt,
-        windowEndAt: approval.windowEndAt,
-      });
-      return approval;
-    } catch (error) {
-      await recordAudit("approval.blocked", actorUserId || null, {
-        action,
-        approvalId,
-        reason: error?.message || "Aprovacao invalida",
-      });
-      throw error;
-    }
-  }
 
   app.disable("x-powered-by");
   app.use(
@@ -3528,1862 +3465,242 @@ export function createApp(deps = {}) {
     res.status(200).json({ status: "ok", service: "chat-server" });
   });
 
-  app.get(
-    "/readyz",
-    asyncHandler(async (req, res) => {
-      const startTime = Date.now();
-      try {
-        await store.listChats();
-        const duration = Date.now() - startTime;
-        req.logger?.info({ duration }, "Readiness check passed");
-        res.status(200).json({
-          status: "ready",
-          uptime: process.uptime(),
-          responseTime: duration,
-        });
-      } catch (err) {
-        const duration = Date.now() - startTime;
-        req.logger?.error(
-          { error: err.message, duration },
-          "Readiness check failed",
-        );
-        throw err;
-      }
-    }),
-  );
-
-  app.get(
-    "/api/health",
-    asyncHandler(async (req, res) => {
-      const [db, model, disk] = await Promise.all([
-        healthProviders.checkDb(),
-        healthProviders.checkModel(),
-        healthProviders.checkDisk(),
-      ]);
-
-      const checks = { db, model, disk };
-      const integrityStatus = await integrityService.getOrRefresh();
-      const autoHealingExecution = await autoHealingService.evaluate({
-        healthChecks: checks,
-      });
-      const status = buildOverallHealthStatus(checks);
-      const telemetry = getTelemetryStats().slice(0, 8).map((item) => ({
-        ...item,
-        errorRate: item.count ? Math.round((item.errors / item.count) * 100) : 0,
-      }));
-      const slo = buildSloSnapshot(getTelemetryStats());
-      const capacity = await capacityService.getLatestSummary();
-      const queue = queueService.getMetrics();
-      const baselineDrift = await baselineService.check();
-
-      const alerts = [];
-      if (db.status !== HEALTH_STATUS.HEALTHY) {
-        alerts.push("Banco de dados indisponivel");
-      }
-      if (model.status !== HEALTH_STATUS.HEALTHY) {
-        alerts.push("Modelo Ollama em degradacao/offline");
-      }
-      if (disk.status !== HEALTH_STATUS.HEALTHY) {
-        alerts.push("Espaco em disco baixo");
-      }
-      if (integrityStatus.status === "failed") {
-        alerts.push("Divergencia de integridade detectada em artefatos criticos");
-      }
-      if (capacity.status === "blocked") {
-        alerts.push("Orcamento de performance violado no ultimo perfil de capacidade");
-      }
-      if (queue.rejectedCount > 0 || (queue.queuedCount + queue.activeCount) > (queue.maxConcurrency * 2)) {
-        alerts.push("Fila de operacoes proxima a saturacao - rejeitando novas requisicoes");
-      }
-      if (baselineDrift.status === "drift") {
-        alerts.push(`Drift de configuracao detectado em: ${baselineDrift.driftedKeys.join(", ")}`);
-      }
-
-      if (autoHealingExecution.executed) {
-        await recordAudit("autohealing.auto.execute", null, {
-          policy: autoHealingExecution.policy,
-          outcome: autoHealingExecution.outcome,
-          reason: autoHealingExecution.reason || null,
-        });
-      }
-
-      res.json({
-        status,
-        generatedAt: new Date().toISOString(),
-        checks,
-        telemetry: {
-          enabled: isTelemetryEnabled(),
-          topRoutes: telemetry,
-        },
-        integrity: integrityStatus,
-        capacity,
-        queue,
-        baseline: { status: baselineDrift.status, driftedKeys: baselineDrift.driftedKeys, checkedAt: baselineDrift.checkedAt },
-        slo,
-        autoHealing: autoHealingService.getStatus(),
-        rateLimiter: roleLimiter.getMetrics(),
-        alerts,
-        // Compatibilidade com frontend legado.
-        ollama: model.ollama || "offline",
-        latencyMs: Number(model.latencyMs || 0),
-      });
-    }),
-  );
-
-  app.get(
-    "/api/slo",
-    requireMinimumRole("operator"),
-    asyncHandler(async (_req, res) => {
-      const telemetry = getTelemetryStats();
-      const snapshot = buildSloSnapshot(telemetry);
-      res.json({
-        telemetryEnabled: isTelemetryEnabled(),
-        ...snapshot,
-      });
-    }),
-  );
-
-  app.post(
-    "/api/chat",
-    asyncHandler(async (req, res) => {
-      assertBodyObject(req.body);
-      const message = parseMessage(req.body);
-      const chatId = getChatId(req.body);
-      const options = parseOptions(req.body);
-      const rag = parseRagOptions(req.body);
-      let images;
-      try {
-        images = getMessageImages(req.body);
-      } catch (error) {
-        await recordBlockedAttempt(req, "upload.blocked", error, {
-          route: "/api/chat",
-          chatId,
-          imagesCount: Array.isArray(req.body?.images) ? req.body.images.length : 0,
-        });
-        throw error;
-      }
-
-      await store.ensureChat(chatId);
-      await store.appendMessage(chatId, "user", message, images);
-      await store.renameChatFromFirstMessage(chatId, message);
-
-      const history = await store.getMessages(chatId);
-      const ragChunks = rag.enabled
-        ? await store.searchDocumentChunks(chatId, message, { limit: rag.topK })
-        : [];
-      const ragSystemMessage = buildRagSystemMessage(ragChunks);
-      const promptContext = (await store.getChatSystemPrompts(chatId)) || {};
-
-      const messagesPayload = history.map((item) => ({
-        role: item.role,
-        content: item.content,
-        ...(item.images?.length ? { images: item.images } : {}),
-      }));
-
-      const systemMessages = buildSystemMessages({
-        defaultSystemPrompt: promptContext.defaultSystemPrompt,
-        chatSystemPrompt: promptContext.systemPrompt,
-        ragSystemMessage,
-      });
-      if (systemMessages.length) {
-        messagesPayload.unshift(...systemMessages);
-      }
-
-      const payload = {
-        messages: messagesPayload,
-        options: {
-          temperature: options.temperature,
-          num_ctx: options.num_ctx,
-        },
-      };
-
-      const {
-        result: response,
-        modelUsed,
-        attempt,
-      } = await executeWithModelRecovery({
-        primaryModel: options.model,
-        fallbackModel: ollamaFallbackModel,
-        maxAttempts: ollamaMaxAttempts,
-        timeoutMs: ollamaTimeoutMs,
-        retryDelays: ollamaRetryDelays,
-        logger: req.logger,
-        run: (model) => chatClient.chat({ ...payload, model }),
-      });
-
-      req.logger?.info(
-        { modelUsed, attempt, ragEnabled: rag.enabled },
-        "Inferencia concluida",
-      );
-
-      const reply = String(response.message?.content || "");
-      await store.appendMessage(chatId, "assistant", reply);
-
-      res.json({
-        reply,
-        chatId,
-        citations: ragChunks.map((item) => ({
-          documentName: item.documentName,
-          chunkIndex: item.chunkIndex,
-          snippet: item.snippet,
-        })),
-      });
-    }),
-  );
-
-  app.post(
-    "/api/chats/:chatId/rag/documents",
-    asyncHandler(async (req, res) => {
-      assertBodyObject(req.body);
-      const chatId = parseChatId(req.params.chatId, "chatId");
-      let documents;
-      try {
-        documents = parseRagDocuments(req.body);
-      } catch (error) {
-        await recordBlockedAttempt(req, "upload.blocked", error, {
-          route: "/api/chats/:chatId/rag/documents",
-          chatId,
-          documentsCount: Array.isArray(req.body?.documents)
-            ? req.body.documents.length
-            : 0,
-        });
-        throw error;
-      }
-
-      await store.ensureChat(chatId);
-
-      const saved = [];
-      for (const doc of documents) {
-        // Ingestao local simples com chunking no SQLite para recuperacao por contexto.
-        const result = await store.upsertRagDocument(
-          chatId,
-          doc.name,
-          doc.content,
-        );
-        saved.push(result);
-      }
-
-      const allDocuments = await store.listRagDocuments(chatId);
-      res.status(201).json({
-        saved,
-        documents: allDocuments,
-      });
-    }),
-  );
-
-  app.get(
-    "/api/chats/:chatId/rag/documents",
-    asyncHandler(async (req, res) => {
-      const chatId = parseChatId(req.params.chatId, "chatId");
-      const documents = await store.listRagDocuments(chatId);
-      res.json({ documents });
-    }),
-  );
-
-  app.get(
-    "/api/chats/:chatId/rag/search",
-    asyncHandler(async (req, res) => {
-      const chatId = parseChatId(req.params.chatId, "chatId");
-      const query = parseSearchQuery(req.query?.q);
-      const limit = clamp(Number.parseInt(req.query?.limit, 10) || 4, 1, 8);
-      const matches = await store.searchDocumentChunks(chatId, query, {
-        limit,
-      });
-
-      res.json({
-        matches: matches.map((item) => ({
-          documentName: item.documentName,
-          chunkIndex: item.chunkIndex,
-          snippet: item.snippet,
-        })),
-      });
-    }),
-  );
-
-  app.post(
-    "/api/reset",
-    asyncHandler(async (_req, res) => {
-      await store.resetChat("default");
-      res.json({ ok: true });
-    }),
-  );
-
-  app.get(
-    "/api/telemetry",
-    asyncHandler(async (_req, res) => {
-      res.json({ enabled: isTelemetryEnabled(), stats: getTelemetryStats() });
-    }),
-  );
-
-  app.patch(
-    "/api/telemetry",
-    requireMinimumRole("admin"),
-    asyncHandler(async (req, res) => {
-      assertBodyObject(req.body);
-      const actor = await resolveActor(req);
-      const enabled = parseBooleanLike(req.body.enabled, false);
-      setTelemetryEnabled(enabled);
-      if (!enabled) {
-        resetTelemetryStats();
-      }
-      await recordConfigVersion({
-        configKey: CONFIG_KEYS.APP_TELEMETRY_ENABLED,
-        targetType: "app",
-        targetId: null,
-        value: !!enabled,
-        actorUserId: actor.userId,
-        source: "api",
-        meta: {
-          origin: "telemetry.patch",
-        },
-      });
-      res.json({ enabled: isTelemetryEnabled() });
-    }),
-  );
-
-  app.get(
-    "/api/users",
-    asyncHandler(async (_req, res) => {
-      const users = await store.listUsers();
-      res.json({ users });
-    }),
-  );
-
-  app.post(
-    "/api/users",
-    requireMinimumRole("admin"),
-    asyncHandler(async (req, res) => {
-      assertBodyObject(req.body);
-      const name = parseUserName(req.body.name);
-      const role = parseUserRole(req.body.role, "operator");
-      const id = `user-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-      const user = await store.createUser(id, name, role);
-      res.status(201).json({ user });
-    }),
-  );
-
-  app.patch(
-    "/api/users/:userId",
-    requireMinimumRole("admin"),
-    asyncHandler(async (req, res) => {
-      assertBodyObject(req.body);
-      const userId = parseChatId(req.params.userId, "userId");
-      const name = parseUserName(req.body.name);
-      const updated = await store.renameUser(userId, name);
-      if (!updated) {
-        throw new HttpError(404, "Perfil nao encontrado");
-      }
-      return res.json({ user: updated });
-    }),
-  );
-
-  app.patch(
-    "/api/users/:userId/system-prompt-default",
-    requireMinimumRole("admin"),
-    asyncHandler(async (req, res) => {
-      assertBodyObject(req.body);
-      const actor = await resolveActor(req);
-      const userId = parseChatId(req.params.userId, "userId");
-      const defaultSystemPrompt = parseSystemPrompt(
-        req.body.defaultSystemPrompt,
-      );
-      const updated = await store.setUserDefaultSystemPrompt(
-        userId,
-        defaultSystemPrompt,
-      );
-      if (!updated) throw new HttpError(404, "Perfil nao encontrado");
-      await recordConfigVersion({
-        configKey: CONFIG_KEYS.USER_DEFAULT_SYSTEM_PROMPT,
-        targetType: "user",
-        targetId: userId,
-        value: defaultSystemPrompt,
-        actorUserId: actor.userId,
-        source: "api",
-        meta: {
-          origin: "user.system-prompt-default.patch",
-        },
-      });
-      return res.json({ user: updated });
-    }),
-  );
-
-  app.patch(
-    "/api/users/:userId/theme",
-    requireAdminOrSelf("userId"),
-    asyncHandler(async (req, res) => {
-      assertBodyObject(req.body);
-      const actor = await resolveActor(req);
-      const userId = parseChatId(req.params.userId, "userId");
-      const theme = parseTheme(req.body.theme);
-      const updated = await store.setUserTheme(userId, theme);
-      if (!updated) throw new HttpError(404, "Perfil nao encontrado");
-      await recordConfigVersion({
-        configKey: CONFIG_KEYS.USER_THEME,
-        targetType: "user",
-        targetId: userId,
-        value: theme,
-        actorUserId: actor.userId,
-        source: "api",
-        meta: {
-          origin: "user.theme.patch",
-        },
-      });
-      return res.json({ user: updated });
-    }),
-  );
-
-  app.get(
-    "/api/users/:userId/ui-preferences",
-    requireAdminOrSelf("userId"),
-    asyncHandler(async (req, res) => {
-      const userId = parseChatId(req.params.userId, "userId");
-      const prefs = await store.getUiPreferences(userId);
-      if (!prefs) throw new HttpError(404, "Perfil nao encontrado");
-      return res.json({ userId, preferences: prefs });
-    }),
-  );
-
-  app.patch(
-    "/api/users/:userId/ui-preferences",
-    requireAdminOrSelf("userId"),
-    asyncHandler(async (req, res) => {
-      assertBodyObject(req.body);
-      const actor = await resolveActor(req);
-      const userId = parseChatId(req.params.userId, "userId");
-      const prefs = parseUiPreferences(req.body);
-      const updated = await store.setUiPreferences(userId, prefs);
-      if (!updated) throw new HttpError(404, "Perfil nao encontrado");
-      if (prefs.theme !== undefined) {
-        await recordConfigVersion({
-          configKey: CONFIG_KEYS.USER_THEME,
-          targetType: "user",
-          targetId: userId,
-          value: prefs.theme,
-          actorUserId: actor.userId,
-          source: "api",
-          meta: { origin: "user.ui-preferences.patch" },
-        });
-      }
-      await recordAudit("user.ui-preferences.updated", userId, {
-        prefs,
-        actorUserId: actor.userId,
-      });
-      return res.json({ userId, preferences: updated });
-    }),
-  );
-
-  app.patch(
-    "/api/users/:userId/storage-limit",
-    requireMinimumRole("admin"),
-    asyncHandler(async (req, res) => {
-      assertBodyObject(req.body);
-      const actor = await resolveActor(req);
-      const userId = parseChatId(req.params.userId, "userId");
-      const storageLimitMb = parseStorageLimitMb(req.body.storageLimitMb);
-      const updated = await store.setUserStorageLimit(userId, storageLimitMb);
-      if (!updated) throw new HttpError(404, "Perfil nao encontrado");
-      await recordConfigVersion({
-        configKey: CONFIG_KEYS.USER_STORAGE_LIMIT_MB,
-        targetType: "user",
-        targetId: userId,
-        value: storageLimitMb,
-        actorUserId: actor.userId,
-        source: "api",
-        meta: {
-          origin: "user.storage-limit.patch",
-        },
-      });
-      return res.json({ user: updated });
-    }),
-  );
-
-  app.patch(
-    "/api/users/:userId/role",
-    requireMinimumRole("admin"),
-    asyncHandler(async (req, res) => {
-      assertBodyObject(req.body);
-      const userId = parseChatId(req.params.userId, "userId");
-      const role = parseUserRole(req.body.role);
-      const updated = await store.setUserRole(userId, role);
-      if (!updated) throw new HttpError(404, "Perfil nao encontrado");
-      return res.json({ user: updated });
-    }),
-  );
-
-  app.post(
-    "/api/audit/profile-switch",
-    asyncHandler(async (req, res) => {
-      assertBodyObject(req.body);
-      const userId = parseUserId(req.body.userId);
-      await recordAudit("profile.switch", userId, {
-        source: "frontend",
-      });
-      return res.status(201).json({ ok: true });
-    }),
-  );
-
-  app.delete(
-    "/api/users/:userId",
-    requireMinimumRole("admin"),
-    asyncHandler(async (req, res) => {
-      const userId = parseChatId(req.params.userId, "userId");
-      if (userId === "user-default") {
-        throw new HttpError(403, "Perfil padrao nao pode ser excluido");
-      }
-      const deleted = await store.deleteUser(userId);
-      if (!deleted) {
-        throw new HttpError(404, "Perfil nao encontrado");
-      }
-      await recordAudit("user.delete", userId, {
-        actor: "api",
-      });
-      return res.json({ ok: true });
-    }),
-  );
-
-  app.get(
-    "/api/chats",
-    asyncHandler(async (req, res) => {
-      const userId = parseUserId(req.query?.userId);
-      const filters = parseChatListFilters(req.query || {});
-      const result = await store.listChats(userId, {
-        ...filters,
-        returnPagination: true,
-      });
-      res.json({
-        chats: result.items,
-        pagination: {
-          page: result.page,
-          limit: result.limit,
-          total: result.total,
-          totalPages: result.totalPages,
-        },
-      });
-    }),
-  );
-
-  app.post(
-    "/api/chats",
-    asyncHandler(async (req, res) => {
-      assertBodyObject(req.body);
-      const generatedId = `chat-${Date.now()}`;
-      const id = parseChatId(req.body.id || generatedId, "id");
-      const title = parseTitle(req.body.title, "Nova conversa");
-      const userId = parseUserId(req.body.userId);
-      const created = await store.createChat(id, title, userId);
-      res.status(201).json({ chat: created });
-    }),
-  );
-
-  app.post(
-    "/api/chats/:chatId/duplicate",
-    asyncHandler(async (req, res) => {
-      assertBodyObject(req.body);
-
-      const sourceId = parseChatId(req.params.chatId, "chatId");
-      const generatedId = `chat-${Date.now()}`;
-      const targetId = parseChatId(req.body.id || generatedId, "id");
-      const title =
-        req.body.title === undefined
-          ? undefined
-          : parseTitle(req.body.title, "Nova conversa");
-      const userOnly = parseUserOnly(req.body.userOnly);
-
-      const cloned = await store.duplicateChat(sourceId, targetId, title, {
-        userOnly,
-      });
-      if (!cloned) {
-        throw new HttpError(404, "Chat de origem nao encontrado");
-      }
-
-      return res.status(201).json({ chat: cloned });
-    }),
-  );
-
-  app.patch(
-    "/api/chats/:chatId",
-    asyncHandler(async (req, res) => {
-      assertBodyObject(req.body);
-      const chatId = parseChatId(req.params.chatId, "chatId");
-      const title = parseTitle(req.body.title, "Nova conversa");
-
-      const updated = await store.renameChat(chatId, title);
-      if (!updated) {
-        throw new HttpError(404, "Chat nao encontrado");
-      }
-
-      return res.json({ chat: updated });
-    }),
-  );
-
-  app.patch(
-    "/api/chats/:chatId/favorite",
-    asyncHandler(async (req, res) => {
-      assertBodyObject(req.body);
-      const chatId = parseChatId(req.params.chatId, "chatId");
-      const isFavorite = parseBooleanLike(req.body.isFavorite, false);
-      const updated = await store.setChatFavorite(chatId, isFavorite);
-      if (!updated) {
-        throw new HttpError(404, "Chat nao encontrado");
-      }
-      return res.json({ chat: updated });
-    }),
-  );
-
-  app.patch(
-    "/api/chats/:chatId/archive",
-    asyncHandler(async (req, res) => {
-      assertBodyObject(req.body);
-      const chatId = parseChatId(req.params.chatId, "chatId");
-      const archived = parseBooleanLike(req.body.archived, false);
-      const updated = await store.setChatArchived(chatId, archived);
-      if (!updated) {
-        throw new HttpError(404, "Chat nao encontrado");
-      }
-      return res.json({ chat: updated });
-    }),
-  );
-
-  app.patch(
-    "/api/chats/:chatId/tags",
-    asyncHandler(async (req, res) => {
-      assertBodyObject(req.body);
-      const chatId = parseChatId(req.params.chatId, "chatId");
-      const tags = parseTags(req.body.tags);
-      const updated = await store.setChatTags(chatId, tags);
-      if (!updated) {
-        throw new HttpError(404, "Chat nao encontrado");
-      }
-      return res.json({ chat: updated });
-    }),
-  );
-
-  app.get(
-    "/api/chats/:chatId/system-prompt",
-    asyncHandler(async (req, res) => {
-      const chatId = parseChatId(req.params.chatId, "chatId");
-      const promptContext = await store.getChatSystemPrompts(chatId);
-      if (!promptContext) throw new HttpError(404, "Chat nao encontrado");
-      res.json({
-        chatId,
-        systemPrompt: promptContext.systemPrompt || "",
-        defaultSystemPrompt: promptContext.defaultSystemPrompt || "",
-      });
-    }),
-  );
-
-  app.patch(
-    "/api/chats/:chatId/system-prompt",
-    asyncHandler(async (req, res) => {
-      assertBodyObject(req.body);
-      const actor = await resolveActor(req);
-      const chatId = parseChatId(req.params.chatId, "chatId");
-      const systemPrompt = parseSystemPrompt(req.body.systemPrompt);
-      const updated = await store.setChatSystemPrompt(chatId, systemPrompt);
-      if (!updated) throw new HttpError(404, "Chat nao encontrado");
-      await recordConfigVersion({
-        configKey: CONFIG_KEYS.CHAT_SYSTEM_PROMPT,
-        targetType: "chat",
-        targetId: chatId,
-        value: systemPrompt,
-        actorUserId: actor.userId,
-        source: "api",
-        meta: {
-          origin: "chat.system-prompt.patch",
-        },
-      });
-      return res.json({ chat: updated });
-    }),
-  );
-
-  app.delete(
-    "/api/chats/:chatId",
-    asyncHandler(async (req, res) => {
-      const chatId = parseChatId(req.params.chatId, "chatId");
-      const deleted = await store.deleteChat(chatId);
-      if (!deleted) {
-        throw new HttpError(404, "Chat nao encontrado");
-      }
-
-      await recordAudit("chat.delete", null, {
-        chatId,
-      });
-
-      return res.json({ ok: true });
-    }),
-  );
-
-  app.get(
-    "/api/chats/:chatId/messages",
-    asyncHandler(async (req, res) => {
-      const chatId = parseChatId(req.params.chatId, "chatId");
-      const messages = await store.getMessages(chatId);
-      res.json({ messages });
-    }),
-  );
-
-  app.get(
-    "/api/chats/:chatId/search",
-    asyncHandler(async (req, res) => {
-      const chatId = parseChatId(req.params.chatId, "chatId");
-      const query = parseSearchQuery(req.query?.q);
-      const page = parseSearchPage(req.query?.page);
-      const limit = parseSearchLimit(req.query?.limit);
-      const role = parseSearchRole(req.query?.role);
-      const from = parseSearchDate(req.query?.from, "from");
-      const to = parseSearchDate(req.query?.to, "to");
-
-      if (from && to && new Date(from) > new Date(to)) {
-        throw new HttpError(400, "Parametro from nao pode ser maior que to");
-      }
-
-      const result = await store.searchMessages(chatId, query, {
-        page,
-        limit,
-        role,
-        from,
-        to,
-      });
-
-      res.json({
-        matches: result.items,
-        pagination: {
-          page: result.page,
-          limit: result.limit,
-          total: result.total,
-          totalPages: result.totalPages,
-        },
-      });
-    }),
-  );
-
-  app.post(
-    "/api/chats/:chatId/reset",
-    asyncHandler(async (req, res) => {
-      const chatId = parseChatId(req.params.chatId, "chatId");
-      await store.resetChat(chatId);
-      res.json({ ok: true });
-    }),
-  );
-
-  app.get(
-    "/api/chats/:chatId/export",
-    requireMinimumRole("operator"),
-    asyncHandler(async (req, res) => {
-      const chatId = parseChatId(req.params.chatId, "chatId");
-      const format = String(req.query.format || "md").toLowerCase();
-
-      if (format === "json") {
-        const payload = await store.exportChatJson(chatId);
-        if (!payload) throw new HttpError(404, "Chat nao encontrado");
-        await recordAudit("chat.export", payload?.chat?.userId || null, {
-          chatId,
-          format: "json",
-        });
-        res.setHeader("Content-Type", "application/json; charset=utf-8");
-        res.setHeader(
-          "Content-Disposition",
-          `attachment; filename="chat-${chatId}.json"`,
-        );
-        return res.send(JSON.stringify(payload, null, 2));
-      }
-
-      if (!["md", "markdown"].includes(format)) {
-        throw new HttpError(400, "Formato de exportacao invalido");
-      }
-
-      const markdown = await store.exportChatMarkdown(chatId);
-      if (!markdown) throw new HttpError(404, "Chat nao encontrado");
-      await recordAudit("chat.export", null, {
-        chatId,
-        format: "markdown",
-      });
-      res.setHeader("Content-Type", "text/markdown; charset=utf-8");
-      res.setHeader(
-        "Content-Disposition",
-        `attachment; filename="chat-${chatId}.md"`,
-      );
-      return res.send(markdown);
-    }),
-  );
-
-  app.get(
-    "/api/chats/export",
-    requireMinimumRole("operator"),
-    asyncHandler(async (req, res) => {
-      const userId = parseUserId(req.query?.userId);
-      const format = String(req.query?.format || "json").toLowerCase();
-      const favoritesOnly = parseBooleanLike(req.query?.favorites, false);
-
-      const activeChats = await store.listChats(userId, {
-        favoriteOnly: favoritesOnly,
-        showArchived: false,
-        tag: null,
-      });
-      const archivedChats = await store.listChats(userId, {
-        favoriteOnly: favoritesOnly,
-        showArchived: true,
-        tag: null,
-      });
-      const chats = [...activeChats, ...archivedChats].filter(
-        (chat, idx, arr) =>
-          arr.findIndex((item) => item.id === chat.id) === idx,
-      );
-
-      if (format === "markdown" || format === "md") {
-        const markdownSections = [];
-        for (const chat of chats) {
-          const markdown = await store.exportChatMarkdown(chat.id);
-          if (markdown) markdownSections.push(markdown);
-        }
-
-        const mergedMarkdown = markdownSections.join("\n\n---\n\n");
-        res.setHeader("Content-Type", "text/markdown; charset=utf-8");
-        res.setHeader(
-          "Content-Disposition",
-          `attachment; filename="chats-${userId}-${favoritesOnly ? "favoritos" : "todos"}.md"`,
-        );
-        await recordAudit("chat.export.batch", userId, {
-          chatsCount: markdownSections.length,
-          format: "markdown",
-          favoritesOnly,
-        });
-        return res.send(mergedMarkdown || "# Nenhuma conversa encontrada");
-      }
-
-      if (format !== "json") {
-        throw new HttpError(400, "Formato de exportacao em lote invalido");
-      }
-
-      const exported = [];
-      for (const chat of chats) {
-        const payload = await store.exportChatJson(chat.id);
-        if (payload?.chat) exported.push(payload.chat);
-      }
-
-      res.setHeader("Content-Type", "application/json; charset=utf-8");
-      res.setHeader(
-        "Content-Disposition",
-        `attachment; filename="chats-${userId}.json"`,
-      );
-      await recordAudit("chat.export.batch", userId, {
-        chatsCount: exported.length,
-        format: "json",
-        favoritesOnly,
-      });
-      return res.send(
-        JSON.stringify(
-          {
-            version: 1,
-            exportedAt: new Date().toISOString(),
-            userId,
-            chats: exported,
-          },
-          null,
-          2,
-        ),
-      );
-    }),
-  );
-
-  app.post(
-    "/api/chats/import",
-    requireMinimumRole("operator"),
-    asyncHandler(async (req, res) => {
-      let payload;
-      try {
-        payload = parseChatImportPayload(req.body);
-      } catch (error) {
-        await recordBlockedAttempt(req, "import.blocked", error, {
-          route: "/api/chats/import",
-        });
-        throw error;
-      }
-
-      const forceNew = parseBooleanLike(req.query.forceNew, false);
-      const result = await store.importChatJson(payload, { forceNew });
-      await recordAudit("chat.import", result?.userId || null, {
-        chatId: result?.id,
-        forceNew,
-      });
-      return res.status(201).json({ chat: result });
-    }),
-  );
-
-  app.get(
-    "/api/backup/export",
-    requireMinimumRole("admin"),
-    asyncHandler(async (req, res) => {
-      const passphrase = parseBackupPassphrase(req.headers["x-backup-passphrase"]);
-      const backup = await backupService.createBackup({ passphrase });
-      await recordAudit("backup.export", null, {
-        fileName: backup.fileName,
-        sizeBytes: backup.sizeBytes,
-        encrypted: !!backup.isEncrypted,
-      });
-      res.setHeader("Content-Type", backup.contentType || "application/gzip");
-      res.setHeader("X-Backup-Protected", backup.isEncrypted ? "true" : "false");
-      res.setHeader(
-        "Content-Disposition",
-        `attachment; filename="${backup.fileName}"`,
-      );
-      return res.send(backup.archiveBuffer);
-    }),
-  );
-
-  app.post(
-    "/api/backup/restore",
-    requireMinimumRole("admin"),
-    asyncHandler(async (req, res) => {
-      assertBodyObject(req.body);
-      const actor = await resolveActor(req);
-      await requireOperationalApproval(req, {
-        action: "backup.restore",
-        actorUserId: actor.userId,
-      });
-      const archiveBuffer = parseBackupPayload(req.body.archiveBase64);
-      const passphrase = parseBackupPassphrase(req.body.passphrase);
-      let result;
-      try {
-        result = await backupService.restoreBackup(archiveBuffer, { passphrase });
-      } catch (error) {
-        const message = String(error?.message || "");
-        if (message.toLowerCase().includes("backup") || message.toLowerCase().includes("passphrase")) {
-          throw new HttpError(400, message || "Falha ao restaurar backup");
-        }
-        throw error;
-      }
-      await recordAudit("backup.restore", null, {
-        restored: true,
-        encrypted: !!result?.encrypted,
-      });
-      return res.json({ ok: true, restore: result });
-    }),
-  );
-
-  app.get(
-    "/api/backup/validate",
-    requireMinimumRole("admin"),
-    asyncHandler(async (req, res) => {
-      const limit = parsePositiveInt(req.query?.limit, 3, 1, 20);
-      const passphrase = parseBackupPassphrase(req.headers["x-backup-passphrase"]);
-      const validation = await backupService.validateRecentBackups({
-        limit,
-        passphrase,
-      });
-
-      await recordAudit("backup.validate", null, {
-        status: validation.status,
-        checked: Array.isArray(validation.items) ? validation.items.length : 0,
-      });
-
-      return res.json({
-        ok: validation.status === "ok",
-        validation,
-      });
-    }),
-  );
-
-  app.get(
-    "/api/incident/status",
-    requireMinimumRole("operator"),
-    asyncHandler(async (_req, res) => {
-      return res.json({ incident: incidentService.getStatus() });
-    }),
-  );
-
-  app.patch(
-    "/api/incident/status",
-    requireMinimumRole("admin"),
-    asyncHandler(async (req, res) => {
-      assertBodyObject(req.body);
-      const actor = await resolveActor(req);
-      const patch = parseIncidentUpdatePayload(req.body);
-      const incident = incidentService.updateStatus(patch, actor.userId);
-
-      await recordAudit("incident.status.update", actor.userId, {
-        status: incident.status,
-        severity: incident.severity,
-      });
-
-      return res.json({ incident });
-    }),
-  );
-
-  app.get(
-    "/api/auto-healing/status",
-    requireMinimumRole("operator"),
-    asyncHandler(async (_req, res) => {
-      return res.json({ autoHealing: autoHealingService.getStatus() });
-    }),
-  );
-
-  app.patch(
-    "/api/auto-healing/status",
-    requireMinimumRole("admin"),
-    asyncHandler(async (req, res) => {
-      assertBodyObject(req.body);
-      const actor = await resolveActor(req);
-      const patch = parseAutoHealingConfigPatch(req.body);
-      const updated = autoHealingService.patchConfig(patch);
-
-      await recordAudit("autohealing.config.update", actor.userId, {
-        enabled: updated.enabled,
-        cooldownMs: updated.cooldownMs,
-        maxAttempts: updated.maxAttempts,
-        windowMs: updated.windowMs,
-        resetCircuit: !!patch.resetCircuit,
-      });
-
-      return res.json({ autoHealing: updated });
-    }),
-  );
-
-  app.post(
-    "/api/auto-healing/execute",
-    requireMinimumRole("admin"),
-    asyncHandler(async (req, res) => {
-      assertBodyObject(req.body);
-      const actor = await resolveActor(req);
-      const policy = parseAutoHealingPolicy(req.body.policy);
-      const execution = await autoHealingService.executePolicy(policy, {
-        trigger: "manual",
-      });
-
-      await recordAudit("autohealing.execute", actor.userId, {
-        policy,
-        outcome: execution.outcome,
-        reason: execution.reason || null,
-      });
-
-      return res.json({
-        ok: execution.outcome !== "failed",
-        execution,
-        autoHealing: autoHealingService.getStatus(),
-      });
-    }),
-  );
-
-  app.post(
-    "/api/disaster-recovery/test",
-    requireMinimumRole("admin"),
-    asyncHandler(async (req, res) => {
-      assertBodyObject(req.body);
-      const actor = await resolveActor(req);
-      await requireOperationalApproval(req, {
-        action: "disaster-recovery.test",
-        actorUserId: actor.userId,
-      });
-      const scenarioId = parseDisasterScenarioId(req.body.scenarioId);
-      const passphrase = parseBackupPassphrase(req.body.passphrase);
-      const result = await disasterRecoveryService.runScenario({
-        actorUserId: actor.userId,
-        scenarioId,
-        passphrase,
-      });
-
-      await recordAudit("disaster.recovery.test", actor.userId, {
-        scenarioId: result.report?.scenarioId,
-        status: result.report?.status,
-        rtoMs: result.report?.indicators?.rtoMs,
-      });
-
-      return res.json({
-        ok: result.ok,
-        reportPath: result.reportPath,
-        report: result.report,
-      });
-    }),
-  );
-
-  app.get(
-    "/api/integrity/status",
-    requireMinimumRole("operator"),
-    asyncHandler(async (req, res) => {
-      const refresh = parseBooleanLike(req.query?.refresh, false);
-      const integrity = await integrityService.getOrRefresh({ force: refresh });
-      return res.json({ integrity });
-    }),
-  );
-
-  app.post(
-    "/api/integrity/verify",
-    requireMinimumRole("admin"),
-    asyncHandler(async (req, res) => {
-      const actor = await resolveActor(req);
-      const integrity = await integrityService.getOrRefresh({ force: true });
-      await recordAudit("integrity.verify", actor.userId, {
-        status: integrity.status,
-        mismatches: integrity.mismatches.length,
-        missingFiles: integrity.missingFiles.length,
-      });
-      return res.json({
-        ok: integrity.status === "ok",
-        integrity,
-      });
-    }),
-  );
-
-  app.get(
-    "/api/capacity/latest",
-    requireMinimumRole("operator"),
-    asyncHandler(async (_req, res) => {
-      const capacity = await capacityService.getLatestSummary();
-      return res.json({ capacity });
-    }),
-  );
-
-  app.post(
-    "/api/incident/runbook/execute",
-    requireMinimumRole("admin"),
-    asyncHandler(async (req, res) => {
-      assertBodyObject(req.body);
-      const actor = await resolveActor(req);
-
-      const runbookType = parseIncidentRunbookType(req.body.runbookType);
-      const mode = parseIncidentRunbookMode(req.body.mode);
-      if (mode !== "dry-run") {
-        await requireOperationalApproval(req, {
-          action: "incident.runbook.execute",
-          actorUserId: actor.userId,
-        });
-      }
-      const owner = parseIncidentOwner(req.body.owner) || actor.userId;
-      const customSummary = parseIncidentSummary(req.body.summary);
-      const customNextUpdateAt = parseIncidentNextUpdateAt(req.body.nextUpdateAt);
-      const backupPassphrase = parseBackupPassphrase(req.body.backupPassphrase);
-
-      const runbookPlan = INCIDENT_RUNBOOK_TYPES[runbookType];
-      const runbookId = `runbook-${Date.now()}`;
-      const startedAt = new Date().toISOString();
-      const steps = [];
-      const incidentBefore = incidentService.getStatus();
-      let incidentAfter = incidentBefore;
-
-      if (mode === "dry-run") {
-        steps.push({
-          step: "plan",
-          status: "simulated",
-          detail: "Execucao simulada sem alterar estado operacional",
-          at: new Date().toISOString(),
-        });
-      }
-
-      if (mode === "execute") {
-        const nextUpdateAt =
-          customNextUpdateAt || new Date(Date.now() + 15 * 60 * 1000).toISOString();
-
-        incidentAfter = incidentService.updateStatus(
-          {
-            status: "investigating",
-            severity: runbookPlan.severity,
-            summary: customSummary || runbookPlan.triageSummary,
-            owner,
-            recommendationType: runbookPlan.recommendationType,
-            nextUpdateAt,
-          },
-          actor.userId,
-        );
-        steps.push({
-          step: "triage",
-          status: "completed",
-          detail: "Incidente movido para investigating",
-          at: new Date().toISOString(),
-        });
-
-        incidentAfter = incidentService.updateStatus(
-          {
-            status: "mitigating",
-            severity: runbookPlan.severity,
-            summary: runbookPlan.mitigationSummary,
-            owner,
-            recommendationType: runbookPlan.recommendationType,
-            nextUpdateAt,
-          },
-          actor.userId,
-        );
-        steps.push({
-          step: "mitigation",
-          status: "completed",
-          detail: "Incidente movido para mitigating",
-          at: new Date().toISOString(),
-        });
-      }
-
-      if (mode === "rollback") {
-        if (incidentAfter.status !== "normal") {
-          incidentAfter = incidentService.updateStatus(
-            {
-              status: "monitoring",
-              severity: "low",
-              summary: "Rollback operacional em progresso",
-              owner,
-              recommendationType: "manual",
-              nextUpdateAt: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
-            },
-            actor.userId,
-          );
-          steps.push({
-            step: "rollback-monitoring",
-            status: "completed",
-            detail: "Incidente movido para monitoring antes do retorno ao normal",
-            at: new Date().toISOString(),
-          });
-
-          incidentAfter = incidentService.updateStatus(
-            {
-              status: "normal",
-              severity: "info",
-              summary: customSummary || `Rollback concluido para ${runbookType}`,
-              owner: null,
-              recommendationType: null,
-              nextUpdateAt: null,
-            },
-            actor.userId,
-          );
-        }
-
-        steps.push({
-          step: "rollback-finalize",
-          status: "completed",
-          detail: "Estado operacional normalizado",
-          at: new Date().toISOString(),
-        });
-      }
-
-      const signals = await collectIncidentRunbookSignals({ backupPassphrase });
-      const finishedAt = new Date().toISOString();
-
-      await recordAudit("incident.runbook.execute", actor.userId, {
-        runbookId,
-        runbookType,
-        mode,
-        healthStatus: signals.health.status,
-        sloStatus: signals.slo.status,
-        backupStatus: signals.backupValidation.status,
-        finalIncidentStatus: incidentAfter.status,
-      });
-
-      return res.json({
-        ok: true,
-        runbook: {
-          id: runbookId,
-          type: runbookType,
-          mode,
-          actorUserId: actor.userId,
-          startedAt,
-          finishedAt,
-          incidentBefore,
-          incidentAfter,
-          steps,
-          evidence: {
-            health: signals.health,
-            slo: signals.slo,
-            backupValidation: signals.backupValidation,
-            recentErrors: signals.recentErrors,
-            recommendations: signals.recommendations,
-          },
-        },
-      });
-    }),
-  );
-
-  app.get(
-    "/api/storage/usage",
-    asyncHandler(async (req, res) => {
-      const userId = parseUserId(req.query?.userId);
-      const usage = await storageService.getUsage();
-      const user = await store.getUserById(userId);
-      const storageLimitMb = Number.parseInt(user?.storageLimitMb, 10) || 512;
-      const storageLimitBytes = storageLimitMb * 1024 * 1024;
-      const usagePercent = Math.round((usage.totalBytes / storageLimitBytes) * 100);
-
-      return res.json({
-        userId,
-        limit: {
-          storageLimitMb,
-          storageLimitBytes,
-        },
-        usage: {
-          dbBytes: usage.dbBytes,
-          uploadsBytes: usage.uploadsBytes,
-          documentsBytes: usage.documentsBytes,
-          backupsBytes: usage.backupsBytes,
-          totalBytes: usage.totalBytes,
-        },
-        usagePercent,
-      });
-    }),
-  );
-
-  app.post(
-    "/api/storage/cleanup",
-    requireMinimumRole("admin"),
-    asyncHandler(async (req, res) => {
-      assertBodyObject(req.body);
-      const mode = parseCleanupMode(req.body.mode);
-      const target = parseCleanupTarget(req.body.target);
-      const olderThanDays = parseCleanupOlderThanDays(req.body.olderThanDays);
-      const maxDeleteMb = parseCleanupMaxDeleteMb(req.body.maxDeleteMb);
-      const preserveValidatedBackups = parseCleanupPreserveValidatedBackups(
-        req.body.preserveValidatedBackups,
-      );
-      const backupPassphrase = parseBackupPassphrase(req.body.backupPassphrase);
-      const actor = await resolveActor(req);
-
-      if (mode === "execute") {
-        await requireOperationalApproval(req, {
-          action: "storage.cleanup.execute",
-          actorUserId: actor.userId,
-        });
-      }
-
-      const result = await storageService.cleanup({
-        target,
-        olderThanDays,
-        maxDeleteMb,
-        execute: mode === "execute",
-        preserveValidatedBackups,
-        backupPassphrase,
-      });
-
-      return res.json({ cleanup: result });
-    }),
-  );
-
-  app.get(
-    "/api/config/versions",
-    requireMinimumRole("admin"),
-    asyncHandler(async (req, res) => {
-      const filters = parseConfigVersionFilters(req.query || {});
-      const result = await store.listConfigVersions(filters);
-      return res.json({
-        versions: result.items,
-        pagination: {
-          page: result.page,
-          limit: result.limit,
-          total: result.total,
-          totalPages: result.totalPages,
-        },
-      });
-    }),
-  );
-
-  app.post(
-    "/api/config/versions/:versionId/rollback",
-    requireMinimumRole("admin"),
-    asyncHandler(async (req, res) => {
-      const actor = await resolveActor(req);
-      const versionId = parseConfigVersionId(req.params.versionId);
-      const version = await store.getConfigVersionById(versionId);
-      if (!version) {
-        throw new HttpError(404, "Versao de configuracao nao encontrada");
-      }
-
-      const currentValue = await readCurrentConfigValue(version);
-      const changed = !areConfigValuesEqual(currentValue, version.value);
-      let updated = null;
-      if (changed) {
-        updated = await applyConfigValue(version);
-      }
-
-      await recordConfigVersion({
-        configKey: version.configKey,
-        targetType: version.targetType,
-        targetId: version.targetId,
-        value: version.value,
-        actorUserId: actor.userId,
-        source: "rollback",
-        meta: {
-          rollbackOfVersionId: version.id,
-          changed,
-        },
-      });
-
-      await recordAudit("config.rollback", actor.userId, {
-        configKey: version.configKey,
-        targetType: version.targetType,
-        targetId: version.targetId,
-        sourceVersionId: version.id,
-        changed,
-      });
-
-      return res.json({
-        ok: true,
-        changed,
-        sourceVersionId: version.id,
-        configKey: version.configKey,
-        targetType: version.targetType,
-        targetId: version.targetId,
-        value: version.value,
-        updated,
-      });
-    }),
-  );
-
-  app.get(
-    "/api/config/baseline",
-    requireMinimumRole("operator"),
-    asyncHandler(async (req, res) => {
-      const drift = await baselineService.check();
-      return res.json(drift);
-    }),
-  );
-
-  app.post(
-    "/api/config/baseline",
-    requireMinimumRole("operator"),
-    asyncHandler(async (req, res) => {
-      const actor = await resolveActor(req);
-      const before = await baselineService.check();
-      const hasDrift = before.hasSaved && before.status === "drift";
-      const record = await baselineService.save();
-      await recordAudit(
-        hasDrift ? "config.baseline.reconciled" : "config.baseline.saved",
-        actor.userId,
-        {
-          driftedKeys: before.driftedKeys ?? [],
-          reconciled: hasDrift,
-          savedAt: record.savedAt,
-        },
-      );
-      return res.json({
-        ok: true,
-        reconciled: hasDrift,
-        driftedKeys: before.driftedKeys ?? [],
-        baseline: record.config,
-        savedAt: record.savedAt,
-      });
-    }),
-  );
-
-  app.get(
-    "/api/approvals",
-    requireMinimumRole("operator"),
-    asyncHandler(async (req, res) => {
-      const status = parseOperationalApprovalStatus(req.query?.status);
-      const page = parsePositiveInt(req.query?.page, 1, 1, 1000);
-      const limit = parsePositiveInt(req.query?.limit, 20, 1, 200);
-      const result = await approvalService.list({ status, page, limit });
-      return res.json({
-        approvals: result.items,
-        pagination: {
-          page: result.page,
-          limit: result.limit,
-          total: result.total,
-          totalPages: result.totalPages,
-        },
-      });
-    }),
-  );
-
-  app.post(
-    "/api/approvals",
-    requireMinimumRole("operator"),
-    asyncHandler(async (req, res) => {
-      assertBodyObject(req.body);
-      const actor = await resolveActor(req);
-      const action = parseOperationalApprovalAction(req.body.action);
-      const reason = parseOperationalApprovalReason(req.body.reason, {
-        required: true,
-      });
-      const windowMinutes = parseOperationalApprovalWindowMinutes(
-        req.body.windowMinutes,
-        30,
-      );
-      const approval = await approvalService.createRequest({
-        action,
-        requestedBy: actor.userId,
-        reason,
-        windowMinutes,
-      });
-      await recordAudit("approval.requested", actor.userId, {
-        approvalId: approval.id,
-        action,
-        windowMinutes,
-      });
-      return res.status(201).json({ approval });
-    }),
-  );
-
-  app.post(
-    "/api/approvals/:approvalId/decision",
-    requireMinimumRole("admin"),
-    asyncHandler(async (req, res) => {
-      assertBodyObject(req.body);
-      const actor = await resolveActor(req);
-      const approvalId = parseOperationalApprovalId(
-        req.params.approvalId,
-        "approvalId",
-      );
-      const decision = parseOperationalApprovalDecision(req.body.decision);
-      const reason = parseOperationalApprovalReason(req.body.reason, {
-        required: false,
-      });
-      const approval = await approvalService.decide({
-        approvalId,
-        decision,
-        decidedBy: actor.userId,
-        reason,
-      });
-      await recordAudit("approval.decision", actor.userId, {
-        approvalId,
-        action: approval.action,
-        decision,
-      });
-      return res.json({ approval });
-    }),
-  );
-
-  app.get(
-    "/api/audit/logs",
-    asyncHandler(async (req, res) => {
-      const filters = parseAuditFilters(req.query || {});
-      const result = await store.listAuditLogs(filters);
-      return res.json({
-        logs: result.items,
-        pagination: {
-          page: result.page,
-          limit: result.limit,
-          total: result.total,
-          totalPages: result.totalPages,
-        },
-      });
-    }),
-  );
-
-  app.get(
-    "/api/audit/export",
-    requireMinimumRole("admin"),
-    asyncHandler(async (req, res) => {
-      const filters = parseAuditFilters(req.query || {});
-      const payload = await store.exportAuditLogs(filters);
-      const userId = filters.userId || "all";
-      const type = filters.eventType || "all";
-      res.setHeader("Content-Type", "application/json; charset=utf-8");
-      res.setHeader(
-        "Content-Disposition",
-        `attachment; filename="audit-${userId}-${type}.json"`,
-      );
-      return res.send(JSON.stringify(payload, null, 2));
-    }),
-  );
-
-  app.post("/api/chat-stream", async (req, res) => {
-    // Enfileirar a operação com prioridade alta (priority=1)
-    const taskId = `chat-stream-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-    try {
-      await queueService.enqueue(
-        taskId,
-        async () => {
-          // Função que executa a operação principal
-          assertBodyObject(req.body);
-
-          const message = parseMessage(req.body);
-          const chatId = getChatId(req.body);
-          const options = parseOptions(req.body);
-          const rag = parseRagOptions(req.body);
-          let images;
-          try {
-            images = getMessageImages(req.body);
-          } catch (error) {
-            await recordBlockedAttempt(req, "upload.blocked", error, {
-              route: "/api/chat-stream",
-              chatId,
-              imagesCount: Array.isArray(req.body?.images) ? req.body.images.length : 0,
-            });
-            throw error;
-          }
-
-          await store.ensureChat(chatId);
-          await store.appendMessage(chatId, "user", message, images);
-          await store.renameChatFromFirstMessage(chatId, message);
-
-          const history = await store.getMessages(chatId);
-
-          let fullReply = "";
-
-          const ragChunks = rag.enabled
-            ? await store.searchDocumentChunks(chatId, message, { limit: rag.topK })
-            : [];
-          const ragSystemMessage = buildRagSystemMessage(ragChunks);
-          const promptContext = (await store.getChatSystemPrompts(chatId)) || {};
-
-          const messagesPayload = history.map((item) => ({
-            role: item.role,
-            content: item.content,
-            ...(item.images?.length ? { images: item.images } : {}),
-          }));
-
-          const systemMessages = buildSystemMessages({
-            defaultSystemPrompt: promptContext.defaultSystemPrompt,
-            chatSystemPrompt: promptContext.systemPrompt,
-            ragSystemMessage,
-          });
-          if (systemMessages.length) {
-            messagesPayload.unshift(...systemMessages);
-          }
-
-          const payload = {
-            messages: messagesPayload,
-            stream: true,
-            options: {
-              temperature: options.temperature,
-              num_ctx: options.num_ctx,
-            },
-          };
-
-          const {
-            result: stream,
-            modelUsed,
-            attempt,
-          } = await executeWithModelRecovery({
-            primaryModel: options.model,
-            fallbackModel: ollamaFallbackModel,
-            maxAttempts: ollamaMaxAttempts,
-            timeoutMs: ollamaTimeoutMs,
-            retryDelays: ollamaRetryDelays,
-            logger: req.logger,
-            run: (model) => chatClient.chat({ ...payload, model }),
-          });
-
-          req.logger?.info(
-            { modelUsed, attempt, ragEnabled: rag.enabled },
-            "Streaming iniciado",
-          );
-
-          res.setHeader("Content-Type", "text/plain; charset=utf-8");
-          res.setHeader("Transfer-Encoding", "chunked");
-
-          for await (const part of stream) {
-            const chunk = part.message?.content ?? part.delta?.content ?? "";
-
-            if (!chunk) continue;
-
-            fullReply += chunk;
-            res.write(chunk);
-          }
-
-          await store.appendMessage(chatId, "assistant", fullReply);
-          res.end();
-        },
-        1, // High priority
-      );
-    } catch (err) {
-      if (!res.headersSent) {
-        if (
-          err.message &&
-          err.message.includes("Queue full")
-        ) {
-          const status = 429;
-          const queueMetrics = queueService.getMetrics();
-          const message = `Servidor saturado: fila cheia (${queueMetrics.queuedCount}/${queueMetrics.maxQueueSize})`;
-          res.status(status).json({ error: message });
-          req.logger?.warn(
-            { queuedCount: queueMetrics.queuedCount, maxQueueSize: queueMetrics.maxQueueSize },
-            "Chat request rejected due to queue saturation",
-          );
-          return;
-        }
-        const status = err instanceof HttpError ? err.status : 500;
-        const message =
-          err instanceof HttpError ? err.message : "Erro no streaming";
-        res.status(status).json({ error: message });
-        return;
-      }
-      res.end();
-    }
+  registerHealthRoutes(app, {
+    asyncHandler,
+    requireMinimumRole,
+    assertBodyObject,
+    parseBooleanLike,
+    resolveActor,
+    recordAudit,
+    recordConfigVersion,
+    buildOverallHealthStatus,
+    buildSloSnapshot,
+    getTelemetryStats,
+    isTelemetryEnabled,
+    setTelemetryEnabled,
+    resetTelemetryStats,
+    HEALTH_STATUS,
+    healthProviders,
+    integrityService,
+    autoHealingService,
+    capacityService,
+    queueService,
+    baselineService,
+    roleLimiter,
+    CONFIG_KEYS,
+    store,
   });
 
-  app.get(
-    "/api/scorecard",
-    requireMinimumRole("operator"),
-    asyncHandler(async (req, res) => {
-      const [healthDb, healthModel, healthDisk] = await Promise.all([
-        healthProviders.checkDb(),
-        healthProviders.checkModel(),
-        healthProviders.checkDisk(),
-      ]);
+  registerChatRoutes(app, {
+    asyncHandler,
+    assertBodyObject,
+    parseMessage,
+    getChatId,
+    parseOptions,
+    parseRagOptions,
+    getMessageImages,
+    recordBlockedAttempt,
+    buildRagSystemMessage,
+    buildSystemMessages,
+    executeWithModelRecovery,
+    ollamaFallbackModel,
+    ollamaMaxAttempts,
+    ollamaTimeoutMs,
+    ollamaRetryDelays,
+    chatClient,
+    queueService,
+    store,
+    HttpError,
+  });
 
-      const healthChecks = { db: healthDb, model: healthModel, disk: healthDisk };
-      const health = {
-        status: buildOverallHealthStatus(healthChecks),
-        checks: healthChecks,
-      };
+  registerRagRoutes(app, {
+    asyncHandler,
+    assertBodyObject,
+    parseChatId,
+    parseRagDocuments,
+    parseSearchQuery,
+    recordBlockedAttempt,
+    clamp,
+    store,
+  });
 
-      const sloSnapshot = buildSloSnapshot(
-        getTelemetryStats().map((item) => ({
-          ...item,
-          errorRate: item.count ? Math.round((item.errors / item.count) * 100) : 0,
-        })),
-      );
+  registerUserRoutes(app, {
+    asyncHandler,
+    requireMinimumRole,
+    requireAdminOrSelf,
+    assertBodyObject,
+    parseUserId,
+    parseUserName,
+    parseUserRole,
+    parseChatId,
+    parseSystemPrompt,
+    parseTheme,
+    parseUiPreferences,
+    parseStorageLimitMb,
+    resolveActor,
+    recordAudit,
+    recordConfigVersion,
+    CONFIG_KEYS,
+    HttpError,
+    store,
+  });
 
-      const backupValidation = await backupService
-        .validateRecentBackups({ limit: 3 })
-        .catch(() => ({ status: "falha", items: [] }));
+  registerChatsRoutes(app, {
+    asyncHandler,
+    assertBodyObject,
+    parseChatId,
+    parseTitle,
+    parseUserId,
+    parseChatListFilters,
+    parseBooleanLike,
+    parseTags,
+    parseSystemPrompt,
+    parseSearchQuery,
+    parseSearchPage,
+    parseSearchLimit,
+    parseSearchRole,
+    parseSearchDate,
+    parseChatImportPayload,
+    parseUserOnly,
+    recordBlockedAttempt,
+    resolveActor,
+    recordAudit,
+    recordConfigVersion,
+    requireMinimumRole,
+    CONFIG_KEYS,
+    store,
+    HttpError,
+  });
 
-      const [integrity, capacity, baseline] = await Promise.all([
-        integrityService.getOrRefresh(),
-        capacityService.getLatestSummary(),
-        baselineService.check(),
-      ]);
+  registerBackupRoutes(app, {
+    asyncHandler,
+    requireMinimumRole,
+    assertBodyObject,
+    resolveActor,
+    requireOperationalApproval,
+    parseBackupPassphrase,
+    parseBackupPayload,
+    parsePositiveInt,
+    recordAudit,
+    backupService,
+    HttpError,
+  });
 
-      const autoHealing = autoHealingService.getStatus();
-      const incident = incidentService.getStatus();
-      const queue = queueService.getMetrics();
-      const pendingResult = await approvalService.list({ status: "pending", limit: 200 });
-      const pendingApprovals = pendingResult.total;
+  registerIncidentRoutes(app, {
+    asyncHandler,
+    requireMinimumRole,
+    assertBodyObject,
+    resolveActor,
+    recordAudit,
+    requireOperationalApproval,
+    parseIncidentUpdatePayload,
+    parseIncidentRunbookType,
+    parseIncidentRunbookMode,
+    parseIncidentOwner,
+    parseIncidentSummary,
+    parseIncidentNextUpdateAt,
+    parseBackupPassphrase,
+    collectIncidentRunbookSignals,
+    incidentService,
+    INCIDENT_RUNBOOK_TYPES,
+  });
 
-      const scorecard = await scorecardService.generate({
-        health,
-        slo: sloSnapshot,
-        backupValidation,
-        integrity,
-        capacity,
-        autoHealing,
-        incident,
-        baseline,
-        pendingApprovals,
-        queue,
-      });
+  registerResilienceRoutes(app, {
+    asyncHandler,
+    requireMinimumRole,
+    assertBodyObject,
+    resolveActor,
+    recordAudit,
+    requireOperationalApproval,
+    parseAutoHealingConfigPatch,
+    parseAutoHealingPolicy,
+    parseDisasterScenarioId,
+    parseBackupPassphrase,
+    parseBooleanLike,
+    autoHealingService,
+    disasterRecoveryService,
+    integrityService,
+  });
 
-      await recordAudit("scorecard.generated", null, {
-        status: scorecard.status,
-        dimensionsCount: scorecard.dimensions.length,
-      });
+  registerStorageRoutes(app, {
+    asyncHandler,
+    requireMinimumRole,
+    assertBodyObject,
+    parseUserId,
+    parseCleanupMode,
+    parseCleanupTarget,
+    parseCleanupOlderThanDays,
+    parseCleanupMaxDeleteMb,
+    parseCleanupPreserveValidatedBackups,
+    parseBackupPassphrase,
+    resolveActor,
+    requireOperationalApproval,
+    storageService,
+    store,
+  });
 
-      return res.json({ scorecard });
-    }),
-  );
+  registerConfigRoutes(app, {
+    asyncHandler,
+    requireMinimumRole,
+    resolveActor,
+    recordAudit,
+    recordConfigVersion,
+    parseConfigVersionFilters,
+    parseConfigVersionId,
+    areConfigValuesEqual,
+    readCurrentConfigValue,
+    applyConfigValue,
+    baselineService,
+    store,
+    HttpError,
+  });
 
-  // Pacote de diagnostico local para suporte tecnico
-  app.get(
-    "/api/diagnostics/export",
-    requireMinimumRole("admin"),
-    asyncHandler(async (req, res) => {
-      const traceId = req.id || null;
-      const generatedAt = new Date().toISOString();
+  registerApprovalRoutes(app, {
+    asyncHandler,
+    requireMinimumRole,
+    assertBodyObject,
+    resolveActor,
+    recordAudit,
+    parseOperationalApprovalStatus,
+    parsePositiveInt,
+    parseOperationalApprovalAction,
+    parseOperationalApprovalReason,
+    parseOperationalApprovalWindowMinutes,
+    parseOperationalApprovalId,
+    parseOperationalApprovalDecision,
+    approvalService,
+  });
 
-      const [healthDb, healthModel, healthDisk] = await Promise.all([
-        healthProviders.checkDb(),
-        healthProviders.checkModel(),
-        healthProviders.checkDisk(),
-      ]);
+  registerAuditRoutes(app, {
+    asyncHandler,
+    requireMinimumRole,
+    parseAuditFilters,
+    store,
+  });
 
-      const auditPage = await store.listAuditLogs({ page: 1, limit: 50 });
-      const configPage = await store.listConfigVersions({ page: 1, limit: 50 });
-      const telemetry = getTelemetryStats().slice(0, 20).map((item) => ({
-        ...item,
-        errorRate: item.count ? Math.round((item.errors / item.count) * 100) : 0,
-      }));
-      const rateLimiterMetrics = roleLimiter.getMetrics();
-      const storageSnapshot = await storageService.getUsage().catch(() => null);
-      const backupValidationSnapshot = await backupService
-        .validateRecentBackups({ limit: 3 })
-        .catch((error) => ({
-          checkedAt: new Date().toISOString(),
-          limit: 3,
-          status: "falha",
-          items: [],
-          error: String(error?.message || "Falha ao validar backups"),
-        }));
-      const integritySnapshot = await integrityService.getOrRefresh();
-      const capacitySnapshot = await capacityService.getLatestSummary();
-      const baselineDriftSnapshot = await baselineService.check();
-      const sloSnapshot = buildSloSnapshot(
-        getTelemetryStats().map((item) => ({
-          ...item,
-          errorRate: item.count ? Math.round((item.errors / item.count) * 100) : 0,
-        }))
-      );
-      const recentErrors = auditPage.items
-        .filter(
-          (entry) =>
-            typeof entry.eventType === "string" &&
-            (entry.eventType.includes("blocked") || entry.eventType.includes("error"))
-        )
-        .slice(0, 20);
-      const incidentStatusSnapshot = incidentService.getStatus();
-      const triageRecommendations = buildTriageRecommendations({
-        health: {
-          status: buildOverallHealthStatus({
-            db: healthDb,
-            model: healthModel,
-            disk: healthDisk,
-          }),
-        },
-        slo: sloSnapshot,
-        backupValidation: backupValidationSnapshot,
-        rateLimiter: rateLimiterMetrics,
-        recentErrors,
-        incidentStatus: incidentStatusSnapshot,
-      });
-
-      const payload = {
-        version: 2,
-        generatedAt,
-        traceId,
-        app: {
-          nodeVersion: process.version,
-          platform: process.platform,
-          uptime: Math.round(process.uptime()),
-          memoryMb: Math.round(process.memoryUsage().rss / 1024 / 1024),
-        },
-        health: {
-          status: buildOverallHealthStatus({ db: healthDb, model: healthModel, disk: healthDisk }),
-          checks: { db: healthDb, model: healthModel, disk: healthDisk },
-        },
-        rateLimiter: rateLimiterMetrics,
-        telemetry: {
-          enabled: isTelemetryEnabled(),
-          topRoutes: telemetry,
-        },
-        integrity: integritySnapshot,
-        capacity: capacitySnapshot,
-        queue: queueService.getMetrics(),
-        baseline: baselineDriftSnapshot,
-        autoHealing: autoHealingService.getStatus(),
-        storage: storageSnapshot,
-        backupValidation: backupValidationSnapshot,
-        slo: sloSnapshot,
-        incidentStatus: incidentStatusSnapshot,
-        recentErrors,
-        recentAuditLogs: auditPage.items,
-        recentConfigVersions: configPage.items,
-        environment: {
-          nodeEnv: process.env.NODE_ENV || "production",
-          pid: process.pid,
-          arch: process.arch,
-        },
-        triageChecklist: {
-          version: 2,
-          items: [
-            "1. Verificar status geral em payload.health.status - degraded ou unhealthy exige investigacao imediata",
-            "2. Revisar eventos bloqueados em payload.recentErrors - padroes repetidos indicam ataque ou misconfiguracao",
-            "3. Conferir consumo de armazenamento em payload.storage - alertar se uso ultrapassar threshold operacional",
-            "4. Avaliar SLO em payload.slo.status - rotas com status alerta requerem analise de latencia e taxa de erro",
-            "5. Analisar audit logs recentes em payload.recentAuditLogs em busca de atividades anomalas",
-            "6. Verificar versoes de configuracao em payload.recentConfigVersions - rollbacks nao autorizados sao sinal de incidente",
-            "7. Checar rate limiter em payload.rateLimiter - pico de rejeicoes pode indicar abuso ou sobrecarga",
-            "8. Confirmar telemetria ativa em payload.telemetry.enabled - desabilitada reduz visibilidade de incidentes",
-            "9. Registrar payload.traceId para correlacao com logs do servidor durante a investigacao",
-          ],
-          recommendations: triageRecommendations,
-        },
-        securityNote:
-          "Este pacote nao inclui: mensagens de chat, passphrases de backup, variaveis de ambiente sensiveis (segredos, tokens, senhas) nem dados de identificacao pessoal alem de userId em audit logs",
-      };
-
-      req.logger?.info({ traceId }, "Pacote de diagnostico exportado");
-
-      res.setHeader("Content-Type", "application/json; charset=utf-8");
-      res.setHeader(
-        "Content-Disposition",
-        `attachment; filename="diagnostics-${generatedAt.slice(0, 10)}.json"`,
-      );
-      return res.send(JSON.stringify(payload, null, 2));
-    }),
-  );
+  registerObservabilityRoutes(app, {
+    asyncHandler,
+    requireMinimumRole,
+    recordAudit,
+    buildOverallHealthStatus,
+    buildSloSnapshot,
+    buildTriageRecommendations,
+    getTelemetryStats,
+    isTelemetryEnabled,
+    healthProviders,
+    backupService,
+    integrityService,
+    capacityService,
+    baselineService,
+    autoHealingService,
+    incidentService,
+    queueService,
+    scorecardService,
+    approvalService,
+    storageService,
+    roleLimiter,
+    store,
+  });
 
   app.use("/api", (_req, res) => {
     res.status(404).json({ error: "Endpoint nao encontrado" });
