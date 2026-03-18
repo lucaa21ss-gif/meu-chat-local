@@ -46,6 +46,9 @@ Camadas por responsabilidade:
 
 Visao resumida dos diretorios e arquivos principais (nao exaustiva):
 
+- A arvore abaixo prioriza pontos de entrada e componentes de manutencao.
+- Arquivos gerados em runtime (ex.: `server/chat.db*` e conteudos de `server/artifacts/`) podem variar por ambiente.
+
 ```text
 .
 ├── .github/
@@ -101,6 +104,15 @@ Visao resumida dos diretorios e arquivos principais (nao exaustiva):
     ├── styles.css
     └── tailwind.config.js
 ```
+
+Mapa rapido do backend modular:
+
+- `server/src/http/`: bootstrap HTTP, middlewares, composicao do app e wiring de rotas
+- `server/src/modules/chat/`: rotas de chat, chats e RAG
+- `server/src/modules/governance/`: rotas e servicos operacionais (backup, approvals, scorecard, DR, auto-healing)
+- `server/src/modules/health/`: health checks e agregadores de saude/SLO
+- `server/src/modules/users/`: rotas de usuarios, perfis e preferencias
+- `server/src/shared/`: constantes, parsers, tratamento de erro e model-recovery
 
 Arquivos-chave para comecar rapido:
 
