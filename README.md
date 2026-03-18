@@ -111,9 +111,17 @@ Mapa rapido do backend modular:
 
 - `server/src/http/`: bootstrap HTTP, middlewares, composicao do app e wiring de rotas
 - `server/src/infra/`: adaptadores locais de banco, backup, filesystem, logging, Ollama, fila e telemetria
+- `server/src/modules/approvals/`: fluxo de approvals operacionais
+- `server/src/modules/audit/`: exportacao e consulta de trilhas de auditoria
+- `server/src/modules/backup/`: exportacao, restauracao e validacao de backups
+- `server/src/modules/capacity/`: perfil de capacidade, fila local e scorecard operacional
 - `server/src/modules/chat/`: rotas de chat, chats e RAG
-- `server/src/modules/governance/`: rotas e servicos operacionais (backup, approvals, scorecard, DR, auto-healing)
+- `server/src/modules/config-governance/`: baseline, rollback e rotas de configuracao
 - `server/src/modules/health/`: health checks e agregadores de saude/SLO
+- `server/src/modules/incident/`: status de incidentes e sinais para runbooks
+- `server/src/modules/observability/`: rotas de diagnostico, health expandido e observabilidade
+- `server/src/modules/resilience/`: auto-healing, disaster recovery e integridade
+- `server/src/modules/storage/`: uso e limpeza de armazenamento local
 - `server/src/modules/users/`: rotas de usuarios, perfis e preferencias
 - `server/src/shared/`: constantes, parsers, tratamento de erro e model-recovery
 
@@ -129,7 +137,7 @@ Arquivos-chave para comecar rapido:
 - `server/src/infra/ollama/ollama-client.js`: integracao local com Ollama
 - `server/src/infra/queue/rate-limiter.js`: fila local e rate limiting por papel
 - `server/src/infra/telemetry/telemetry.js`: metricas por endpoint e middleware de telemetria
-- `server/src/modules/`: modulos de dominio (chat, governanca, health e users)
+- `server/src/modules/`: modulos de dominio (chat, approvals, backup, capacity, config-governance, incident, observability, resilience, storage, health e users)
 - `web/index.html`: estrutura da UI
 - `web/script.js`: logica de chat, streaming, filtros, health e acoes operacionais no cliente
 - `web/health-indicators.js`: utilitarios de renderizacao e polling de status de saude
