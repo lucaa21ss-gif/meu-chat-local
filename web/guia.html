@@ -7,84 +7,192 @@
     <link rel="icon" type="image/svg+xml" href="assets/logo-chat-local.svg" />
     <link rel="stylesheet" href="output.css" />
   </head>
-  <body class="min-h-screen bg-gradient-to-br from-slate-50 via-white to-cyan-50 text-slate-900">
+  <body
+    class="min-h-screen bg-gradient-to-br from-slate-50 via-white to-cyan-50 text-slate-900"
+  >
     <div class="mx-auto max-w-5xl px-4 py-6 sm:px-6 lg:px-8">
-      <header class="rounded-[2rem] border border-white/70 bg-white/85 px-6 py-5 shadow-xl shadow-slate-200/60 backdrop-blur">
-        <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+      <header
+        class="rounded-[2rem] border border-white/70 bg-white/85 px-6 py-5 shadow-xl shadow-slate-200/60 backdrop-blur"
+      >
+        <div
+          class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between"
+        >
           <div class="flex items-center gap-4">
             <div class="brand-emblem w-14 overflow-hidden rounded-2xl">
-              <img src="assets/logo-chat-local.svg" alt="Logo Meu Chat Local" class="block h-full w-full" />
+              <img
+                src="assets/logo-chat-local.svg"
+                alt="Logo Meu Chat Local"
+                class="block h-full w-full"
+              />
             </div>
             <div>
-              <p class="text-xs font-semibold uppercase tracking-[0.25em] text-teal-700">Guia rapido</p>
-              <h1 class="mt-1 text-3xl font-black tracking-tight">Comece em poucos minutos</h1>
+              <p
+                class="text-xs font-semibold uppercase tracking-[0.25em] text-teal-700"
+              >
+                Guia rapido
+              </p>
+              <h1 class="mt-1 text-3xl font-black tracking-tight">
+                Comece em poucos minutos
+              </h1>
             </div>
           </div>
           <nav class="flex flex-wrap gap-2">
-            <a href="/produto" class="rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100">Produto</a>
-            <a href="/app" class="rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-700">Abrir app</a>
+            <a
+              href="/produto"
+              class="rounded-full border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+              >Produto</a
+            >
+            <a
+              href="/app"
+              class="rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-700"
+              >Abrir app</a
+            >
           </nav>
         </div>
       </header>
 
       <main class="mt-6 grid gap-6">
-        <section class="rounded-[2rem] border border-slate-200 bg-white/85 p-6 shadow-xl shadow-slate-200/60 backdrop-blur">
-          <p class="text-xs font-semibold uppercase tracking-[0.25em] text-cyan-700">1. Setup</p>
-          <h2 class="mt-2 text-2xl font-black tracking-tight">Suba tudo com Docker Compose</h2>
-          <div class="mt-4 rounded-2xl bg-slate-950 px-4 py-4 text-sm text-slate-100">
+        <section
+          class="rounded-[2rem] border border-slate-200 bg-white/85 p-6 shadow-xl shadow-slate-200/60 backdrop-blur"
+        >
+          <p
+            class="text-xs font-semibold uppercase tracking-[0.25em] text-cyan-700"
+          >
+            1. Setup
+          </p>
+          <h2 class="mt-2 text-2xl font-black tracking-tight">
+            Suba tudo com Docker Compose
+          </h2>
+          <div
+            class="mt-4 rounded-2xl bg-slate-950 px-4 py-4 text-sm text-slate-100"
+          >
             docker compose up --build
           </div>
           <p class="mt-4 text-sm leading-7 text-slate-600">
-            Quando o servidor subir, abra <strong>http://localhost:3001</strong> para usar o chat,
-            <strong>http://localhost:3001/produto</strong> para a pagina de produto e <strong>http://localhost:3001/guia</strong> para este guia.
+            Quando o servidor subir, abra
+            <strong>http://localhost:3001</strong> para usar o chat,
+            <strong>http://localhost:3001/produto</strong> para a pagina de
+            produto e <strong>http://localhost:3001/guia</strong> para este
+            guia.
           </p>
         </section>
 
         <section class="grid gap-6 lg:grid-cols-2">
-          <article class="rounded-[2rem] border border-slate-200 bg-white/85 p-6 shadow-xl shadow-slate-200/60 backdrop-blur">
-            <p class="text-xs font-semibold uppercase tracking-[0.25em] text-teal-700">2. Primeira conversa</p>
+          <article
+            class="rounded-[2rem] border border-slate-200 bg-white/85 p-6 shadow-xl shadow-slate-200/60 backdrop-blur"
+          >
+            <p
+              class="text-xs font-semibold uppercase tracking-[0.25em] text-teal-700"
+            >
+              2. Primeira conversa
+            </p>
             <ol class="mt-4 grid gap-3 text-sm leading-7 text-slate-700">
-              <li class="rounded-2xl bg-slate-50 px-4 py-3">Crie uma aba em Nova aba.</li>
-              <li class="rounded-2xl bg-slate-50 px-4 py-3">Escolha modelo, temperatura e contexto.</li>
-              <li class="rounded-2xl bg-slate-50 px-4 py-3">Digite a mensagem ou use Iniciar ditado.</li>
-              <li class="rounded-2xl bg-slate-50 px-4 py-3">Envie e acompanhe o streaming em tempo real.</li>
+              <li class="rounded-2xl bg-slate-50 px-4 py-3">
+                Crie uma aba em Nova aba.
+              </li>
+              <li class="rounded-2xl bg-slate-50 px-4 py-3">
+                Escolha modelo, temperatura e contexto.
+              </li>
+              <li class="rounded-2xl bg-slate-50 px-4 py-3">
+                Digite a mensagem ou use Iniciar ditado.
+              </li>
+              <li class="rounded-2xl bg-slate-50 px-4 py-3">
+                Envie e acompanhe o streaming em tempo real.
+              </li>
             </ol>
           </article>
 
-          <article class="rounded-[2rem] border border-slate-200 bg-white/85 p-6 shadow-xl shadow-slate-200/60 backdrop-blur">
-            <p class="text-xs font-semibold uppercase tracking-[0.25em] text-amber-700">3. Organize seu uso</p>
+          <article
+            class="rounded-[2rem] border border-slate-200 bg-white/85 p-6 shadow-xl shadow-slate-200/60 backdrop-blur"
+          >
+            <p
+              class="text-xs font-semibold uppercase tracking-[0.25em] text-amber-700"
+            >
+              3. Organize seu uso
+            </p>
             <ol class="mt-4 grid gap-3 text-sm leading-7 text-slate-700">
-              <li class="rounded-2xl bg-slate-50 px-4 py-3">Duplique abas para preservar contextos diferentes.</li>
-              <li class="rounded-2xl bg-slate-50 px-4 py-3">Use busca no historico para achar trechos por palavra, role ou periodo.</li>
-              <li class="rounded-2xl bg-slate-50 px-4 py-3">Exporte a conversa em Markdown quando precisar compartilhar localmente.</li>
-              <li class="rounded-2xl bg-slate-50 px-4 py-3">Anexe imagens ao usar modelos multimodais como llava.</li>
-              <li class="rounded-2xl bg-slate-50 px-4 py-3">Acompanhe o badge de saude no app para monitorar status e latencia do modelo.</li>
+              <li class="rounded-2xl bg-slate-50 px-4 py-3">
+                Duplique abas para preservar contextos diferentes.
+              </li>
+              <li class="rounded-2xl bg-slate-50 px-4 py-3">
+                Use busca no historico para achar trechos por palavra, role ou
+                periodo.
+              </li>
+              <li class="rounded-2xl bg-slate-50 px-4 py-3">
+                Exporte a conversa em Markdown quando precisar compartilhar
+                localmente.
+              </li>
+              <li class="rounded-2xl bg-slate-50 px-4 py-3">
+                Anexe imagens ao usar modelos multimodais como llava.
+              </li>
+              <li class="rounded-2xl bg-slate-50 px-4 py-3">
+                Acompanhe o badge de saude no app para monitorar status e
+                latencia do modelo.
+              </li>
             </ol>
           </article>
         </section>
 
         <section class="grid gap-6 lg:grid-cols-[1fr_1fr]">
-          <article class="rounded-[2rem] border border-slate-200 bg-white/85 p-6 shadow-xl shadow-slate-200/60 backdrop-blur">
-            <p class="text-xs font-semibold uppercase tracking-[0.25em] text-rose-700">4. Solucoes rapidas e operacao</p>
+          <article
+            class="rounded-[2rem] border border-slate-200 bg-white/85 p-6 shadow-xl shadow-slate-200/60 backdrop-blur"
+          >
+            <p
+              class="text-xs font-semibold uppercase tracking-[0.25em] text-rose-700"
+            >
+              4. Solucoes rapidas e operacao
+            </p>
             <div class="mt-4 grid gap-3 text-sm leading-7 text-slate-700">
-              <div class="rounded-2xl border border-slate-200 px-4 py-3">Sem resposta do modelo: confirme que o servico Ollama esta ativo e que o modelo existe localmente.</div>
-              <div class="rounded-2xl border border-slate-200 px-4 py-3">Pagina sem estilo: rode o build de CSS em web com npm run build:css.</div>
-              <div class="rounded-2xl border border-slate-200 px-4 py-3">Erro de conexao: valide se a aplicacao responde em http://localhost:3001/healthz.</div>
-              <div class="rounded-2xl border border-slate-200 px-4 py-3">Ditado ou leitura indisponivel: verifique suporte do navegador a Web Speech API.</div>
-              <div class="rounded-2xl border border-slate-200 px-4 py-3">Para uma visao executiva local, consulte o endpoint operacional http://localhost:3001/api/scorecard.</div>
+              <div class="rounded-2xl border border-slate-200 px-4 py-3">
+                Sem resposta do modelo: confirme que o servico Ollama esta ativo
+                e que o modelo existe localmente.
+              </div>
+              <div class="rounded-2xl border border-slate-200 px-4 py-3">
+                Pagina sem estilo: rode o build de CSS em web com npm run
+                build:css.
+              </div>
+              <div class="rounded-2xl border border-slate-200 px-4 py-3">
+                Erro de conexao: valide se a aplicacao responde em
+                http://localhost:3001/healthz.
+              </div>
+              <div class="rounded-2xl border border-slate-200 px-4 py-3">
+                Ditado ou leitura indisponivel: verifique suporte do navegador a
+                Web Speech API.
+              </div>
+              <div class="rounded-2xl border border-slate-200 px-4 py-3">
+                Para uma visao executiva local, consulte o endpoint operacional
+                http://localhost:3001/api/scorecard.
+              </div>
             </div>
           </article>
 
-          <article class="rounded-[2rem] bg-[linear-gradient(135deg,_#0f766e,_#155e75)] p-6 text-white shadow-2xl shadow-cyan-900/20">
-            <p class="text-xs font-semibold uppercase tracking-[0.25em] text-cyan-100">5. Proximo passo</p>
-            <h2 class="mt-2 text-2xl font-black tracking-tight">Use o app como sua interface principal de IA local.</h2>
+          <article
+            class="rounded-[2rem] bg-[linear-gradient(135deg,_#0f766e,_#155e75)] p-6 text-white shadow-2xl shadow-cyan-900/20"
+          >
+            <p
+              class="text-xs font-semibold uppercase tracking-[0.25em] text-cyan-100"
+            >
+              5. Proximo passo
+            </p>
+            <h2 class="mt-2 text-2xl font-black tracking-tight">
+              Use o app como sua interface principal de IA local.
+            </h2>
             <p class="mt-4 text-sm leading-7 text-cyan-50">
-              Se o objetivo e uso diario, abra o app, configure seu modelo preferido no onboarding e mantenha conversas separadas por tema.
-              O historico permanece local e pesquisavel.
+              Se o objetivo e uso diario, abra o app, configure seu modelo
+              preferido no onboarding e mantenha conversas separadas por tema. O
+              historico permanece local e pesquisavel.
             </p>
             <div class="mt-6 flex flex-wrap gap-3">
-              <a href="/app" class="rounded-2xl bg-white px-5 py-3 text-sm font-bold text-slate-900 transition hover:bg-slate-100">Abrir app</a>
-              <a href="/produto" class="rounded-2xl border border-white/20 px-5 py-3 text-sm font-bold text-white transition hover:bg-white/10">Voltar para produto</a>
+              <a
+                href="/app"
+                class="rounded-2xl bg-white px-5 py-3 text-sm font-bold text-slate-900 transition hover:bg-slate-100"
+                >Abrir app</a
+              >
+              <a
+                href="/produto"
+                class="rounded-2xl border border-white/20 px-5 py-3 text-sm font-bold text-white transition hover:bg-white/10"
+                >Voltar para produto</a
+              >
             </div>
           </article>
         </section>

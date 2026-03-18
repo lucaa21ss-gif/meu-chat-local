@@ -252,6 +252,7 @@ Prompts, perfis e preferencias:
 - `GET /api/users`: lista perfis locais
 - `POST /api/users`: cria perfil local
 - `PATCH /api/users/:userId`: renomeia perfil local
+- `PATCH /api/users/:userId/role`: altera o papel do perfil (`admin|operator|viewer`) (somente `admin`)
 - `DELETE /api/users/:userId`: exclui perfil e dados vinculados
 - `GET /api/users/:userId/ui-preferences`: consulta preferencias de UI do perfil
 - `PATCH /api/users/:userId/ui-preferences`: persiste preferencias de UI do perfil
@@ -296,6 +297,27 @@ Governanca e operacao segura:
 - `PATCH /api/auto-healing/status`: atualiza limites/modo de auto-healing (`admin`)
 - `POST /api/auto-healing/execute`: executa politica de auto-healing sob demanda (`admin`)
 - `POST /api/disaster-recovery/test`: executa cenário automatizado de DR (`admin`)
+
+Preparo rapido para testar endpoints protegidos:
+
+```bash
+# 1) Garanta um perfil operador
+curl -X POST http://localhost:3001/api/users \
+  -H "Content-Type: application/json" \
+  -H "x-user-id: user-default" \
+  -d '{"name":"operador-local"}'
+
+# 2) Ajuste o papel do perfil criado para operator (somente admin)
+curl -X PATCH http://localhost:3001/api/users/<userId-criado>/role \
+  -H "Content-Type: application/json" \
+  -H "x-user-id: user-default" \
+  -d '{"role":"operator"}'
+
+# 3) Use o operador para consultar rotas operator/admin
+curl -H "x-user-id: <userId-criado>" http://localhost:3001/api/slo
+```
+
+Observacao: o perfil `user-default` nasce com papel `admin` e e o mais indicado para bootstrap local.
 
 ## Backup criptografado opcional
 
