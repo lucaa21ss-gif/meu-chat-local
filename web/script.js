@@ -6,6 +6,7 @@ import { createModalPresenter } from "./app/shared/modal.js";
 import { createHistorySearchController } from "./app/shared/history-search.js";
 import { createHealthStatusController } from "./app/shared/health-status.js";
 import { createOnboardingController } from "./app/shared/onboarding.js";
+import { createRagController } from "./app/shared/rag.js";
 import { createRbacController } from "./app/shared/rbac.js";
 import { createShortcutsController } from "./app/shared/shortcuts.js";
 import { createStatusPresenter } from "./app/shared/status.js";
@@ -299,6 +300,16 @@ const telemetryAdminController = createTelemetryAdminController({
 
 const rbacController = createRbacController({
   getCurrentUser: () => getCurrentUser(),
+});
+
+const ragController = createRagController({
+  state,
+  ragStatusEl,
+  docInputEl,
+  fetchJson,
+  filesToDocuments,
+  showStatus,
+  getActiveChatId: () => state.activeChatId,
 });
 
 const shortcutsController = createShortcutsController({
@@ -701,89 +712,15 @@ function clearSearchResults() {
 }
 
 function renderRagStatus() {
-  if (!ragStatusEl) return;
-
-  if (!state.activeChatId) {
-    ragStatusEl.textContent = "Selecione uma aba para usar documentos locais.";
-    return;
-  }
-
-  if (state.rag.docCount > 0) {
-    ragStatusEl.textContent = `${state.rag.docCount} documento(s) indexado(s) nesta aba.`;
-  } else {
-    ragStatusEl.textContent = "Base documental vazia para esta aba.";
-  }
+  ragController.renderStatus();
 }
 
 async function loadRagDocuments() {
-  if (!state.activeChatId) {
-    state.rag.docCount = 0;
-    renderRagStatus();
-    return;
-  }
-
-  try {
-    const data = await fetchJson(
-      `/api/chats/${encodeURIComponent(state.activeChatId)}/rag/documents`,
-    );
-    state.rag.docCount = Array.isArray(data.documents)
-      ? data.documents.length
-      : 0;
-    renderRagStatus();
-  } catch (error) {
-    state.rag.docCount = 0;
-    renderRagStatus();
-    showStatus(`Falha ao carregar base documental: ${error.message}`, {
-      type: "error",
-      retryAction: () => loadRagDocuments(),
-    });
-  }
+  await ragController.loadDocuments();
 }
 
 async function uploadRagDocuments() {
-  if (!state.activeChatId) {
-    showStatus("Selecione uma aba para enviar documentos.", { type: "error" });
-    return;
-  }
-
-  const files = Array.from(docInputEl?.files || []);
-  if (!files.length) {
-    showStatus("Selecione ao menos um arquivo de texto para indexar.", {
-      type: "info",
-      autoHideMs: 2500,
-    });
-    return;
-  }
-
-  try {
-    const documents = await filesToDocuments(files);
-    if (!documents.length) {
-      throw new Error(
-        "Nenhum arquivo com conteudo textual valido foi encontrado",
-      );
-    }
-
-    const payload = await fetchJson(
-      `/api/chats/${encodeURIComponent(state.activeChatId)}/rag/documents`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ documents }),
-      },
-    );
-
-    state.rag.docCount = Array.isArray(payload.documents)
-      ? payload.documents.length
-      : state.rag.docCount;
-    renderRagStatus();
-    if (docInputEl) docInputEl.value = "";
-    showStatus("Documentos indexados com sucesso.", { type: "success" });
-  } catch (error) {
-    showStatus(`Falha ao indexar documentos: ${error.message}`, {
-      type: "error",
-      retryAction: () => uploadRagDocuments(),
-    });
-  }
+  await ragController.uploadDocuments();
 }
 
 async function runHistorySearch({ resetPage = false } = {}) {
