@@ -1,7 +1,11 @@
 export function createChatListController(options = {}) {
+  const ELEMENT_NAMES = ["chatListPaginationInfo", "chatListLoadMoreBtn"];
+  const elements = Object.fromEntries(
+    ELEMENT_NAMES.map(name => [name + "El", options[name + "El"] || null])
+  );
+  const { chatListPaginationInfoEl, chatListLoadMoreBtnEl } = elements;
+
   const state = options.state;
-  const chatListPaginationInfoEl = options.chatListPaginationInfoEl || null;
-  const chatListLoadMoreBtnEl = options.chatListLoadMoreBtnEl || null;
   const onScheduledSearch = options.onScheduledSearch || null;
 
   function buildQueryString() {

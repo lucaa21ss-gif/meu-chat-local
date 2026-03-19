@@ -22,15 +22,19 @@ function appendHighlightedText(container, text, query, escapeRegExp) {
 }
 
 export function createHistorySearchController(options = {}) {
+  const ELEMENT_NAMES = [
+    "searchResults", "searchPageInfo", "searchPrevBtn", "searchNextBtn",
+    "searchInput", "searchRole", "searchFrom", "searchTo",
+  ];
+  const elements = Object.fromEntries(
+    ELEMENT_NAMES.map(name => [name + "El", options[name + "El"] || null])
+  );
+  const {
+    searchResultsEl, searchPageInfoEl, searchPrevBtnEl, searchNextBtnEl,
+    searchInputEl, searchRoleEl, searchFromEl, searchToEl,
+  } = elements;
+  
   const state = options.state;
-  const searchResultsEl = options.searchResultsEl || null;
-  const searchPageInfoEl = options.searchPageInfoEl || null;
-  const searchPrevBtnEl = options.searchPrevBtnEl || null;
-  const searchNextBtnEl = options.searchNextBtnEl || null;
-  const searchInputEl = options.searchInputEl || null;
-  const searchRoleEl = options.searchRoleEl || null;
-  const searchFromEl = options.searchFromEl || null;
-  const searchToEl = options.searchToEl || null;
   const fetchJson = options.fetchJson;
   const showStatus = options.showStatus;
   const hideStatus = options.hideStatus;
