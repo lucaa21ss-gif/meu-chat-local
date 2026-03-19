@@ -16,6 +16,7 @@ import { createStatusPresenter } from "./app/shared/status.js";
 import { createStorageController } from "./app/shared/storage.js";
 import { createTelemetryAdminController } from "./app/shared/telemetry-admin.js";
 import { createThemeLocalController } from "./app/shared/theme-local.js";
+import { createVoiceController } from "./app/shared/voice.js";
 import { isDarkForMode, normalizeThemeMode } from "./app/shared/theme.js";
 import { buildHeaderPresentation, createHealthPoller } from "./health-indicators.js";
 
@@ -356,6 +357,16 @@ const themeLocalController = createThemeLocalController({
   moonIconEl,
   autoIconEl,
   applyThemeMode,
+});
+
+const voiceController = createVoiceController({
+  state,
+  inputEl,
+  voiceBtnEl,
+  voiceHistoryListEl,
+  openVoiceHistoryModal,
+  closeVoiceHistoryModal,
+  onUpdateSendButtonState: () => updateSendButtonState(),
 });
 
 const ragController = createRagController({
@@ -1638,136 +1649,23 @@ async function restoreFullBackup() {
 }
 
 function setupVoiceInput() {
-  const SpeechRecognition =
-    window.SpeechRecognition || window.webkitSpeechRecognition;
-
-  if (!SpeechRecognition) {
-    voiceBtnEl.disabled = true;
-    voiceBtnEl.textContent = "Voz indisponivel neste navegador";
-    return;
-  }
-
-  const recognition = new SpeechRecognition();
-  recognition.lang = "pt-BR";
-  recognition.interimResults = true;
-  recognition.continuous = false;
-
-  recognition.onresult = (event) => {
-    let transcript = "";
-    for (let i = event.resultIndex; i < event.results.length; i += 1) {
-      transcript += event.results[i][0].transcript;
-    }
-    inputEl.value = transcript.trim();
-
-    if (event.results[0].isFinal) {
-      saveVoiceHistory(transcript.trim());
-    }
-  };
-
-  recognition.onstart = () => {
-    state.isListening = true;
-    voiceBtnEl.textContent = "Parar ditado";
-  };
-
-  recognition.onend = () => {
-    state.isListening = false;
-    voiceBtnEl.textContent = "Iniciar ditado";
-  };
-
-  state.recognition = recognition;
-
-  voiceBtnEl.addEventListener("click", () => {
-    if (!state.recognition) return;
-
-    if (state.isListening) {
-      state.recognition.stop();
-      return;
-    }
-
-    state.recognition.start();
-  });
+  voiceController.setupInput();
 }
 
 function saveVoiceHistory(text) {
-  if (!text || text.length < 2) return;
-
-  // Evitar duplicatas consecutivas
-  if (state.voiceHistory[0] === text) return;
-
-  state.voiceHistory.unshift(text);
-  if (state.voiceHistory.length > 50) {
-    state.voiceHistory.pop();
-  }
-
-  localStorage.setItem("voiceHistory", JSON.stringify(state.voiceHistory));
+  voiceController.saveHistory(text);
 }
 
 function loadVoiceHistory() {
-  const saved = localStorage.getItem("voiceHistory");
-  if (saved) {
-    try {
-      state.voiceHistory = JSON.parse(saved);
-    } catch {
-      state.voiceHistory = [];
-    }
-  }
+  voiceController.loadHistory();
 }
 
 function renderVoiceHistory() {
-  voiceHistoryListEl.innerHTML = "";
-
-  if (state.voiceHistory.length === 0) {
-    voiceHistoryListEl.innerHTML =
-      '<p class="py-8 text-center text-sm text-slate-400 italic">Nenhuma transcricao salva ainda.</p>';
-    return;
-  }
-
-  state.voiceHistory.forEach((text) => {
-    const container = document.createElement("div");
-    container.className =
-      "group relative flex flex-col gap-1 rounded-xl border border-slate-200 bg-slate-50 p-3 transition hover:bg-teal-50 hover:border-teal-200 dark:border-slate-800 dark:bg-slate-950/50 dark:hover:bg-teal-950/30 dark:hover:border-teal-900";
-
-    const textEl = document.createElement("p");
-    textEl.className =
-      "line-clamp-2 text-sm text-slate-700 cursor-pointer dark:text-slate-300";
-    textEl.textContent = text;
-    textEl.addEventListener("click", () => {
-      inputEl.value = text;
-      updateSendButtonState();
-      closeVoiceHistoryModal();
-      inputEl.focus();
-    });
-
-    const controls = document.createElement("div");
-    controls.className = "flex justify-end gap-2";
-
-    if (text.length > 60) {
-      const toggleBtn = document.createElement("button");
-      toggleBtn.type = "button";
-      toggleBtn.className =
-        "text-[10px] font-bold uppercase tracking-wider text-teal-600 hover:underline";
-      toggleBtn.textContent = "Expandir";
-      toggleBtn.addEventListener("click", () => {
-        if (textEl.classList.contains("line-clamp-2")) {
-          textEl.classList.remove("line-clamp-2");
-          toggleBtn.textContent = "Recolher";
-        } else {
-          textEl.classList.add("line-clamp-2");
-          toggleBtn.textContent = "Expandir";
-        }
-      });
-      controls.appendChild(toggleBtn);
-    }
-
-    container.appendChild(textEl);
-    container.appendChild(controls);
-    voiceHistoryListEl.appendChild(container);
-  });
+  voiceController.renderHistory();
 }
 
 function openVoiceHistoryModalWithRender() {
-  renderVoiceHistory();
-  openVoiceHistoryModal();
+  voiceController.openHistoryModalWithRender();
 }
 
 function updateSendButtonState() {
@@ -2073,9 +1971,7 @@ if (clearVoiceHistoryBtnEl) {
       "Deseja limpar todo o historico de voz?",
     );
     if (confirmed) {
-      state.voiceHistory = [];
-      localStorage.removeItem("voiceHistory");
-      renderVoiceHistory();
+      voiceController.clearHistory();
     }
   });
 }
