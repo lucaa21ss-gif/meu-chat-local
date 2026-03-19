@@ -282,6 +282,13 @@ export function createAppBindingsController({
     });
   }
 
+  function bindAsyncButton(element, action, onError = console.error, eventType = "click") {
+    if (!element) return;
+    element.addEventListener(eventType, () => {
+      action().catch(onError);
+    });
+  }
+
   function bindSearchButtons() {
     function runSearchWith(resetPage) {
       runHistorySearch({ resetPage }).catch((error) => {
@@ -344,41 +351,26 @@ export function createAppBindingsController({
   }
 
   function bindAdminTelemetryButtons() {
-    if (telemetryOptInEl) {
-      telemetryOptInEl.addEventListener("change", () => {
-        setTelemetryEnabled(telemetryOptInEl.checked).catch(console.error);
+    bindAsyncButton(
+      telemetryOptInEl,
+      () => setTelemetryEnabled(telemetryOptInEl.checked),
+      console.error,
+      "change",
+    );
+    bindAsyncButton(telemetryStatsBtnEl, showTelemetryStats);
+    bindAsyncButton(auditExportBtnEl, exportAuditLogsJson);
+    bindAsyncButton(configHistoryBtnEl, openConfigHistoryRollback, (error) => {
+      showStatus(`Falha no rollback de configuracao: ${error.message}`, {
+        type: "error",
+        traceId: error.traceId,
       });
-    }
-    if (telemetryStatsBtnEl) {
-      telemetryStatsBtnEl.addEventListener("click", () => {
-        showTelemetryStats().catch(console.error);
+    });
+    bindAsyncButton(diagnosticsExportBtnEl, exportDiagnosticsPackage, (error) => {
+      showStatus(`Falha ao exportar diagnostico: ${error.message}`, {
+        type: "error",
+        traceId: error.traceId,
       });
-    }
-    if (auditExportBtnEl) {
-      auditExportBtnEl.addEventListener("click", () => {
-        exportAuditLogsJson().catch(console.error);
-      });
-    }
-    if (configHistoryBtnEl) {
-      configHistoryBtnEl.addEventListener("click", () => {
-        openConfigHistoryRollback().catch((error) => {
-          showStatus(`Falha no rollback de configuracao: ${error.message}`, {
-            type: "error",
-            traceId: error.traceId,
-          });
-        });
-      });
-    }
-    if (diagnosticsExportBtnEl) {
-      diagnosticsExportBtnEl.addEventListener("click", () => {
-        exportDiagnosticsPackage().catch((error) => {
-          showStatus(`Falha ao exportar diagnostico: ${error.message}`, {
-            type: "error",
-            traceId: error.traceId,
-          });
-        });
-      });
-    }
+    });
   }
 
   function bindHealthStorageButtons() {
@@ -391,27 +383,15 @@ export function createAppBindingsController({
         checkOllamaStatus().catch(console.error);
       });
     }
-    if (storageRefreshBtnEl) {
-      storageRefreshBtnEl.addEventListener("click", () => {
-        loadStorageUsage().catch(console.error);
+    bindAsyncButton(storageRefreshBtnEl, loadStorageUsage);
+    bindAsyncButton(storageCleanupBtnEl, runStorageCleanup, (error) => {
+      showStatus(`Falha na limpeza: ${error.message}`, { type: "error" });
+    });
+    bindAsyncButton(storageLimitBtnEl, updateStorageLimitForCurrentUser, (error) => {
+      showStatus(`Falha ao atualizar limite: ${error.message}`, {
+        type: "error",
       });
-    }
-    if (storageCleanupBtnEl) {
-      storageCleanupBtnEl.addEventListener("click", () => {
-        runStorageCleanup().catch((error) => {
-          showStatus(`Falha na limpeza: ${error.message}`, { type: "error" });
-        });
-      });
-    }
-    if (storageLimitBtnEl) {
-      storageLimitBtnEl.addEventListener("click", () => {
-        updateStorageLimitForCurrentUser().catch((error) => {
-          showStatus(`Falha ao atualizar limite: ${error.message}`, {
-            type: "error",
-          });
-        });
-      });
-    }
+    });
   }
 
   function bindAll() {
