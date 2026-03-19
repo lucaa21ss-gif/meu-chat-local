@@ -325,6 +325,11 @@ const preferencesController = createPreferencesController({
   applyThemeMode,
 });
 
+const loadChats = () => chatNavigationController.loadChats();
+const loadUsers = () => profilesController.loadUsers();
+const loadRagDocuments = () => ragController.loadDocuments();
+const resetChatListPagination = () => chatListController.resetPagination();
+
 const profilesController = createProfilesController({
   state,
   userSelectEl,
@@ -333,9 +338,9 @@ const profilesController = createProfilesController({
   onSyncThemeFromCurrentUser: () => preferencesController.syncThemeFromCurrentUser(),
   onUpdateRbacUi: () => rbacController.updateUi(),
   onLoadStorageUsage: () => storageController.loadUsage(),
-  onLoadChats: () => chatNavigationController.loadChats(),
-  onLoadRagDocuments: () => ragController.loadDocuments(),
-  onResetChatListPagination: () => chatListController.resetPagination(),
+  onLoadChats: loadChats,
+  onLoadRagDocuments: loadRagDocuments,
+  onResetChatListPagination: resetChatListPagination,
 });
 
 const storageController = createStorageController({
@@ -346,7 +351,7 @@ const storageController = createStorageController({
   formatBytes,
   openConfirmModal,
   showStatus,
-  onLoadUsers: () => profilesController.loadUsers(),
+  onLoadUsers: loadUsers,
 });
 
 const chatFiltersController = createChatFiltersController({
@@ -355,8 +360,8 @@ const chatFiltersController = createChatFiltersController({
   filterFavoritesBtnEl,
   filterArchivedBtnEl,
   filterTagInputEl,
-  onResetPagination: () => chatListController.resetPagination(),
-  onLoadChats: () => chatNavigationController.loadChats(),
+  onResetPagination: resetChatListPagination,
+  onLoadChats: loadChats,
 });
 
 const chatExportController = createChatExportController({
@@ -364,7 +369,7 @@ const chatExportController = createChatExportController({
   apiBase: API_BASE,
   fetchJson,
   showStatus,
-  onLoadChats: () => chatNavigationController.loadChats(),
+  onLoadChats: loadChats,
   onLoadMessages: (chatId) => chatNavigationController.loadMessages(chatId),
 });
 
@@ -375,7 +380,7 @@ const chatActionsController = createChatActionsController({
   openConfirmModal,
   openDuplicateModal,
   uid: () => appRuntimeController.uid(),
-  onLoadChats: () => chatNavigationController.loadChats(),
+  onLoadChats: loadChats,
   onSwitchChat: (chatId) => chatNavigationController.switchChat(chatId),
 });
 
@@ -396,7 +401,7 @@ const chatSendController = createChatSendController({
   hideStatus,
   getControls: () => chatUtilsController.getControls(),
   onEnsureActiveChat: () => chatNavigationController.createNewChat(),
-  onLoadChats: () => chatNavigationController.loadChats(),
+  onLoadChats: loadChats,
   getRetryAction: () => statusPresenter.getRetryAction(),
 });
 
@@ -424,7 +429,7 @@ const chatNavigationController = createChatNavigationController({
   hideTyping: () => chatRenderController.hideTyping(),
   hideStatus,
   showStatus,
-  loadRagDocuments: () => ragController.loadDocuments(),
+  loadRagDocuments: loadRagDocuments,
   runHistorySearch: (options) => historySearchController.runHistorySearch(options),
   clearSearchResults: () => historySearchController.clearSearchResults(),
   chatActionsController,
@@ -436,9 +441,9 @@ const backupController = createBackupController({
   fetchJson,
   showStatus,
   openConfirmModal,
-  onLoadUsers: () => profilesController.loadUsers(),
-  onLoadChats: () => chatNavigationController.loadChats(),
-  onLoadRagDocuments: () => ragController.loadDocuments(),
+  onLoadUsers: loadUsers,
+  onLoadChats: loadChats,
+  onLoadRagDocuments: loadRagDocuments,
 });
 
 const themeLocalController = createThemeLocalController({
@@ -497,8 +502,8 @@ const chatUtilsController = createChatUtilsController({
   chatEl,
   imageInputEl,
   hideTyping: () => chatRenderController.hideTyping(),
-  loadUsers: () => profilesController.loadUsers(),
-  loadChats: () => chatNavigationController.loadChats(),
+  loadUsers,
+  loadChats,
   showStatus,
   openConfirmModal,
 });
@@ -517,9 +522,9 @@ const appRuntimeController = createAppRuntimeController({
   updateFilterUi: () => chatFiltersController.updateUi(),
   renderStorageUsage: () => storageController.renderUsage(),
   loadTelemetryState: () => telemetryAdminController.loadTelemetryState(),
-  loadUsers: () => profilesController.loadUsers(),
-  loadChats: () => chatNavigationController.loadChats(),
-  loadRagDocuments: () => ragController.loadDocuments(),
+  loadUsers,
+  loadChats,
+  loadRagDocuments,
   openOnboardingModal: () => onboardingController.openModal(),
 });
 
