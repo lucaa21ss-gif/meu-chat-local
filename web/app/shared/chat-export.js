@@ -1,3 +1,5 @@
+import { createFetchHelpers } from "./fetch-helpers.js";
+
 function downloadTextFile(content, type, filename) {
   const blob = new Blob([content], { type });
   const url = URL.createObjectURL(blob);
@@ -62,6 +64,8 @@ export function createChatExportController({
   onLoadChats,
   onLoadMessages,
 }) {
+  const { doFetchWithRetry, fetchJsonBody } = createFetchHelpers(fetchJson, showStatus);
+
   async function exportChat() {
     if (!state.activeChatId) return;
 
@@ -106,33 +110,25 @@ export function createChatExportController({
   }
 
   async function importChatJson() {
-    try {
-      const file = await pickJsonFile();
-      if (!file) return;
+    const file = await pickJsonFile();
+    if (!file) return;
 
-      const raw = await file.text();
-      const payload = JSON.parse(raw);
+    await doFetchWithRetry(
+      async () => {
+        const raw = await file.text();
+        const payload = JSON.parse(raw);
 
-      const imported = await fetchJson("/api/chats/import", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+        const imported = await fetchJsonBody("/api/chats/import", "POST", payload);
 
-      await onLoadChats();
-      if (imported?.chat?.id) {
-        state.activeChatId = imported.chat.id;
-        await onLoadMessages();
-      }
-
-      showStatus("Conversa importada com sucesso.", { type: "success" });
-    } catch (error) {
-      showStatus(`Nao foi possivel importar JSON: ${error.message}`, {
-        type: "error",
-        retryAction: () => importChatJson(),
-      });
-      throw error;
-    }
+        await onLoadChats();
+        if (imported?.chat?.id) {
+          state.activeChatId = imported.chat.id;
+          await onLoadMessages();
+        }
+      },
+      "Conversa importada com sucesso.",
+      "Nao foi possivel importar JSON",
+    );
   }
 
   async function exportAllChatsJson() {
