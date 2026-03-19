@@ -1,4 +1,4 @@
-import { createAuditHelpers } from "./app-route-deps.js";
+import { createAuditHelpers } from "./audit-helpers.js";
 import { createAuthGuards } from "./auth-guards.js";
 import { createOperationalGuards } from "./operational-guards.js";
 
