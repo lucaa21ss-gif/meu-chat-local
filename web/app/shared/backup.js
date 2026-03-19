@@ -1,5 +1,7 @@
 import { readFileAsBase64 } from "./files.js";
 
+import { createFetchHelpers } from "./fetch-helpers.js";
+
 function promptBackupPassphrase(message) {
   const passphraseInput = window.prompt(message, "");
   if (passphraseInput === null) return null;
@@ -50,6 +52,8 @@ export function createBackupController({
   onLoadChats,
   onLoadRagDocuments,
 }) {
+  const { doFetchWithRetry } = createFetchHelpers(fetchJson, showStatus);
+
   async function exportFullBackup() {
     const passphrase = getAndValidatePassphrase(
       "Passphrase opcional para proteger o backup (minimo 8 caracteres). Deixe vazio para gerar backup legado sem criptografia:",
@@ -57,8 +61,9 @@ export function createBackupController({
     );
     if (passphrase === null) return;
 
-    try {
-      const headers = {};
+    await doFetchWithRetry(
+      async () => {
+        const headers = {};
       if (passphrase) {
         headers["x-backup-passphrase"] = passphrase;
       }
@@ -86,13 +91,10 @@ export function createBackupController({
           autoHideMs: 4000,
         },
       );
-    } catch (error) {
-      showStatus(`Nao foi possivel exportar backup: ${error.message}`, {
-        type: "error",
-        retryAction: () => exportFullBackup(),
-      });
-      throw error;
-    }
+      },
+      "Backup exportado com sucesso.",
+      "Nao foi possivel exportar backup",
+    );
   }
 
   async function pickBackupFile() {
@@ -117,10 +119,11 @@ export function createBackupController({
     );
     if (!confirmed) return;
 
-    try {
-      const file = await pickBackupFile();
-      if (!file) return;
+    const file = await pickBackupFile();
+    if (!file) return;
 
+    await doFetchWithRetry(
+      async () => {
       const passphrase = getAndValidatePassphrase(
         "Se o backup estiver criptografado, informe a passphrase. Para backup legado, deixe vazio:",
         showStatus,
@@ -150,13 +153,10 @@ export function createBackupController({
           autoHideMs: 3500,
         },
       );
-    } catch (error) {
-      showStatus(`Nao foi possivel restaurar backup: ${error.message}`, {
-        type: "error",
-        retryAction: () => restoreFullBackup(),
-      });
-      throw error;
-    }
+      },
+      "Backup restaurado com sucesso.",
+      "Nao foi possivel restaurar backup",
+    );
   }
 
   return {
