@@ -1,0 +1,128 @@
+export function createStorageController({
+  state,
+  storageUsageTextEl,
+  storageAlertTextEl,
+  fetchJson,
+  formatBytes,
+  openConfirmModal,
+  showStatus,
+  onLoadUsers,
+}) {
+  function renderUsage() {
+    if (!storageUsageTextEl) return;
+    const storage = state.storage || {};
+    storageUsageTextEl.textContent =
+      `DB ${formatBytes(storage.dbBytes)} | uploads ${formatBytes(storage.uploadsBytes)} | documentos ${formatBytes(storage.documentsBytes)} | total ${formatBytes(storage.totalBytes)} / limite ${storage.storageLimitMb} MB`;
+
+    if (!storageAlertTextEl) return;
+    const usagePercent = Number.parseInt(storage.usagePercent, 10) || 0;
+    if (usagePercent >= 95) {
+      storageAlertTextEl.textContent = `Alerta critico: ${usagePercent}% do limite utilizado.`;
+      return;
+    }
+    if (usagePercent >= 80) {
+      storageAlertTextEl.textContent = `Atencao: ${usagePercent}% do limite utilizado.`;
+      return;
+    }
+    storageAlertTextEl.textContent = `Saudavel: ${usagePercent}% do limite utilizado.`;
+  }
+
+  async function loadUsage() {
+    if (!state.userId) return;
+    try {
+      const data = await fetchJson(
+        `/api/storage/usage?userId=${encodeURIComponent(state.userId)}`,
+      );
+      state.storage = {
+        dbBytes: data?.usage?.dbBytes || 0,
+        uploadsBytes: data?.usage?.uploadsBytes || 0,
+        documentsBytes: data?.usage?.documentsBytes || 0,
+        backupsBytes: data?.usage?.backupsBytes || 0,
+        totalBytes: data?.usage?.totalBytes || 0,
+        storageLimitMb: data?.limit?.storageLimitMb || 512,
+        usagePercent: data?.usagePercent || 0,
+      };
+      renderUsage();
+    } catch (error) {
+      if (storageAlertTextEl) {
+        storageAlertTextEl.textContent = "Falha ao carregar uso de armazenamento.";
+      }
+      console.error("Falha em loadStorageUsage:", error.message);
+    }
+  }
+
+  async function runCleanup() {
+    const olderThanDaysRaw = window.prompt(
+      "Remover arquivos mais antigos que quantos dias?",
+      "30",
+    );
+    if (olderThanDaysRaw === null) return;
+
+    const maxDeleteMbRaw = window.prompt(
+      "Limite maximo de limpeza (MB):",
+      "500",
+    );
+    if (maxDeleteMbRaw === null) return;
+
+    const dryRun = await fetchJson("/api/storage/cleanup", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        mode: "dry-run",
+        target: "all",
+        olderThanDays: Number.parseInt(olderThanDaysRaw, 10),
+        maxDeleteMb: Number.parseInt(maxDeleteMbRaw, 10),
+      }),
+    });
+
+    const summary = dryRun?.cleanup || {};
+    const confirmed = await openConfirmModal(
+      `Dry-run: ${summary.filesCount || 0} arquivo(s), estimativa ${formatBytes(summary.estimatedFreedBytes || 0)}. Executar limpeza agora?`,
+    );
+    if (!confirmed) return;
+
+    await fetchJson("/api/storage/cleanup", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        mode: "execute",
+        target: "all",
+        olderThanDays: Number.parseInt(olderThanDaysRaw, 10),
+        maxDeleteMb: Number.parseInt(maxDeleteMbRaw, 10),
+      }),
+    });
+
+    await loadUsage();
+    showStatus("Limpeza de armazenamento concluida.", {
+      type: "success",
+      autoHideMs: 3000,
+    });
+  }
+
+  async function updateLimitForCurrentUser() {
+    if (!state.userId) return;
+    const current = Number.parseInt(state.storage.storageLimitMb, 10) || 512;
+    const raw = window.prompt("Novo limite de armazenamento (MB):", String(current));
+    if (raw === null) return;
+
+    await fetchJson(`/api/users/${encodeURIComponent(state.userId)}/storage-limit`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ storageLimitMb: Number.parseInt(raw, 10) }),
+    });
+
+    await onLoadUsers();
+    await loadUsage();
+    showStatus("Limite de armazenamento atualizado.", {
+      type: "success",
+      autoHideMs: 2500,
+    });
+  }
+
+  return {
+    renderUsage,
+    loadUsage,
+    runCleanup,
+    updateLimitForCurrentUser,
+  };
+}
