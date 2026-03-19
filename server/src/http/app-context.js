@@ -1,4 +1,5 @@
 import { createAppRuntimeConfig } from "./app-runtime-config.js";
+import { createAppContextValue } from "./app-context-wiring.js";
 import { createAppServices } from "./app-services.js";
 import { createGovernanceDepsForApp } from "./app-governance-wiring.js";
 import { createServiceDepsForApp } from "./app-service-wiring.js";
@@ -159,12 +160,12 @@ export function createAppContext({
     },
   });
 
-  return {
-    ...runtimeConfig,
-    ...services,
-    ...governanceRuntime,
-    ...guardsAndAudit,
+  return createAppContextValue({
+    runtimeConfig,
+    services,
+    governanceRuntime,
+    guardsAndAudit,
     createTelemetryMiddleware,
     routeDeps,
-  };
+  });
 }
