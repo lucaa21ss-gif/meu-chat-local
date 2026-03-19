@@ -283,20 +283,22 @@ export function createAppBindingsController({
   }
 
   function bindSearchButtons() {
+    function runSearchWith(resetPage) {
+      runHistorySearch({ resetPage }).catch((error) => {
+        console.error(error);
+      });
+    }
+
     if (searchBtnEl) {
       searchBtnEl.addEventListener("click", () => {
-        runHistorySearch({ resetPage: true }).catch((error) => {
-          console.error(error);
-        });
+        runSearchWith(true);
       });
     }
     if (searchInputEl) {
       searchInputEl.addEventListener("keydown", (event) => {
         if (event.key === "Enter") {
           event.preventDefault();
-          runHistorySearch({ resetPage: true }).catch((error) => {
-            console.error(error);
-          });
+          runSearchWith(true);
         }
       });
     }
@@ -314,18 +316,14 @@ export function createAppBindingsController({
       searchPrevBtnEl.addEventListener("click", () => {
         if (state.search.page <= 1) return;
         state.search.page -= 1;
-        runHistorySearch({ resetPage: false }).catch((error) => {
-          console.error(error);
-        });
+        runSearchWith(false);
       });
     }
     if (searchNextBtnEl) {
       searchNextBtnEl.addEventListener("click", () => {
         if (state.search.totalPages === 0 || state.search.page >= state.search.totalPages) return;
         state.search.page += 1;
-        runHistorySearch({ resetPage: false }).catch((error) => {
-          console.error(error);
-        });
+        runSearchWith(false);
       });
     }
   }
