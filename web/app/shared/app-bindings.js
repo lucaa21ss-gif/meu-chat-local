@@ -162,28 +162,26 @@ export function createAppBindingsController({
     }
   }
 
-  function bindChatActionButtons() {
-    buttonBinding.bindWithErrorHandling(newChatBtnEl, newChatBtnMobileEl, () => createNewChat());
-    buttonBinding.bindWithErrorHandling(renameBtnEl, renameBtnMobileEl, () => renameActiveChat());
-    buttonBinding.bindWithErrorHandling(favoriteBtnEl, undefined, () => toggleFavoriteActiveChat());
-    buttonBinding.bindWithErrorHandling(archiveBtnEl, undefined, () => toggleArchiveActiveChat());
-    buttonBinding.bindWithErrorHandling(tagsBtnEl, undefined, () => editTagsActiveChat());
-    buttonBinding.bindWithErrorHandling(systemPromptBtnEl, undefined, () => editChatSystemPrompt());
-    buttonBinding.bindWithErrorHandling(duplicateBtnEl, duplicateBtnMobileEl, () => duplicateActiveChat());
-    buttonBinding.bindWithErrorHandling(deleteBtnEl, deleteBtnMobileEl, () => deleteActiveChat());
-  }
-
-  function bindExportButtons() {
-    buttonBinding.bindWithErrorHandling(exportBtnEl, exportBtnMobileEl, () => exportChat());
-    buttonBinding.bindWithErrorHandling(exportJsonBtnEl, exportJsonBtnMobileEl, () => exportChatJson());
-    buttonBinding.bindWithErrorHandling(exportAllJsonBtnEl, exportAllJsonBtnMobileEl, () => exportAllChatsJson());
-    buttonBinding.bindWithErrorHandling(exportFavoritesMdBtnEl, exportFavoritesMdBtnMobileEl, () => exportFavoriteChatsMarkdown());
-    buttonBinding.bindWithErrorHandling(importJsonBtnEl, importJsonBtnMobileEl, () => importChatJson());
-  }
-
-  function bindBackupButtons() {
-    buttonBinding.bindWithErrorHandling(backupBtnEl, backupBtnMobileEl, () => exportFullBackup());
-    buttonBinding.bindWithErrorHandling(restoreBackupBtnEl, restoreBackupBtnMobileEl, () => restoreFullBackup());
+  function bindPairedActionButtons() {
+    [
+      [newChatBtnEl, newChatBtnMobileEl, () => createNewChat()],
+      [renameBtnEl, renameBtnMobileEl, () => renameActiveChat()],
+      [favoriteBtnEl, undefined, () => toggleFavoriteActiveChat()],
+      [archiveBtnEl, undefined, () => toggleArchiveActiveChat()],
+      [tagsBtnEl, undefined, () => editTagsActiveChat()],
+      [systemPromptBtnEl, undefined, () => editChatSystemPrompt()],
+      [duplicateBtnEl, duplicateBtnMobileEl, () => duplicateActiveChat()],
+      [deleteBtnEl, deleteBtnMobileEl, () => deleteActiveChat()],
+      [exportBtnEl, exportBtnMobileEl, () => exportChat()],
+      [exportJsonBtnEl, exportJsonBtnMobileEl, () => exportChatJson()],
+      [exportAllJsonBtnEl, exportAllJsonBtnMobileEl, () => exportAllChatsJson()],
+      [exportFavoritesMdBtnEl, exportFavoritesMdBtnMobileEl, () => exportFavoriteChatsMarkdown()],
+      [importJsonBtnEl, importJsonBtnMobileEl, () => importChatJson()],
+      [backupBtnEl, backupBtnMobileEl, () => exportFullBackup()],
+      [restoreBackupBtnEl, restoreBackupBtnMobileEl, () => restoreFullBackup()],
+    ].forEach(([primary, mobile, action]) => {
+      buttonBinding.bindWithErrorHandling(primary, mobile, action);
+    });
   }
 
   function bindVoiceHistoryButtons() {
@@ -396,9 +394,7 @@ export function createAppBindingsController({
     shortcutsController.renderShortcutsHelp();
     bindCoreInputBindings();
     bindDuplicateModalButtons();
-    bindChatActionButtons();
-    bindExportButtons();
-    bindBackupButtons();
+    bindPairedActionButtons();
     bindVoiceHistoryButtons();
     bindConfirmModalButtons();
     bindThemeButton();
