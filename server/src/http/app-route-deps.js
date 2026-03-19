@@ -6,6 +6,7 @@ import { buildChatRoutesDeps } from "./route-deps-chat.js";
 import { buildIncidentRoutesDeps } from "./route-deps-incident.js";
 import { buildResilienceRoutesDeps } from "./route-deps-resilience.js";
 import { buildStorageRoutesDeps } from "./route-deps-storage.js";
+import { buildConfigRoutesDeps } from "./route-deps-config.js";
 import { buildRagRoutesDeps } from "./route-deps-rag.js";
 import { buildUserRoutesDeps } from "./route-deps-user.js";
 
@@ -36,21 +37,7 @@ export function buildRegisterAppRoutesDeps(ctx) {
     incidentRoutes: buildIncidentRoutesDeps(ctx),
     resilienceRoutes: buildResilienceRoutesDeps(ctx),
     storageRoutes: buildStorageRoutesDeps(ctx),
-    configRoutes: {
-      asyncHandler: ctx.asyncHandler,
-      requireMinimumRole: ctx.requireMinimumRole,
-      resolveActor: ctx.resolveActor,
-      recordAudit: ctx.recordAudit,
-      recordConfigVersion: ctx.recordConfigVersion,
-      parseConfigVersionFilters: ctx.parseConfigVersionFilters,
-      parseConfigVersionId: ctx.parseConfigVersionId,
-      areConfigValuesEqual: ctx.areConfigValuesEqual,
-      readCurrentConfigValue: ctx.readCurrentConfigValue,
-      applyConfigValue: ctx.applyConfigValue,
-      baselineService: ctx.baselineService,
-      store: ctx.store,
-      HttpError: ctx.HttpError,
-    },
+    configRoutes: buildConfigRoutesDeps(ctx),
     approvalRoutes: {
       asyncHandler: ctx.asyncHandler,
       requireMinimumRole: ctx.requireMinimumRole,
