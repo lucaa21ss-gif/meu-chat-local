@@ -79,45 +79,37 @@ export function createTelemetryAdminController({
   }
 
   async function showTelemetryStats() {
-    try {
-      const data = await fetchJson("/api/telemetry");
-      const lines = (data.stats || []).slice(0, 10).map((item) => {
-        return `${item.method} ${item.path} | req=${item.count} err=${item.errors} avg=${item.avgMs}ms`;
-      });
-      const text = lines.length
-        ? lines.join("\n")
-        : "Sem metricas registradas ainda.";
-      window.alert(text);
-    } catch (error) {
-      showStatus(`Nao foi possivel carregar metricas: ${error.message}`, {
-        type: "error",
-      });
-    }
+    await doFetchWithRetry(
+      async () => {
+        const data = await fetchJson("/api/telemetry");
+        const lines = (data.stats || []).slice(0, 10).map((item) => {
+          return `${item.method} ${item.path} | req=${item.count} err=${item.errors} avg=${item.avgMs}ms`;
+        });
+        const text = lines.length
+          ? lines.join("\n")
+          : "Sem metricas registradas ainda.";
+        window.alert(text);
+      },
+      null,
+      "Nao foi possivel carregar metricas",
+    ).catch(() => {});
   }
 
   async function exportAuditLogsJson() {
-    try {
-      const response = await fetchImpl(
-        `${apiBase}/api/audit/export?userId=${encodeURIComponent(state.userId)}`,
-      );
-      if (!response.ok) {
-        throw new Error("Falha ao exportar auditoria");
-      }
-
-      const jsonText = await response.text();
-      downloadJsonFile(jsonText, `audit-${state.userId}.json`);
-
-      showStatus("Auditoria exportada com sucesso.", {
-        type: "success",
-        autoHideMs: 2500,
-      });
-    } catch (error) {
-      showStatus(`Falha ao exportar auditoria: ${error.message}`, {
-        type: "error",
-        retryAction: () => exportAuditLogsJson(),
-      });
-      throw error;
-    }
+    await doFetchWithRetry(
+      async () => {
+        const response = await fetchImpl(
+          `${apiBase}/api/audit/export?userId=${encodeURIComponent(state.userId)}`,
+        );
+        if (!response.ok) {
+          throw new Error("Falha ao exportar auditoria");
+        }
+        const jsonText = await response.text();
+        downloadJsonFile(jsonText, `audit-${state.userId}.json`);
+      },
+      "Auditoria exportada com sucesso.",
+      "Falha ao exportar auditoria",
+    );
   }
 
   async function exportDiagnosticsPackage() {

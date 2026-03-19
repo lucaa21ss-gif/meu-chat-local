@@ -147,29 +147,25 @@ export function createHistorySearchController(options = {}) {
     if (from) params.set("from", new Date(`${from}T00:00:00`).toISOString());
     if (to) params.set("to", new Date(`${to}T23:59:59`).toISOString());
 
-    try {
-      await doFetchWithRetry(
-        async () => {
-          const data = await fetchJson(
-            `/api/chats/${encodeURIComponent(activeChatId)}/search?${params.toString()}`,
-          );
+    await doFetchWithRetry(
+      async () => {
+        const data = await fetchJson(
+          `/api/chats/${encodeURIComponent(activeChatId)}/search?${params.toString()}`,
+        );
 
-          const pagination = data.pagination || {};
-          state.search.total = Number.parseInt(pagination.total, 10) || 0;
-          state.search.totalPages = Number.parseInt(pagination.totalPages, 10) || 0;
-          state.search.page =
-            Number.parseInt(pagination.page, 10) || state.search.page;
+        const pagination = data.pagination || {};
+        state.search.total = Number.parseInt(pagination.total, 10) || 0;
+        state.search.totalPages = Number.parseInt(pagination.totalPages, 10) || 0;
+        state.search.page =
+          Number.parseInt(pagination.page, 10) || state.search.page;
 
-          renderSearchResults(data.matches || []);
-          updateSearchPaginationUi();
-          hideStatus();
-        },
-        "",
-        "Falha na busca",
-      );
-    } catch {
-      // erro já tratado pelo doFetchWithRetry
-    }
+        renderSearchResults(data.matches || []);
+        updateSearchPaginationUi();
+        hideStatus();
+      },
+      null,
+      "Falha na busca",
+    ).catch(() => {});
   }
 
   return {
