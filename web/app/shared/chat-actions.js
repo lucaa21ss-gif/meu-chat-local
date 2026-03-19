@@ -18,6 +18,29 @@ export function createChatActionsController({
     return encodeURIComponent(state.activeChatId);
   }
 
+  function promptAndTrim(message, defaultValue = "") {
+    const input = window.prompt(message, defaultValue);
+    if (input === null) return null;
+    const trimmed = input.trim();
+    return trimmed || null;
+  }
+
+  function promptTags(message, currentTags = "") {
+    const typed = window.prompt(message, currentTags);
+    if (typed === null) return null;
+    return typed
+      .split(",")
+      .map((tag) => tag.trim())
+      .filter(Boolean)
+      .slice(0, 10);
+  }
+
+  function promptSystemPrompt(message, defaultValue = "") {
+    const input = window.prompt(message, defaultValue);
+    if (input === null) return null;
+    return String(input || "");
+  }
+
   async function createNewChat(title = "Nova conversa") {
     const id = uid();
     try {
@@ -44,14 +67,11 @@ export function createChatActionsController({
     const encodedChatId = getEncodedActiveChatId();
     if (!encodedChatId) return;
 
-    const input = window.prompt(
+    const title = promptAndTrim(
       "Novo nome da aba:",
       current?.title || "Nova conversa",
     );
-    if (input === null) return;
-
-    const title = input.trim();
-    if (!title) return;
+    if (title === null) return;
 
     try {
       await fetchJson(`/api/chats/${encodedChatId}`, {
@@ -136,17 +156,11 @@ export function createChatActionsController({
     const currentTags = Array.isArray(current?.tags)
       ? current.tags.join(", ")
       : "";
-    const typed = window.prompt(
+    const tags = promptTags(
       "Tags da aba (separadas por virgula):",
       currentTags,
     );
-    if (typed === null) return;
-
-    const tags = typed
-      .split(",")
-      .map((tag) => tag.trim())
-      .filter(Boolean)
-      .slice(0, 10);
+    if (tags === null) return;
 
     try {
       await fetchJson(
@@ -175,18 +189,18 @@ export function createChatActionsController({
         `/api/chats/${encodedChatId}/system-prompt`,
       );
       const current = String(promptData.systemPrompt || "");
-      const next = window.prompt(
+      const systemPrompt = promptSystemPrompt(
         "Prompt de sistema desta conversa (vazio para remover):",
         current,
       );
-      if (next === null) return;
+      if (systemPrompt === null) return;
 
       await fetchJson(
         `/api/chats/${encodedChatId}/system-prompt`,
         {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ systemPrompt: String(next || "") }),
+          body: JSON.stringify({ systemPrompt }),
         },
       );
 
