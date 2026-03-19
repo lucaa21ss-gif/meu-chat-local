@@ -507,20 +507,20 @@ const appRuntimeController = createAppRuntimeController({
   state,
   chatEl,
   createHealthPoller,
-  checkOllamaStatus,
-  loadDarkMode,
-  applyPreferredModel,
-  loadVoiceHistory,
-  setupVoiceInput,
-  setupDragAndDrop,
+  checkOllamaStatus: () => healthStatusController.checkHealth(),
+  loadDarkMode: () => themeLocalController.loadSavedMode(),
+  applyPreferredModel: () => preferencesController.applyPreferredModel(),
+  loadVoiceHistory: () => voiceController.loadHistory(),
+  setupVoiceInput: () => voiceController.setupInput(),
+  setupDragAndDrop: () => chatUtilsController.setupDragAndDrop(),
   updateSendButtonState,
-  updateFilterUi,
-  renderStorageUsage,
-  loadTelemetryState,
-  loadUsers,
-  loadChats,
-  loadRagDocuments,
-  openOnboardingModal,
+  updateFilterUi: () => chatFiltersController.updateUi(),
+  renderStorageUsage: () => storageController.renderUsage(),
+  loadTelemetryState: () => telemetryAdminController.loadTelemetryState(),
+  loadUsers: () => profilesController.loadUsers(),
+  loadChats: () => chatNavigationController.loadChats(),
+  loadRagDocuments: () => ragController.loadDocuments(),
+  openOnboardingModal: () => onboardingController.openModal(),
 });
 
 const appBindingsController = createAppBindingsController({
@@ -641,16 +641,8 @@ const appBindingsController = createAppBindingsController({
   clearSearchResults,
 });
 
-function renderUsers() {
-  profilesController.renderUsers();
-}
-
 function getCurrentUser() {
   return appRuntimeController.getCurrentUser();
-}
-
-function updateThemeToggleUi(mode) {
-  themeLocalController.updateToggleUi(mode);
 }
 
 function cycleThemeMode() {
@@ -669,22 +661,6 @@ async function loadUsers() {
   await profilesController.loadUsers();
 }
 
-async function switchUser(userId) {
-  await profilesController.switchUser(userId);
-}
-
-async function createProfile() {
-  await profilesController.createProfile();
-}
-
-async function renameCurrentProfile() {
-  await profilesController.renameCurrentProfile();
-}
-
-async function deleteCurrentProfile() {
-  await profilesController.deleteCurrentProfile();
-}
-
 function buildChatsQueryString() {
   return chatListController.buildQueryString();
 }
@@ -701,10 +677,6 @@ function scheduleChatListSearch() {
   chatListController.scheduleSearch();
 }
 
-function renderStorageUsage() {
-  storageController.renderUsage();
-}
-
 async function loadStorageUsage() {
   await storageController.loadUsage();
 }
@@ -719,10 +691,6 @@ async function updateStorageLimitForCurrentUser() {
 
 function updateFilterUi() {
   chatFiltersController.updateUi();
-}
-
-async function setFilterMode(mode) {
-  await chatFiltersController.setMode(mode);
 }
 
 async function loadTelemetryState() {
@@ -770,40 +738,16 @@ function clearSearchResults() {
   historySearchController.clearSearchResults();
 }
 
-function renderRagStatus() {
-  ragController.renderStatus();
-}
-
 async function loadRagDocuments() {
   await ragController.loadDocuments();
-}
-
-async function uploadRagDocuments() {
-  await ragController.uploadDocuments();
 }
 
 async function runHistorySearch({ resetPage = false } = {}) {
   await historySearchController.runHistorySearch({ resetPage });
 }
 
-function getPreferredModel() {
-  return preferencesController.getPreferredModel();
-}
-
 function savePreferredModel(model) {
   preferencesController.savePreferredModel(model);
-}
-
-function applyPreferredModel() {
-  preferencesController.applyPreferredModel();
-}
-
-function resetOnboardingStatus() {
-  onboardingController.resetStatus();
-}
-
-function syncOnboardingModels() {
-  onboardingController.syncModels();
 }
 
 function closeOnboardingModal() {
@@ -939,22 +883,6 @@ async function restoreFullBackup() {
   await backupController.restoreFullBackup();
 }
 
-function setupVoiceInput() {
-  voiceController.setupInput();
-}
-
-function saveVoiceHistory(text) {
-  voiceController.saveHistory(text);
-}
-
-function loadVoiceHistory() {
-  voiceController.loadHistory();
-}
-
-function renderVoiceHistory() {
-  voiceController.renderHistory();
-}
-
 function openVoiceHistoryModalWithRender() {
   voiceController.openHistoryModalWithRender();
 }
@@ -965,10 +893,6 @@ function updateSendButtonState() {
 
 function setupDragAndDrop() {
   chatUtilsController.setupDragAndDrop();
-}
-
-function loadDarkMode() {
-  themeLocalController.loadSavedMode();
 }
 
 appBindingsController.bindAll();
