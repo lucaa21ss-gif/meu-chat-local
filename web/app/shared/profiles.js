@@ -1,3 +1,4 @@
+import { createFetchHelpers } from "./fetch-helpers.js";
 export function createProfilesController({
   state,
   userSelectEl,
@@ -10,6 +11,8 @@ export function createProfilesController({
   onLoadRagDocuments,
   onResetChatListPagination,
 }) {
+  const { doFetchWithRetry, fetchJsonBody } = createFetchHelpers(fetchJson, showStatus);
+
   function renderUsers() {
     if (!userSelectEl) return;
     userSelectEl.innerHTML = "";
@@ -77,23 +80,15 @@ export function createProfilesController({
     const trimmed = getAndValidateProfileName("Nome do novo perfil:");
     if (trimmed === null) return;
 
-    try {
-      const payload = await fetchJson("/api/users", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: trimmed }),
-      });
-      await loadUsers();
-      await switchUser(payload.user.id);
-      showStatus(`Perfil "${trimmed}" criado com sucesso.`, {
-        type: "success",
-        autoHideMs: 3000,
-      });
-    } catch (error) {
-      showStatus(`Nao foi possivel criar perfil: ${error.message}`, {
-        type: "error",
-      });
-    }
+    await doFetchWithRetry(
+      async () => {
+        const result = await fetchJsonBody("/api/users", "POST", { name: trimmed });
+        await loadUsers();
+        await switchUser(result.user.id);
+      },
+      `Perfil "${trimmed}" criado com sucesso.`,
+      "Nao foi possivel criar perfil",
+    );
   }
 
   async function renameCurrentProfile() {
@@ -103,22 +98,14 @@ export function createProfilesController({
     const trimmed = getAndValidateProfileName("Novo nome do perfil:", current.name || "");
     if (trimmed === null || trimmed === current.name) return;
 
-    try {
-      await fetchJson(`/api/users/${encodeURIComponent(state.userId)}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: trimmed }),
-      });
-      await loadUsers();
-      showStatus("Perfil renomeado com sucesso.", {
-        type: "success",
-        autoHideMs: 3000,
-      });
-    } catch (error) {
-      showStatus(`Nao foi possivel renomear perfil: ${error.message}`, {
-        type: "error",
-      });
-    }
+    await doFetchWithRetry(
+      async () => {
+        await fetchJsonBody(`/api/users/${encodeURIComponent(state.userId)}`, "PATCH", { name: trimmed });
+        await loadUsers();
+      },
+      "Perfil renomeado com sucesso.",
+      "Nao foi possivel renomear perfil",
+    );
   }
 
   async function deleteCurrentProfile() {
@@ -136,23 +123,19 @@ export function createProfilesController({
     );
     if (!confirmed) return;
 
-    try {
-      await fetchJson(`/api/users/${encodeURIComponent(state.userId)}`, {
-        method: "DELETE",
-      });
-      setCurrentUser("user-default");
-      await loadUsers();
-      await onLoadChats();
-      await onLoadRagDocuments();
-      showStatus("Perfil excluido com sucesso.", {
-        type: "success",
-        autoHideMs: 3000,
-      });
-    } catch (error) {
-      showStatus(`Nao foi possivel excluir perfil: ${error.message}`, {
-        type: "error",
-      });
-    }
+    await doFetchWithRetry(
+      async () => {
+        await fetchJson(`/api/users/${encodeURIComponent(state.userId)}`, {
+          method: "DELETE",
+        });
+        setCurrentUser("user-default");
+        await loadUsers();
+        await onLoadChats();
+        await onLoadRagDocuments();
+      },
+      "Perfil excluido com sucesso.",
+      "Nao foi possivel excluir perfil",
+    );
   }
 
   return {
