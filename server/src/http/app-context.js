@@ -1,8 +1,10 @@
 import { createAppRuntimeConfig } from "./app-runtime-config.js";
 import { createAppServices } from "./app-services.js";
+import { createGovernanceDepsForApp } from "./app-governance-wiring.js";
 import { createServiceDepsForApp } from "./app-service-wiring.js";
 import { createGovernanceRuntime } from "./app-governance-runtime.js";
 import { createAppGuardsAndAudit } from "./app-guards-and-audit.js";
+import { createGuardsAndAuditDepsForApp } from "./app-guards-wiring.js";
 import { createRouteDepsForApp } from "./app-route-wiring.js";
 import { APP_ROUTE_REGISTRARS } from "./app-route-registrars.js";
 import {
@@ -74,30 +76,44 @@ export function createAppContext({
     }),
   );
 
-  const governanceRuntime = createGovernanceRuntime({
-    deps,
-    requestWindowMs: runtimeConfig.requestWindowMs,
-    store,
-    normalizeRole: sharedParsers.normalizeRole,
-    getTelemetryStats,
-    backupService: services.backupService,
-    incidentService: services.incidentService,
-    healthProviders: services.healthProviders,
-    ...healthBuilders,
-  });
+  const governanceRuntime = createGovernanceRuntime(
+    createGovernanceDepsForApp({
+      core: {
+        deps,
+        requestWindowMs: runtimeConfig.requestWindowMs,
+        store,
+        normalizeRole: sharedParsers.normalizeRole,
+        getTelemetryStats,
+      },
+      services: {
+        backupService: services.backupService,
+        incidentService: services.incidentService,
+        healthProviders: services.healthProviders,
+      },
+      builders: healthBuilders,
+    }),
+  );
 
-  const guardsAndAudit = createAppGuardsAndAudit({
-    store,
-    logger,
-    configRollbackService: services.configRollbackService,
-    approvalService: services.approvalService,
-    parseUserId: sharedParsers.parseUserId,
-    normalizeRole: sharedParsers.normalizeRole,
-    hasRequiredRole: sharedParsers.hasRequiredRole,
-    asyncHandler,
-    HttpError,
-    parseOperationalApprovalId: sharedParsers.parseOperationalApprovalId,
-  });
+  const guardsAndAudit = createAppGuardsAndAudit(
+    createGuardsAndAuditDepsForApp({
+      core: {
+        store,
+        logger,
+        asyncHandler,
+        HttpError,
+      },
+      services: {
+        configRollbackService: services.configRollbackService,
+        approvalService: services.approvalService,
+      },
+      parsers: {
+        parseUserId: sharedParsers.parseUserId,
+        normalizeRole: sharedParsers.normalizeRole,
+        hasRequiredRole: sharedParsers.hasRequiredRole,
+        parseOperationalApprovalId: sharedParsers.parseOperationalApprovalId,
+      },
+    }),
+  );
 
   const routeDeps = createRouteDepsForApp({
     core: {
