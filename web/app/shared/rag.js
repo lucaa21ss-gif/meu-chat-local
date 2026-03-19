@@ -1,3 +1,5 @@
+import { createFetchHelpers } from "./fetch-helpers.js";
+
 export function createRagController({
   state,
   ragStatusEl,
@@ -7,6 +9,8 @@ export function createRagController({
   showStatus,
   getActiveChatId,
 }) {
+  const { doFetchWithRetry, fetchJsonBody } = createFetchHelpers(fetchJson, showStatus);
+
   function renderStatus() {
     if (!ragStatusEl) return;
 
@@ -30,22 +34,23 @@ export function createRagController({
       return;
     }
 
-    try {
-      const data = await fetchJson(
-        `/api/chats/${encodeURIComponent(activeChatId)}/rag/documents`,
-      );
-      state.rag.docCount = Array.isArray(data.documents)
-        ? data.documents.length
-        : 0;
-      renderStatus();
-    } catch (error) {
+    await doFetchWithRetry(
+      async () => {
+        const data = await fetchJson(
+          `/api/chats/${encodeURIComponent(activeChatId)}/rag/documents`,
+        );
+        state.rag.docCount = Array.isArray(data.documents)
+          ? data.documents.length
+          : 0;
+        renderStatus();
+      },
+      "Base documental carregada com sucesso.",
+      "Falha ao carregar base documental",
+    ).catch((e) => {
       state.rag.docCount = 0;
       renderStatus();
-      showStatus(`Falha ao carregar base documental: ${error.message}`, {
-        type: "error",
-        retryAction: () => loadDocuments(),
-      });
-    }
+      throw e;
+    });
   }
 
   async function uploadDocuments() {
@@ -64,35 +69,29 @@ export function createRagController({
       return;
     }
 
-    try {
-      const documents = await filesToDocuments(files);
-      if (!documents.length) {
-        throw new Error(
-          "Nenhum arquivo com conteudo textual valido foi encontrado",
+    await doFetchWithRetry(
+      async () => {
+        const documents = await filesToDocuments(files);
+        if (!documents.length) {
+          throw new Error(
+            "Nenhum arquivo com conteudo textual valido foi encontrado",
+          );
+        }
+
+        const payload = await fetchJsonBody(
+          `/api/chats/${encodeURIComponent(activeChatId)}/rag/documents`,
+          "POST",
+          { documents },
         );
-      }
-
-      const payload = await fetchJson(
-        `/api/chats/${encodeURIComponent(activeChatId)}/rag/documents`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ documents }),
-        },
-      );
-
-      state.rag.docCount = Array.isArray(payload.documents)
-        ? payload.documents.length
-        : state.rag.docCount;
-      renderStatus();
-      if (docInputEl) docInputEl.value = "";
-      showStatus("Documentos indexados com sucesso.", { type: "success" });
-    } catch (error) {
-      showStatus(`Falha ao indexar documentos: ${error.message}`, {
-        type: "error",
-        retryAction: () => uploadDocuments(),
-      });
-    }
+        state.rag.docCount = Array.isArray(payload.documents)
+          ? payload.documents.length
+          : state.rag.docCount;
+        renderStatus();
+        if (docInputEl) docInputEl.value = "";
+      },
+      "Documentos indexados com sucesso.",
+      "Falha ao indexar documentos",
+    );
   }
 
   return {
