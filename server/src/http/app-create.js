@@ -14,19 +14,7 @@ export function createConfiguredApp(deps = {}) {
 
   const app = express();
   const serverDir = resolveServerDir(import.meta.url, deps.serverDir);
-  const {
-    webDir,
-    corsOrigin,
-    backupService,
-    storageService,
-    capacityService,
-    queueService,
-    baselineService,
-    approvalService,
-    roleLimiter,
-    createTelemetryMiddleware,
-    routeDeps,
-  } = createAppContext({
+  const appContext = createAppContext({
     deps,
     store,
     serverDir,
@@ -36,25 +24,25 @@ export function createConfiguredApp(deps = {}) {
   });
 
   configureAppBootstrap(app, {
-    corsOrigin,
-    webDir,
-    roleLimiter,
+    corsOrigin: appContext.corsOrigin,
+    webDir: appContext.webDir,
+    roleLimiter: appContext.roleLimiter,
     createHttpLogger,
     logger,
-    createTelemetryMiddleware,
+    createTelemetryMiddleware: appContext.createTelemetryMiddleware,
     express,
   });
 
   attachAppLocals(app, {
-    backupService,
-    storageService,
-    capacityService,
-    queueService,
-    baselineService,
-    approvalService,
+    backupService: appContext.backupService,
+    storageService: appContext.storageService,
+    capacityService: appContext.capacityService,
+    queueService: appContext.queueService,
+    baselineService: appContext.baselineService,
+    approvalService: appContext.approvalService,
   });
 
-  registerAppRoutes(app, routeDeps);
+  registerAppRoutes(app, appContext.routeDeps);
 
   return app;
 }
