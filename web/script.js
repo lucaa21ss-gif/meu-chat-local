@@ -1,6 +1,7 @@
 import { createApiClient } from "./app/shared/api.js";
 import { createBackupController } from "./app/shared/backup.js";
 import { createAppBindingsController } from "./app/shared/app-bindings.js";
+import { createAppRuntimeController } from "./app/shared/app-runtime.js";
 import { createChatActionsController } from "./app/shared/chat-actions.js";
 import { createChatExportController } from "./app/shared/chat-export.js";
 import { createChatFiltersController } from "./app/shared/chat-filters.js";
@@ -502,6 +503,26 @@ const chatUtilsController = createChatUtilsController({
   openConfirmModal,
 });
 
+const appRuntimeController = createAppRuntimeController({
+  state,
+  chatEl,
+  createHealthPoller,
+  checkOllamaStatus,
+  loadDarkMode,
+  applyPreferredModel,
+  loadVoiceHistory,
+  setupVoiceInput,
+  setupDragAndDrop,
+  updateSendButtonState,
+  updateFilterUi,
+  renderStorageUsage,
+  loadTelemetryState,
+  loadUsers,
+  loadChats,
+  loadRagDocuments,
+  openOnboardingModal,
+});
+
 const appBindingsController = createAppBindingsController({
   state,
   inputEl,
@@ -625,7 +646,7 @@ function renderUsers() {
 }
 
 function getCurrentUser() {
-  return (state.users || []).find((user) => user.id === state.userId) || null;
+  return appRuntimeController.getCurrentUser();
 }
 
 function updateThemeToggleUi(mode) {
@@ -798,11 +819,11 @@ async function runOnboardingChecks() {
 }
 
 function smoothScrollToBottom() {
-  chatEl.scrollTo({ top: chatEl.scrollHeight, behavior: "smooth" });
+  appRuntimeController.smoothScrollToBottom();
 }
 
 function uid() {
-  return `chat-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  return appRuntimeController.uid();
 }
 
 function showTyping() {
@@ -956,31 +977,5 @@ window.enviar = enviar;
 window.resetar = resetar;
 
 (async function bootstrap() {
-  loadDarkMode();
-  applyPreferredModel();
-  loadVoiceHistory();
-  setupVoiceInput();
-  setupDragAndDrop();
-  updateSendButtonState();
-  updateFilterUi();
-  renderStorageUsage();
-  try {
-    await loadTelemetryState();
-    await loadUsers();
-    await loadChats();
-    await loadRagDocuments();
-  } catch (error) {
-    console.error(error);
-  }
-
-  state.healthPoller = createHealthPoller({
-    checkHealth: () => checkOllamaStatus(),
-    baseIntervalMs: 30_000,
-    maxIntervalMs: 300_000,
-  });
-  state.healthPoller.start();
-
-  if (localStorage.getItem("onboardingDone") !== "true") {
-    openOnboardingModal();
-  }
+  await appRuntimeController.bootstrap();
 })();
