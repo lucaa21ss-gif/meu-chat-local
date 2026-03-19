@@ -1,4 +1,5 @@
 import { buildHealthRoutesDeps } from "./route-deps-health.js";
+import { buildAuditRoutesDeps } from "./route-deps-audit.js";
 import { buildChatRoutesDeps } from "./route-deps-chat.js";
 import { buildRagRoutesDeps } from "./route-deps-rag.js";
 import { buildUserRoutesDeps } from "./route-deps-user.js";
@@ -144,12 +145,7 @@ export function buildRegisterAppRoutesDeps(ctx) {
       parseOperationalApprovalDecision: ctx.parseOperationalApprovalDecision,
       approvalService: ctx.approvalService,
     },
-    auditRoutes: {
-      asyncHandler: ctx.asyncHandler,
-      requireMinimumRole: ctx.requireMinimumRole,
-      parseAuditFilters: ctx.parseAuditFilters,
-      store: ctx.store,
-    },
+    auditRoutes: buildAuditRoutesDeps(ctx),
     observabilityRoutes: {
       asyncHandler: ctx.asyncHandler,
       requireMinimumRole: ctx.requireMinimumRole,
