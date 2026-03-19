@@ -523,6 +523,11 @@ const appRuntimeController = createAppRuntimeController({
   openOnboardingModal: () => onboardingController.openModal(),
 });
 
+async function enviarComAtualizacao() {
+  await chatSendController.enviar();
+  appBindingsController.updateSendButtonState();
+}
+
 const appBindingsController = createAppBindingsController({
   state,
   inputEl,
@@ -605,10 +610,7 @@ const appBindingsController = createAppBindingsController({
   openConfirmModal,
   openShortcutsModal,
   showStatus,
-  enviar: async () => {
-    await chatSendController.enviar();
-    appBindingsController.updateSendButtonState();
-  },
+  enviar: enviarComAtualizacao,
   createNewChat: chatNavigationController.createNewChat,
   renameActiveChat: chatActionsController.renameActiveChat,
   toggleFavoriteActiveChat: chatActionsController.toggleFavoriteActiveChat,
@@ -646,10 +648,7 @@ const appBindingsController = createAppBindingsController({
 
 appBindingsController.bindAll();
 
-window.enviar = async () => {
-  await chatSendController.enviar();
-  appBindingsController.updateSendButtonState();
-};
+window.enviar = enviarComAtualizacao;
 window.resetar = async () => {
   await chatUtilsController.resetar();
 };
