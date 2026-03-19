@@ -13,16 +13,24 @@ function isModalVisible(element) {
 }
 
 export function createModalPresenter(options = {}) {
-  const duplicateModalEl = options.duplicateModalEl || null;
-  const duplicateTitleInputEl = options.duplicateTitleInputEl || null;
-  const duplicateModeFullEl = options.duplicateModeFullEl || null;
-  const duplicateModeUserEl = options.duplicateModeUserEl || null;
-  const confirmModalEl = options.confirmModalEl || null;
-  const confirmModalTextEl = options.confirmModalTextEl || null;
-  const voiceHistoryModalEl = options.voiceHistoryModalEl || null;
-  const shortcutsModalEl = options.shortcutsModalEl || null;
-  const shortcutsCloseBtnEl = options.shortcutsCloseBtnEl || null;
-  const onboardingModalEl = options.onboardingModalEl || null;
+  const MODAL_ELEMENT_NAMES = [
+    "duplicateModal", "duplicateTitleInput", "duplicateModeFullEl", "duplicateModeUser",
+    "confirmModal", "confirmModalText", "voiceHistoryModal", "shortcutsModal",
+    "shortcutsCloseBtn", "onboardingModal",
+  ];
+
+  const modalElements = Object.fromEntries(
+    MODAL_ELEMENT_NAMES.map(name => [
+      name.replace(/El$/, "El"), 
+      options[name + "El"] || options[name] || null
+    ])
+  );
+
+  const {
+    duplicateModalEl, duplicateTitleInputEl, duplicateModeFullEl, duplicateModeUserEl,
+    confirmModalEl, confirmModalTextEl, voiceHistoryModalEl, shortcutsModalEl,
+    shortcutsCloseBtnEl, onboardingModalEl,
+  } = modalElements;
 
   let duplicateResolver = null;
   let confirmResolver = null;
