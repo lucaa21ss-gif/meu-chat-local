@@ -14,41 +14,35 @@ export function createAppGuardsAndAudit({
   HttpError,
   parseOperationalApprovalId,
 }) {
-  const { recordAudit, recordConfigVersion } = createAuditHelpers({
+  const auditHelpers = createAuditHelpers({
     store,
     logger,
   });
 
   const { readCurrentConfigValue, applyConfigValue } = configRollbackService;
 
-  const { resolveActor, requireMinimumRole, requireAdminOrSelf } =
-    createAuthGuards({
-      store,
-      parseUserId,
-      normalizeRole,
-      hasRequiredRole,
-      asyncHandler,
-      HttpError,
-    });
+  const authGuards = createAuthGuards({
+    store,
+    parseUserId,
+    normalizeRole,
+    hasRequiredRole,
+    asyncHandler,
+    HttpError,
+  });
 
-  const { recordBlockedAttempt, requireOperationalApproval } =
-    createOperationalGuards({
-      resolveActor,
-      recordAudit,
-      approvalService,
-      parseOperationalApprovalId,
-      HttpError,
-    });
+  const operationalGuards = createOperationalGuards({
+    resolveActor: authGuards.resolveActor,
+    recordAudit: auditHelpers.recordAudit,
+    approvalService,
+    parseOperationalApprovalId,
+    HttpError,
+  });
 
   return {
-    recordAudit,
-    recordConfigVersion,
+    ...auditHelpers,
     readCurrentConfigValue,
     applyConfigValue,
-    resolveActor,
-    requireMinimumRole,
-    requireAdminOrSelf,
-    recordBlockedAttempt,
-    requireOperationalApproval,
+    ...authGuards,
+    ...operationalGuards,
   };
 }
