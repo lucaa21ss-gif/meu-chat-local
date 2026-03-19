@@ -332,7 +332,7 @@ const profilesController = createProfilesController({
   showStatus,
   onSyncThemeFromCurrentUser: () => syncThemeFromCurrentUser(),
   onUpdateRbacUi: () => updateRbacUi(),
-  onLoadStorageUsage: () => loadStorageUsage(),
+  onLoadStorageUsage: () => storageController.loadUsage(),
   onLoadChats: () => loadChats(),
   onLoadRagDocuments: () => loadRagDocuments(),
   onResetChatListPagination: () => chatListController.resetPagination(),
@@ -621,21 +621,21 @@ const appBindingsController = createAppBindingsController({
   importChatJson,
   exportFullBackup,
   restoreFullBackup,
-  openVoiceHistoryModalWithRender,
-  cycleThemeMode,
-  saveThemeForCurrentUser,
-  openOnboardingModal,
-  closeOnboardingModal,
-  runOnboardingChecks,
-  checkOllamaStatus,
-  loadStorageUsage,
-  runStorageCleanup,
-  updateStorageLimitForCurrentUser,
-  setTelemetryEnabled,
-  showTelemetryStats,
-  exportAuditLogsJson,
-  openConfigHistoryRollback,
-  exportDiagnosticsPackage,
+  openVoiceHistoryModalWithRender: () => voiceController.openHistoryModalWithRender(),
+  cycleThemeMode: () => themeLocalController.cycleMode(),
+  saveThemeForCurrentUser: (theme) => preferencesController.saveThemeForCurrentUser(theme),
+  openOnboardingModal: () => onboardingController.openModal(),
+  closeOnboardingModal: () => onboardingController.closeModal(),
+  runOnboardingChecks: () => onboardingController.runChecks(),
+  checkOllamaStatus: () => healthStatusController.checkHealth(),
+  loadStorageUsage: () => storageController.loadUsage(),
+  runStorageCleanup: () => storageController.runCleanup(),
+  updateStorageLimitForCurrentUser: () => storageController.updateLimitForCurrentUser(),
+  setTelemetryEnabled: (enabled) => telemetryAdminController.setTelemetryEnabled(enabled),
+  showTelemetryStats: () => telemetryAdminController.showTelemetryStats(),
+  exportAuditLogsJson: () => telemetryAdminController.exportAuditLogsJson(),
+  openConfigHistoryRollback: () => telemetryAdminController.openConfigHistoryRollback(),
+  exportDiagnosticsPackage: () => telemetryAdminController.exportDiagnosticsPackage(),
   loadChats,
   runHistorySearch,
   clearSearchResults,
@@ -643,14 +643,6 @@ const appBindingsController = createAppBindingsController({
 
 function getCurrentUser() {
   return appRuntimeController.getCurrentUser();
-}
-
-function cycleThemeMode() {
-  return themeLocalController.cycleMode();
-}
-
-async function saveThemeForCurrentUser(theme) {
-  await preferencesController.saveThemeForCurrentUser(theme);
 }
 
 function syncThemeFromCurrentUser() {
@@ -677,48 +669,12 @@ function scheduleChatListSearch() {
   chatListController.scheduleSearch();
 }
 
-async function loadStorageUsage() {
-  await storageController.loadUsage();
-}
-
-async function runStorageCleanup() {
-  await storageController.runCleanup();
-}
-
-async function updateStorageLimitForCurrentUser() {
-  await storageController.updateLimitForCurrentUser();
-}
-
 function updateFilterUi() {
   chatFiltersController.updateUi();
 }
 
 async function loadTelemetryState() {
   await telemetryAdminController.loadTelemetryState();
-}
-
-async function checkOllamaStatus() {
-  return healthStatusController.checkHealth();
-}
-
-async function setTelemetryEnabled(enabled) {
-  await telemetryAdminController.setTelemetryEnabled(enabled);
-}
-
-async function showTelemetryStats() {
-  await telemetryAdminController.showTelemetryStats();
-}
-
-async function exportAuditLogsJson() {
-  await telemetryAdminController.exportAuditLogsJson();
-}
-
-async function exportDiagnosticsPackage() {
-  await telemetryAdminController.exportDiagnosticsPackage();
-}
-
-async function openConfigHistoryRollback() {
-  await telemetryAdminController.openConfigHistoryRollback();
 }
 
 function getCurrentUserRole() {
@@ -748,18 +704,6 @@ async function runHistorySearch({ resetPage = false } = {}) {
 
 function savePreferredModel(model) {
   preferencesController.savePreferredModel(model);
-}
-
-function closeOnboardingModal() {
-  onboardingController.closeModal();
-}
-
-function openOnboardingModal() {
-  onboardingController.openModal();
-}
-
-async function runOnboardingChecks() {
-  await onboardingController.runChecks();
 }
 
 function smoothScrollToBottom() {
@@ -881,10 +825,6 @@ async function exportFullBackup() {
 
 async function restoreFullBackup() {
   await backupController.restoreFullBackup();
-}
-
-function openVoiceHistoryModalWithRender() {
-  voiceController.openHistoryModalWithRender();
 }
 
 function updateSendButtonState() {
