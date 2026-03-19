@@ -1,5 +1,6 @@
 import { buildHealthRoutesDeps } from "./route-deps-health.js";
 import { buildChatRoutesDeps } from "./route-deps-chat.js";
+import { buildRagRoutesDeps } from "./route-deps-rag.js";
 import { buildUserRoutesDeps } from "./route-deps-user.js";
 
 export function buildRegisterAppRoutesDeps(ctx) {
@@ -22,16 +23,7 @@ export function buildRegisterAppRoutesDeps(ctx) {
     registerObservabilityRoutes: ctx.registerObservabilityRoutes,
     healthRoutes: buildHealthRoutesDeps(ctx),
     chatRoutes: buildChatRoutesDeps(ctx),
-    ragRoutes: {
-      asyncHandler: ctx.asyncHandler,
-      assertBodyObject: ctx.assertBodyObject,
-      parseChatId: ctx.parseChatId,
-      parseRagDocuments: ctx.parseRagDocuments,
-      parseSearchQuery: ctx.parseSearchQuery,
-      recordBlockedAttempt: ctx.recordBlockedAttempt,
-      clamp: ctx.clamp,
-      store: ctx.store,
-    },
+    ragRoutes: buildRagRoutesDeps(ctx),
     userRoutes: buildUserRoutesDeps(ctx),
     chatsRoutes: {
       asyncHandler: ctx.asyncHandler,
