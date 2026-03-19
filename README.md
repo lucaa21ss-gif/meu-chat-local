@@ -109,7 +109,7 @@ Visao resumida dos diretorios e arquivos principais (nao exaustiva):
 
 Mapa rapido do backend modular:
 
-- `server/src/http/`: bootstrap HTTP, middlewares, composicao do app e wiring de rotas/services/governanca/guards
+- `server/src/http/`: bootstrap HTTP, middlewares, composicao do app e wiring de create/context/rotas/services/governanca/guards
 - `server/src/infra/`: adaptadores locais de banco, backup, filesystem, logging, Ollama, fila e telemetria
 - `server/src/modules/approvals/`: fluxo de approvals operacionais
 - `server/src/modules/audit/`: exportacao e consulta de trilhas de auditoria
@@ -129,7 +129,9 @@ Arquivos-chave para comecar rapido:
 
 - `server/index.js`: ponto de entrada da API (bootstrap/main)
 - `server/src/http/app-create.js`: composicao principal da aplicacao Express
+- `server/src/http/app-create-wiring.js`: agrupamento nomeado de dependencias do bootstrap e locals da aplicacao
 - `server/src/http/app-context.js`: montagem de contexto, servicos e dependencias de rota
+- `server/src/http/app-context-wiring.js`: agrupamento nomeado do valor agregado retornado pelo contexto
 - `server/src/http/app-route-registrars.js`: mapa centralizado dos registradores de rota
 - `server/src/http/app-route-wiring.js`: agrupamento nomeado de dependencias para registro de rotas
 - `server/src/http/app-service-wiring.js`: agrupamento nomeado de dependencias para montagem dos services
