@@ -27,6 +27,12 @@ export function createStorageController({
     storageAlertTextEl.textContent = `Saudavel: ${usagePercent}% do limite utilizado.`;
   }
 
+  function promptAndParseInt(message, defaultValue = "0") {
+    const raw = window.prompt(message, defaultValue);
+    if (raw === null) return null;
+    return Number.parseInt(raw, 10);
+  }
+
   async function loadUsage() {
     if (!state.userId) return;
     try {
@@ -52,27 +58,22 @@ export function createStorageController({
   }
 
   async function runCleanup() {
-    const olderThanDaysRaw = window.prompt(
-      "Remover arquivos mais antigos que quantos dias?",
-      "30",
-    );
-    if (olderThanDaysRaw === null) return;
+    const olderThanDays = promptAndParseInt("Remover arquivos mais antigos que quantos dias?", "30");
+    if (olderThanDays === null) return;
 
-    const maxDeleteMbRaw = window.prompt(
-      "Limite maximo de limpeza (MB):",
-      "500",
-    );
-    if (maxDeleteMbRaw === null) return;
+    const maxDeleteMb = promptAndParseInt("Limite maximo de limpeza (MB):", "500");
+    if (maxDeleteMb === null) return;
+
+    const cleanupPayload = {
+      target: "all",
+      olderThanDays,
+      maxDeleteMb,
+    };
 
     const dryRun = await fetchJson("/api/storage/cleanup", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        mode: "dry-run",
-        target: "all",
-        olderThanDays: Number.parseInt(olderThanDaysRaw, 10),
-        maxDeleteMb: Number.parseInt(maxDeleteMbRaw, 10),
-      }),
+      body: JSON.stringify({ mode: "dry-run", ...cleanupPayload }),
     });
 
     const summary = dryRun?.cleanup || {};
@@ -84,12 +85,7 @@ export function createStorageController({
     await fetchJson("/api/storage/cleanup", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        mode: "execute",
-        target: "all",
-        olderThanDays: Number.parseInt(olderThanDaysRaw, 10),
-        maxDeleteMb: Number.parseInt(maxDeleteMbRaw, 10),
-      }),
+      body: JSON.stringify({ mode: "execute", ...cleanupPayload }),
     });
 
     await loadUsage();
@@ -102,13 +98,13 @@ export function createStorageController({
   async function updateLimitForCurrentUser() {
     if (!state.userId) return;
     const current = Number.parseInt(state.storage.storageLimitMb, 10) || 512;
-    const raw = window.prompt("Novo limite de armazenamento (MB):", String(current));
-    if (raw === null) return;
+    const limit = promptAndParseInt("Novo limite de armazenamento (MB):", String(current));
+    if (limit === null) return;
 
     await fetchJson(`/api/users/${encodeURIComponent(state.userId)}/storage-limit`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ storageLimitMb: Number.parseInt(raw, 10) }),
+      body: JSON.stringify({ storageLimitMb: limit }),
     });
 
     await onLoadUsers();
