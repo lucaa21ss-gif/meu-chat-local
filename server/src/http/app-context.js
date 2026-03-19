@@ -2,7 +2,7 @@ import { createAppRuntimeConfig } from "./app-runtime-config.js";
 import { createAppServices } from "./app-services.js";
 import { createGovernanceRuntime } from "./app-governance-runtime.js";
 import { createAppGuardsAndAudit } from "./app-guards-and-audit.js";
-import { buildRegisterAppRoutesDeps } from "./app-route-deps.js";
+import { createRouteDepsForApp } from "./app-route-wiring.js";
 import { APP_ROUTE_REGISTRARS } from "./app-route-registrars.js";
 import {
   isEnabled as isTelemetryEnabled,
@@ -92,40 +92,48 @@ export function createAppContext({
     parseOperationalApprovalId: sharedParsers.parseOperationalApprovalId,
   });
 
-  const routeDeps = buildRegisterAppRoutesDeps({
-    webDir: runtimeConfig.webDir,
-    logger,
-    HttpError,
-    asyncHandler,
-    HEALTH_STATUS,
-    CONFIG_KEYS,
-    INCIDENT_RUNBOOK_TYPES,
-    store,
-    chatClient,
-    ...routeRegistrars,
-    requireMinimumRole: guardsAndAudit.requireMinimumRole,
-    requireAdminOrSelf: guardsAndAudit.requireAdminOrSelf,
-    resolveActor: guardsAndAudit.resolveActor,
-    recordBlockedAttempt: guardsAndAudit.recordBlockedAttempt,
-    requireOperationalApproval: guardsAndAudit.requireOperationalApproval,
-    getTelemetryStats,
-    isTelemetryEnabled,
-    setTelemetryEnabled,
-    resetTelemetryStats,
-    roleLimiter: governanceRuntime.roleLimiter,
-    ollamaFallbackModel: runtimeConfig.ollamaFallbackModel,
-    ollamaMaxAttempts: runtimeConfig.ollamaMaxAttempts,
-    ollamaTimeoutMs: runtimeConfig.ollamaTimeoutMs,
-    ollamaRetryDelays: runtimeConfig.ollamaRetryDelays,
-    ...services,
-    collectIncidentRunbookSignals: governanceRuntime.collectIncidentRunbookSignals,
-    readCurrentConfigValue: guardsAndAudit.readCurrentConfigValue,
-    applyConfigValue: guardsAndAudit.applyConfigValue,
-    ...sharedParsers,
-    recordAudit: guardsAndAudit.recordAudit,
-    recordConfigVersion: guardsAndAudit.recordConfigVersion,
-    ...healthBuilders,
-    executeWithModelRecovery,
+  const routeDeps = createRouteDepsForApp({
+    core: {
+      webDir: runtimeConfig.webDir,
+      logger,
+      HttpError,
+      asyncHandler,
+      HEALTH_STATUS,
+      CONFIG_KEYS,
+      INCIDENT_RUNBOOK_TYPES,
+      store,
+      chatClient,
+    },
+    registrars: routeRegistrars,
+    guards: {
+      requireMinimumRole: guardsAndAudit.requireMinimumRole,
+      requireAdminOrSelf: guardsAndAudit.requireAdminOrSelf,
+      resolveActor: guardsAndAudit.resolveActor,
+      recordBlockedAttempt: guardsAndAudit.recordBlockedAttempt,
+      requireOperationalApproval: guardsAndAudit.requireOperationalApproval,
+      readCurrentConfigValue: guardsAndAudit.readCurrentConfigValue,
+      applyConfigValue: guardsAndAudit.applyConfigValue,
+      recordAudit: guardsAndAudit.recordAudit,
+      recordConfigVersion: guardsAndAudit.recordConfigVersion,
+    },
+    runtime: {
+      roleLimiter: governanceRuntime.roleLimiter,
+      ollamaFallbackModel: runtimeConfig.ollamaFallbackModel,
+      ollamaMaxAttempts: runtimeConfig.ollamaMaxAttempts,
+      ollamaTimeoutMs: runtimeConfig.ollamaTimeoutMs,
+      ollamaRetryDelays: runtimeConfig.ollamaRetryDelays,
+    },
+    services,
+    parsers: sharedParsers,
+    features: {
+      getTelemetryStats,
+      isTelemetryEnabled,
+      setTelemetryEnabled,
+      resetTelemetryStats,
+      collectIncidentRunbookSignals: governanceRuntime.collectIncidentRunbookSignals,
+      ...healthBuilders,
+      executeWithModelRecovery,
+    },
   });
 
   return {
