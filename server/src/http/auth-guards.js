@@ -6,20 +6,28 @@ export function createAuthGuards({
     asyncHandler,
     HttpError,
 }) {
-    async function resolveActor(req) {
-        if (req.actor) return req.actor;
+    const PROFILE_NOT_FOUND_MESSAGE = "Perfil de acesso nao encontrado";
+    const INSUFFICIENT_PERMISSION_MESSAGE = "Permissao insuficiente para esta acao";
 
+    function resolveActorId(req) {
         const headerUserId = req.get("x-user-id");
         const bodyUserId =
             req.body && typeof req.body === "object" ? req.body.userId : undefined;
         const queryUserId = req.query?.userId;
-        const actorId = parseUserId(
+
+        return parseUserId(
             headerUserId || queryUserId || bodyUserId || "user-default",
         );
+    }
+
+    async function resolveActor(req) {
+        if (req.actor) return req.actor;
+
+        const actorId = resolveActorId(req);
         const actorUser = await store.getUserById(actorId);
 
         if (!actorUser) {
-            throw new HttpError(401, "Perfil de acesso nao encontrado");
+            throw new HttpError(401, PROFILE_NOT_FOUND_MESSAGE);
         }
 
         req.actor = {
@@ -34,7 +42,7 @@ export function createAuthGuards({
         return asyncHandler(async (req, _res, next) => {
             const actor = await resolveActor(req);
             if (!hasRequiredRole(actor.role, minimumRole)) {
-                throw new HttpError(403, "Permissao insuficiente para esta acao");
+                throw new HttpError(403, INSUFFICIENT_PERMISSION_MESSAGE);
             }
             next();
         });
@@ -48,7 +56,7 @@ export function createAuthGuards({
                 next();
                 return;
             }
-            throw new HttpError(403, "Permissao insuficiente para esta acao");
+            throw new HttpError(403, INSUFFICIENT_PERMISSION_MESSAGE);
         });
     }
 
