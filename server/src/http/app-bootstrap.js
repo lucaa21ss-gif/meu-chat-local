@@ -85,8 +85,10 @@ export function configureAppBootstrap(app, {
     }),
   );
   app.use("/api", roleLimiter.createMiddleware("api"));
-  app.use("/api/chat", roleLimiter.createMiddleware("chat"));
-  app.use("/api/chat-stream", roleLimiter.createMiddleware("chat"));
+
+  ["/api/chat", "/api/chat-stream"].forEach((routePath) => {
+    app.use(routePath, roleLimiter.createMiddleware("chat"));
+  });
 }
 
 export function attachAppLocals(app, locals = {}) {
