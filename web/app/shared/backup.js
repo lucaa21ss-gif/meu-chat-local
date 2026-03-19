@@ -33,6 +33,13 @@ function downloadBlob(blob, fileName) {
   }
 }
 
+function getAndValidatePassphrase(message, showStatus) {
+  const passphrase = promptBackupPassphrase(message);
+  if (passphrase === null) return null;
+  if (!validatePassphrase(passphrase, showStatus)) return null;
+  return passphrase;
+}
+
 export function createBackupController({
   apiBase,
   backupRestoreInputEl,
@@ -44,12 +51,11 @@ export function createBackupController({
   onLoadRagDocuments,
 }) {
   async function exportFullBackup() {
-    const passphrase = promptBackupPassphrase(
+    const passphrase = getAndValidatePassphrase(
       "Passphrase opcional para proteger o backup (minimo 8 caracteres). Deixe vazio para gerar backup legado sem criptografia:",
+      showStatus,
     );
-
     if (passphrase === null) return;
-    if (!validatePassphrase(passphrase, showStatus)) return;
 
     try {
       const headers = {};
@@ -115,11 +121,11 @@ export function createBackupController({
       const file = await pickBackupFile();
       if (!file) return;
 
-      const passphrase = promptBackupPassphrase(
+      const passphrase = getAndValidatePassphrase(
         "Se o backup estiver criptografado, informe a passphrase. Para backup legado, deixe vazio:",
+        showStatus,
       );
       if (passphrase === null) return;
-      if (!validatePassphrase(passphrase, showStatus)) return;
 
       const archiveBase64 = await readFileAsBase64(file, {
         readErrorMessage: "Falha ao ler arquivo",
