@@ -1,0 +1,27 @@
+export function buildHealthRoutesDeps(ctx) {
+  return {
+    asyncHandler: ctx.asyncHandler,
+    requireMinimumRole: ctx.requireMinimumRole,
+    assertBodyObject: ctx.assertBodyObject,
+    parseBooleanLike: ctx.parseBooleanLike,
+    resolveActor: ctx.resolveActor,
+    recordAudit: ctx.recordAudit,
+    recordConfigVersion: ctx.recordConfigVersion,
+    buildOverallHealthStatus: ctx.buildOverallHealthStatus,
+    buildSloSnapshot: ctx.buildSloSnapshot,
+    getTelemetryStats: ctx.getTelemetryStats,
+    isTelemetryEnabled: ctx.isTelemetryEnabled,
+    setTelemetryEnabled: ctx.setTelemetryEnabled,
+    resetTelemetryStats: ctx.resetTelemetryStats,
+    HEALTH_STATUS: ctx.HEALTH_STATUS,
+    healthProviders: ctx.healthProviders,
+    integrityService: ctx.integrityService,
+    autoHealingService: ctx.autoHealingService,
+    capacityService: ctx.capacityService,
+    queueService: ctx.queueService,
+    baselineService: ctx.baselineService,
+    roleLimiter: ctx.roleLimiter,
+    CONFIG_KEYS: ctx.CONFIG_KEYS,
+    store: ctx.store,
+  };
+}
