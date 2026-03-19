@@ -59,121 +59,188 @@ Garantias estabelecidas para compatibilidade cross-platform:
 | **Permissões de script** | Scripts em `scripts/` marcados executable (+x) em Git; WSL/GitHub Actions herdam | CI pre-job: `chmod +x scripts/*.sh` antes de execução |
 | **Dependências Node** | `package-lock.json` versionado; Node 20+ obrigatório em todas as camadas | `npm ci` em CI/CD; `engines` em `package.json` documenta requerimento |
 
-#### Arvore Hierárquica (Nível 1-2)
+#### Árvore Hierárquica (Estrutura Real — Nível 1-3)
 
 ```text
-.
-├── Raiz (Configuração global)
-│   ├── package.json                            # Metadados do projeto + scripts npm
-│   ├── package-lock.json                       # Lock de dependências (versionado)
-│   ├── docker-compose.yml                      # Orquestração de containers
-│   ├── eslint.config.mjs                       # Validação de código (Node.js 20+)
-│   ├── CHANGELOG.md                            # Registro de mudanças (semver)
-│   └── .git*                                   # Git control + attributes para LF/normalização
+.                                              # Raiz (Configuração Global)
+├── package.json / package-lock.json           # Metadados + scripts npm root
+├── docker-compose.yml                         # Orquestração de containers (Ollama + Backend)
+├── eslint.config.mjs                          # Linting centralizado (Node.js 20+)
+├── CHANGELOG.md                               # Histórico de mudanças (semver)
+├── .git* / .gitignore                         # Git control + normalização de line ending
+├── .prettierignore                            # Formatting exclusions
+├── .release-please-config.json                # Schema de versionamento automático
+├── .release-please-manifest.json              # Estado de versão por package
+├── .dockerignore                              # Exclusões de build Docker
 │
-├── .github/
-│   └── workflows/                              # CI/CD pipelines (GitHub Actions)
-│       ├── ci.yml                              # Test + lint + build validation
-│       └── release-please.yml                  # Automação de release semver
+├── .github/                                   # Infraestrutura de CI/CD
+│   └── workflows/
+│       ├── ci.yml                             # Pipeline: test → lint → build → docker
+│       └── release-please.yml                 # Automação de release (semver)
 │
 ├── docs/
-│   └── plano-rearquitetura-modular.md          # Evolução arquitetural do backend
+│   └── plano-rearquitetura-modular.md         # Evolução arquitetural do backend
 │
-├── scripts/                                    # Automação operacional (portável)
-│   ├── *.sh / *.mjs                            # Bash + Node.js para cross-platform
-│   ├── install.sh                              # Bootstrap em novo ambiente
-│   ├── start.sh / stop.sh                      # Orquestração de containers
-│   ├── package-dist.sh                         # Empacotamento para distribuição
-│   ├── release-canary.mjs                      # Gate de smoke-tests pré-release
-│   ├── capacity-profile.mjs                    # Perfil de carga operacional
-│   └── runbook-incident.sh / disaster-recovery-test.sh  # Fluxos de resiliência
+├── scripts/                                   # Automação operacional (cross-platform)
+│   ├── install.sh                             # Bootstrap em ambiente novo
+│   ├── start.sh / stop.sh                     # Orquestração de containers
+│   ├── uninstall.sh                           # Remoção limpa de containers + dados
+│   ├── package-dist.sh                        # Empacotamento + notarização
+│   ├── release-canary.mjs                     # Gate de smoke-tests pré-release
+│   ├── capacity-profile.mjs                   # Profiler operacional de carga
+│   ├── runbook-incident.sh                    # Playbook de resposta a incidentes
+│   └── disaster-recovery-test.sh              # Teste de recuperação de desastres
 │
-├── server/                                     # Backend Node.js (aplicação principal)
-│   ├── package.json / package-lock.json        # Dependências backend isoladas
-│   ├── Dockerfile                              # Build reproducível para container
-│   ├── index.js                                # Entrypoint de servidor HTTP
-│   ├── *.test.js                               # Testes de integração backend
-│   │   ├── index.test.js                       # Suite principal (108 testes)
-│   │   ├── backup.test.js                      # Testes de backup/restore
-│   │   ├── chaos.test.js                       # Falhas simuladas/resiliência
-│   │   ├── db.migrations.test.js               # Migrações de schema
-│   │   ├── integrity.test.js                   # Validação de integridade
-│   │   └── storage.test.js                     # Testes de filesystem
+├── server/                                    # Backend Node.js + Persistência
+│   ├── package.json / package-lock.json       # Dependências backend isoladas
+│   ├── Dockerfile                             # Build reproducível para container
+│   ├── index.js                               # Entrypoint: inicializa Express + Ollama
+│   ├── chat.db*                               # SQLite database + WAL/SHM (runtime)
+│   ├── artifacts/                             # Runtime outputs (backups, diagnostics, capacity)
+│   ├── index.test.js                          # Suite principal (108 testes integração)
+│   ├── backup.test.js                         # Testes de backup/restore + validação
+│   ├── chaos.test.js                          # Testes de resiliência + falhas simuladas
+│   ├── db.migrations.test.js                  # Testes de schema + migrações
+│   ├── integrity.test.js                      # Testes de integridade de arquivo
+│   ├── storage.test.js                        # Testes de operações de filesystem
 │   │
-│   └── src/                                    # Código fonte organizado por camada
+│   └── src/                                   # Código organizado por camada
 │       │
-│       ├── http/                               # Camada HTTP (bootstrap/middlewares/rotas)
-│       │   ├── app-*.js                        # Arquivos de composição (app-create, app-context, etc.)
-│       │   ├── app-*-wiring.js                 # Helpers de agregação de dependências
-│       │   ├── app-route-registrars.js         # Mapa centralizado de registradores
-│       │   └── (detalhado abaixo)
+│       ├── http/                              # Bootstrapping + Composição da Aplicação
+│       │   ├── app-create.js                  # Composição principal: Express + middlewares
+│       │   ├── app-create-wiring.js           # Helpers: contextDeps, bootstrapDeps, appLocalsDeps
+│       │   ├── app-context.js                 # Orquestração: monta contexto + dependências
+│       │   ├── app-context-wiring.js          # Helper: agregação do valor de contexto
+│       │   ├── app-route-registrars.js        # Mapa centralizado de registradores de rota
+│       │   ├── app-route-wiring.js            # Helper: dependências para registro de rotas
+│       │   ├── app-route-deps.js              # Factory base para route deps helpers
+│       │   ├── app-services.js                # Composição: DB, backup, fs, Ollama, fila
+│       │   ├── app-service-wiring.js          # Helper: dependências de service assembly
+│       │   ├── app-services-wiring.js         # Helper: paths derivadas + config derivadas
+│       │   ├── app-governance-runtime.js      # Inicialização: governança operacional
+│       │   ├── app-governance-wiring.js       # Helper: dependências de governança
+│       │   ├── app-guards-and-audit.js        # Inicialização: guards + auditoria
+│       │   ├── app-guards-wiring.js           # Helper: dependências de guards
+│       │   ├── app-incident-signals-runtime.js # Inicialização: sinais de incidente
+│       │   ├── app-bootstrap.js               # Sequência de bootstrap
+│       │   ├── app-startup.js                 # Orquestração: agendamento + listen HTTP
+│       │   ├── app-startup-wiring.js          # Helper: agregação de args de startup
+│       │   ├── app-server-listen.js           # Inicialização: HTTP server listener
+│       │   ├── app-backup-scheduler.js        # Inicialização: agendador de backup
+│       │   ├── app-main-module.js             # Modo "main" para automação/testes
+│       │   ├── app-runtime-config.js          # Leitura de config em runtime
+│       │   ├── app-paths.js                   # Normalização de caminhos
+│       │   ├── app-store.js                   # Aggregator de estado global
+│       │   ├── app-role-limiter.js            # Factory de rate-limiters por role
+│       │   ├── register-app-routes.js         # Registrador central de rotas
+│       │   ├── route-deps-factory.js          # Factory base de deps para rotas
+│       │   ├── route-deps-chat.js             # Deps: /api/chat, /api/chat-stream
+│       │   ├── route-deps-chats.js            # Deps: /api/chats (CRUD, search, export)
+│       │   ├── route-deps-rag.js              # Deps: /api/rag (document indexing)
+│       │   ├── route-deps-user.js             # Deps: /api/users (perfis + preferências)
+│       │   ├── route-deps-backup.js           # Deps: /api/backup (export, restore, validate)
+│       │   ├── route-deps-storage.js          # Deps: /api/storage (usage, cleanup)
+│       │   ├── route-deps-health.js           # Deps: /api/health, /healthz, /readyz
+│       │   ├── route-deps-observability.js    # Deps: /api/diagnostics, /api/telemetry
+│       │   ├── route-deps-config.js           # Deps: /api/config (baseline, rollback)
+│       │   ├── route-deps-audit.js            # Deps: /api/audit (export, consulta)
+│       │   ├── route-deps-approval.js         # Deps: /api/approvals (solicitações)
+│       │   ├── route-deps-incident.js         # Deps: /api/incident (status, runbook)
+│       │   ├── route-deps-resilience.js       # Deps: /api/auto-healing, /api/disaster-recovery
+│       │   ├── async-handler.js               # Wrapper para async route handlers
+│       │   ├── auth-guards.js                 # Middlewares: autentication / x-user-id
+│       │   ├── operational-guards.js          # Middlewares: RBAC, rate-limiting, telemetry
+│       │   ├── audit-helpers.js               # Utilitários: logging de auditoria
+│       │   └── (45 arquivos de composição)
 │       │
-│       ├── modules/                            # Domínios de negócio (modular)
-│       │   ├── chat/                           # Routes + lógica de chat/RAG
-│       │   ├── users/                          # Perfis + preferências
-│       │   ├── backup/                         # Export/restore + validação
-│       │   ├── health/                         # Health checks + SLO
-│       │   ├── audit/                          # Trilhas de auditoria
-│       │   ├── config-governance/              # Baseline + rollback
-│       │   ├── capacity/                       # Perfil + scorecard
-│       │   ├── incident/                       # Estado de incidente
-│       │   ├── resilience/                     # Auto-healing + DR
-│       │   ├── approvals/                      # Fluxo de aprovações
-│       │   ├── observability/                  # Diagnostico expandido
-│       │   └── storage/                        # Limpeza + quotas
+│       ├── modules/                           # Domínios de Negócio (Bus. Logic)
+│       │   ├── chat/                          # Rotas: POST /api/chat, /api/chat-stream
+│       │   ├── users/                         # Rotas: /api/users (CRUD perfis)
+│       │   ├── backup/                        # Lógica: export, restore, validate, cleanup
+│       │   ├── health/                        # Lógica: checks, SLO, aggregators
+│       │   ├── audit/                         # Lógica: export, query, event streaming
+│       │   ├── config-governance/             # Lógica: baseline, drift, rollback
+│       │   ├── capacity/                      # Lógica: profiling, scorecard, queue
+│       │   ├── incident/                      # Lógica: estado, sinais, runbooks
+│       │   ├── resilience/                    # Lógica: auto-healing, DR, integridade
+│       │   ├── approvals/                     # Lógica: fluxo de aprovações operacionais
+│       │   ├── observability/                 # Lógica: diagnostics, telemetry, SLO
+│       │   ├── storage/                       # Lógica: quotas, cleanup, reporting
+│       │   └── governance/                    # Policies: RBAC, rate-limiting, baseline
 │       │
-│       ├── infra/                              # Adaptadores de infraestrutura
-│       │   ├── db/                             # SQLite persistência
-│       │   ├── backup/                         # Algoritmos de backup/restore
-│       │   ├── fs/                             # Operações de filesystem
-│       │   ├── ollama/                         # Integracao com Ollama
-│       │   ├── queue/                          # Fila + rate-limiting
-│       │   └── telemetry/                      # Métricas + observabilidade
+│       ├── infra/                             # Camada de Infraestrutura (Adaptadores)
+│       │   ├── db/                            # SQLite: schema, queries, migrations
+│       │   ├── backup/                        # Backup: compress, encrypt, validate
+│       │   ├── fs/                            # Filesystem: storage, cleanup, quotas
+│       │   ├── logging/                       # Logging: formatação, níveis, export
+│       │   ├── ollama/                        # Ollama: client, streaming, health
+│       │   ├── queue/                         # Fila: concurrency control, rate-limiting
+│       │   └── telemetry/                     # Telemetry: metrics, middleware, export
 │       │
-│       └── shared/                             # Utilitários (constantes/parsers/erros)
-│           ├── constants/                      # Constantes globais
-│           ├── parsers/                        # Validação + parsing
-│           ├── error-handlers/                 # Tratamento de erros
-│           └── model-recovery/                 # Fallbacks de modelo
+│       └── shared/                            # Utilitários Transversais
+│           ├── app-constants.js               # Constantes globais
+│           ├── parsers.js                     # Validação, parsing, conversão
+│           ├── model-recovery.js              # Fallbacks e recuperação de modelo
+│           └── errors/                        # Tipos de erros customizados
 │
-├── web/                                        # Frontend (aplicação web)
-│   ├── package.json / package-lock.json        # Dependências frontend isoladas
-│   ├── index.html / produto.html / guia.html   # Páginas estáticas
-│   ├── script.js                               # Lógica cliente (chat/streaming/health)
-│   ├── styles.css / style.css / output.css     # Estilos (Tailwind compilado)
-│   ├── health-indicators.js                    # Componentes de status
-│   ├── health-indicators.test.cjs              # Testes de saúde
-│   ├── tailwind.config.js                      # Configuração Tailwind CSS
-│   └── assets/                                 # Recursos estáticos (fonts/icons)
+├── web/                                       # Frontend (Aplicação Web Estática)
+│   ├── package.json / package-lock.json       # Dependências frontend isoladas
+│   ├── index.html / produto.html / guia.html  # Páginas estáticas (entrypoints)
+│   ├── script.js                              # Orquestrador principal do frontend
+│   ├── health-indicators.js                   # Componentes de renderização de saúde
+│   ├── health-indicators.test.cjs             # Testes de componentes de saúde
+│   ├── styles.css / style.css / output.css    # Estilos (Tailwind compilado)
+│   ├── tailwind.config.js                     # Configuração Tailwind CSS
+│   ├── assets/                                # Recursos estáticos (se houver)
+│   │
+│   └── app/                                   # Lógica da Aplicação (Cliente)
+│       └── shared/                            # Módulos compartilhados do frontend
+│           ├── api.js                         # Cliente HTTP: fetch helpers + interceptors
+│           ├── app-bindings.js                # Event bindings: botões, atalhos, modais
+│           ├── app-runtime.js                 # Estado global + lifecycle do app
+│           ├── button-binding.js              # Handlers de botões reutilizáveis
+│           ├── chat-actions.js                # Ações de chat: send, reset, export
+│           ├── chat-export.js                 # Export: markdown, JSON, lote
+│           ├── chat-filters.js                # Filtros: role, date range, search type
+│           ├── chat-list.js                   # Renderização: lista de abas
+│           ├── chat-navigation.js             # Navegação: aba ativa, histórico
+│           ├── chat-render.js                 # Renderização: mensagens, streaming
+│           ├── chat-send.js                   # Pipeline: validação, send, retry
+│           ├── chat-utils.js                  # Utilitários: parsing, formatting
+│           ├── fetch-helpers.js               # HTTP: requests, error handling, retry
+│           ├── files.js                       # File I/O: download, upload, validation
+│           ├── format.js                      # Formatting: texto, markdown, timestamps
+│           ├── health-status.js               # Polling: health status + indicadores
+│           ├── history-search.js              # UI: search modal, filtros, paginação
+│           ├── modal.js                       # Componentes: modal base + variações
+│           ├── onboarding.js                  # UI: onboarding flow + progress
+│           ├── preferences.js                 # Armazenamento: user preferences (localStorage)
+│           ├── profiles.js                    # UI: gerenciador de perfis
+│           ├── rag.js                         # RAG: document indexing, search, render
+│           ├── rbac.js                        # RBAC: role-based visibility + permissions
+│           ├── shortcuts.js                   # Atalhos: keyboard bindings + modal
+│           ├── status.js                      # UI: status bar + indicadores
+│           ├── storage.js                     # Quota: display, cleanup simulation
+│           ├── telemetry-admin.js             # Admin: telemetry status + toggles
+│           ├── theme-local.js                 # Theme: persistência em localStorage
+│           ├── theme.js                       # Theme: switching, defaults, media query
+│           └── voice.js                       # Voice: recording, transcription, playback
 │
 ├── ollama/
-│   └── Modelfile                               # Definição de modelo base Ollama
+│   └── Modelfile                              # Definição de modelo base Ollama (runtime)
 │
-└── dist/                                       # Saída de build/empacotamento
-    └── meu-chat-local-<version>.tar.gz         # Pacote de distribuição com SBOM+checksums
+└── dist/                                      # Saída de Build/Empacotamento
+    └── meu-chat-local-<version>.tar.gz        # Pacote de distribuição (notarizado)
 ```
 
-#### Detalhamento da Camada HTTP (`server/src/http/`)
+**Glossário de Abreviações na Árvore:**
+- `app-*`: Arquivos de composição/inicialização da aplicação Express
+- `app-*-wiring.js`: Helpers para agregação de dependências (padrão Dependency Injection)
+- `route-deps-*.js`: Factory de dependências para rotas específicas de domínio
+- `.test.js`: Testes de integração backend (Node.js test runner)
+- `.test.cjs`: Testes de frontend (CommonJS format para compatibilidade)
 
-Conjunto completo de arquivos de bootstrap e composição da aplicação Express:
 
-```text
-server/src/http/
-├── app-create.js                   # Composição principal: Express app + middlewares
-├── app-create-wiring.js            # Helpers: context deps, bootstrap deps, app locals
-├── app-context.js                  # Montagem de contexto + dependências de rota
-├── app-context-wiring.js           # Helper: agregação de contexto retornado
-├── app-route-registrars.js         # Mapa centralizado de registradores de rota
-├── app-route-wiring.js             # Helper: dependências de registro de rota
-├── app-service-wiring.js           # Helper: dependências de montagem de services
-├── app-services.js                 # Composição: BD, backup, filesystem, Ollama, etc.
-├── app-services-wiring.js          # Helper: paths derivadas + configurações
-├── app-governance-wiring.js        # Helper: dependências de governança
-├── app-guards-wiring.js            # Helper: dependências de guards + auditoria
-├── app-startup.js                  # Orquestração: agendamento + listen HTTP
-├── app-startup-wiring.js           # Helper: agregação de argumentos startup
-└── app-main-module.js              # Modo "main" para testes/automação
-```
 
 #### Arquivos Críticos (Runtime vs. Versionados)
 
@@ -195,49 +262,96 @@ Arquivos de dot (.) relevantes na raiz:
 - `.release-please-manifest.json` — Rastreamento de versão por package
 - `.dockerignore` — Exclusões de build Docker
 
-### Mapa Modular do Backend
+### Mapa de Dependências: Fluxo de Inicialização
 
-- `server/src/http/`: bootstrap HTTP, middlewares, composicao do app e wiring de create/context/rotas/services/governanca/guards
-- `server/src/infra/`: adaptadores locais de banco, backup, filesystem, logging, Ollama, fila e telemetria
-- `server/src/modules/approvals/`: fluxo de approvals operacionais
-- `server/src/modules/audit/`: exportacao e consulta de trilhas de auditoria
-- `server/src/modules/backup/`: exportacao, restauracao e validacao de backups
-- `server/src/modules/capacity/`: perfil de capacidade, fila local e scorecard operacional
-- `server/src/modules/chat/`: rotas de chat, chats e RAG
-- `server/src/modules/config-governance/`: baseline, rollback e rotas de configuracao
-- `server/src/modules/health/`: health checks e agregadores de saude/SLO
-- `server/src/modules/incident/`: status de incidentes e sinais para runbooks
-- `server/src/modules/observability/`: rotas de diagnostico, health expandido e observabilidade
-- `server/src/modules/resilience/`: auto-healing, disaster recovery e integridade
-- `server/src/modules/storage/`: uso e limpeza de armazenamento local
-- `server/src/modules/users/`: rotas de usuarios, perfis e preferencias
-- `server/src/shared/`: constantes, parsers, tratamento de erro e model-recovery
+**Sequência de Bootstrap (ordem importante):**
 
-Arquivos-chave para comecar rapido:
+1. **Entrypoint:** `server/index.js` → modo main ou aplicação HTTP
+2. **App Create:** `app-create.js` → Express application + middlewares globais
+3. **App Context:** `app-context.js` → composição de todos os contextos, serviços e dependências
+   - Chama `app-services.js` → SQLite, Backup, Filesystem, Ollama, Queue, Telemetry
+   - Chama `app-governance-runtime.js` → políticas de RBAC, baseline, config
+   - Chama `app-guards-and-audit.js` → authentication, rate-limiting, auditoria
+4. **App Bootstrap:** `app-bootstrap.js` → registra rotas e middlewares
+5. **App Startup:** `app-startup.js` → agenda backups, inicia servidor HTTP
+6. **App Listen:** `app-server-listen.js` → listen na porta
 
-- `server/index.js`: ponto de entrada da API (bootstrap/main)
-- `server/src/http/app-create.js`: composicao principal da aplicacao Express
-- `server/src/http/app-create-wiring.js`: agrupamento nomeado de dependencias do bootstrap e locals da aplicacao
-- `server/src/http/app-context.js`: montagem de contexto, servicos e dependencias de rota
-- `server/src/http/app-context-wiring.js`: agrupamento nomeado do valor agregado retornado pelo contexto
-- `server/src/http/app-route-registrars.js`: mapa centralizado dos registradores de rota
-- `server/src/http/app-route-wiring.js`: agrupamento nomeado de dependencias para registro de rotas
-- `server/src/http/app-service-wiring.js`: agrupamento nomeado de dependencias para montagem dos services
-- `server/src/http/app-services-wiring.js`: agrupamento de paths e configuracoes derivadas para a camada de services
-- `server/src/http/app-governance-wiring.js`: agrupamento nomeado de dependencias da camada de governanca
-- `server/src/http/app-guards-wiring.js`: agrupamento nomeado de dependencias de guards e auditoria
-- `server/src/http/app-startup-wiring.js`: agrupamento nomeado dos argumentos de agendamento e subida do servidor
-- `server/src/infra/db/db.js`: persistencia SQLite, historico de chats e configuracoes
-- `server/src/infra/backup/backup-archive.js`: exportacao/restauracao e validacao de backups
-- `server/src/infra/fs/storage-service.js`: uso e limpeza de armazenamento local
-- `server/src/infra/ollama/ollama-client.js`: integracao local com Ollama
-- `server/src/infra/queue/rate-limiter.js`: fila local e rate limiting por papel
-- `server/src/infra/telemetry/telemetry.js`: metricas por endpoint e middleware de telemetria
-- `server/src/modules/`: modulos de dominio (chat, approvals, backup, capacity, config-governance, incident, observability, resilience, storage, health e users)
-- `web/index.html`: estrutura da UI
-- `web/script.js`: logica de chat, streaming, filtros, health e acoes operacionais no cliente
-- `web/health-indicators.js`: utilitarios de renderizacao e polling de status de saude
-- `scripts/capacity-profile.mjs`: runner operacional de capacidade
+**Estrutura de Rotas (por domínio):**
+
+```
+POST   /api/chat                        → modules/chat/ (sem streaming)
+POST   /api/chat-stream                 → modules/chat/ (com streaming + fila)
+GET    /api/chats, POST, PATCH, DELETE  → modules/users/ (CRUD de abas)
+GET    /api/chats/:id/messages          → modules/chat/ (histórico)
+GET    /api/chats/:id/search            → modules/chat/ (busca full-text)
+GET    /api/chats/:id/export            → modules/backup/ (export chat)
+
+GET    /api/users, POST, PATCH          → modules/users/ (perfis + preferências)
+GET    /api/users/:id/ui-preferences    → modules/users/
+
+POST   /api/chats/:id/rag/documents     → modules/chat/ (RAG indexing)
+GET    /api/chats/:id/rag/search        → modules/chat/
+
+GET    /api/backup/export               → modules/backup/ (export completo)
+POST   /api/backup/restore              → modules/backup/
+GET    /api/backup/validate             → modules/backup/
+
+GET    /api/storage/usage               → modules/storage/
+POST   /api/storage/cleanup             → modules/storage/
+
+GET    /healthz, /readyz                → modules/health/ (liveness/readiness)
+GET    /api/health                      → modules/health/ (saúde expandida)
+GET    /api/slo                         → modules/health/ (rotas críticas)
+GET    /api/scorecard                   → modules/health/ (consolidated view)
+
+GET    /api/config/baseline             → modules/config-governance/
+POST   /api/config/baseline             → modules/config-governance/
+GET    /api/config/versions             → modules/config-governance/
+POST   /api/config/versions/:id/rollback → modules/config-governance/
+
+GET    /api/audit/export                → modules/audit/
+GET    /api/approvals, POST, PATCH       → modules/approvals/
+
+GET    /api/incident/status             → modules/incident/
+PATCH  /api/incident/status             → modules/incident/
+POST   /api/incident/runbook/execute    → modules/incident/
+
+GET    /api/auto-healing/status         → modules/resilience/
+PATCH  /api/auto-healing/status         → modules/resilience/
+POST   /api/auto-healing/execute        → modules/resilience/
+POST   /api/disaster-recovery/test      → modules/resilience/
+
+GET    /api/diagnostics/export          → modules/observability/
+GET    /api/telemetry                   → modules/observability/
+PATCH  /api/telemetry                   → modules/observability/
+GET    /api/capacity/latest             → modules/capacity/
+GET    /api/integrity/status            → modules/resilience/
+POST   /api/integrity/verify            → modules/resilience/
+```
+
+### Padrões Arquiteturais
+
+**Dependency Injection via Wiring Helpers:**
+- `app-*-wiring.js` agrupa dependências relacionadas para injeção
+- Exemplo: `createServiceDepsForApp({ core, runtime })` retorna `{ db, backup, fs, ... }`
+- Aplicado em: Create, Context, Services, Governance, Guards, Startup
+
+**Factory Pattern em Route Dependencies:**
+- `route-deps-factory.js` base com helpers comuns
+- `route-deps-*.js` especializados: chat, users, backup, health, config, etc.
+- Cada factory retorna middlewares + handlers específicos da rota
+
+**Async Middleware Wrapper:**
+- `async-handler.js` encapsula route handlers async
+- Captura erros e passa para middleware de erro central
+
+**Frontend MVC Simplificado:**
+- Model: `app-runtime.js` (estado global)
+- View: `script.js` (orquestrador) + `*-render.js` modules
+- Controller: `*-actions.js` + `chat-send.js` (eventos)
+- Persistência: `preferences.js`, `theme-local.js` (localStorage)
+
+
 
 ### Garantia de Portabilidade Cross-Platform
 
