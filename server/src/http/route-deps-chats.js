@@ -1,0 +1,28 @@
+export function buildChatsRoutesDeps(ctx) {
+  return {
+    asyncHandler: ctx.asyncHandler,
+    assertBodyObject: ctx.assertBodyObject,
+    parseChatId: ctx.parseChatId,
+    parseTitle: ctx.parseTitle,
+    parseUserId: ctx.parseUserId,
+    parseChatListFilters: ctx.parseChatListFilters,
+    parseBooleanLike: ctx.parseBooleanLike,
+    parseTags: ctx.parseTags,
+    parseSystemPrompt: ctx.parseSystemPrompt,
+    parseSearchQuery: ctx.parseSearchQuery,
+    parseSearchPage: ctx.parseSearchPage,
+    parseSearchLimit: ctx.parseSearchLimit,
+    parseSearchRole: ctx.parseSearchRole,
+    parseSearchDate: ctx.parseSearchDate,
+    parseChatImportPayload: ctx.parseChatImportPayload,
+    parseUserOnly: ctx.parseUserOnly,
+    recordBlockedAttempt: ctx.recordBlockedAttempt,
+    resolveActor: ctx.resolveActor,
+    recordAudit: ctx.recordAudit,
+    recordConfigVersion: ctx.recordConfigVersion,
+    requireMinimumRole: ctx.requireMinimumRole,
+    CONFIG_KEYS: ctx.CONFIG_KEYS,
+    store: ctx.store,
+    HttpError: ctx.HttpError,
+  };
+}

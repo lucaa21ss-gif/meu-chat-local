@@ -1,6 +1,7 @@
 import { buildHealthRoutesDeps } from "./route-deps-health.js";
 import { buildAuditRoutesDeps } from "./route-deps-audit.js";
 import { buildBackupRoutesDeps } from "./route-deps-backup.js";
+import { buildChatsRoutesDeps } from "./route-deps-chats.js";
 import { buildChatRoutesDeps } from "./route-deps-chat.js";
 import { buildRagRoutesDeps } from "./route-deps-rag.js";
 import { buildUserRoutesDeps } from "./route-deps-user.js";
@@ -27,32 +28,7 @@ export function buildRegisterAppRoutesDeps(ctx) {
     chatRoutes: buildChatRoutesDeps(ctx),
     ragRoutes: buildRagRoutesDeps(ctx),
     userRoutes: buildUserRoutesDeps(ctx),
-    chatsRoutes: {
-      asyncHandler: ctx.asyncHandler,
-      assertBodyObject: ctx.assertBodyObject,
-      parseChatId: ctx.parseChatId,
-      parseTitle: ctx.parseTitle,
-      parseUserId: ctx.parseUserId,
-      parseChatListFilters: ctx.parseChatListFilters,
-      parseBooleanLike: ctx.parseBooleanLike,
-      parseTags: ctx.parseTags,
-      parseSystemPrompt: ctx.parseSystemPrompt,
-      parseSearchQuery: ctx.parseSearchQuery,
-      parseSearchPage: ctx.parseSearchPage,
-      parseSearchLimit: ctx.parseSearchLimit,
-      parseSearchRole: ctx.parseSearchRole,
-      parseSearchDate: ctx.parseSearchDate,
-      parseChatImportPayload: ctx.parseChatImportPayload,
-      parseUserOnly: ctx.parseUserOnly,
-      recordBlockedAttempt: ctx.recordBlockedAttempt,
-      resolveActor: ctx.resolveActor,
-      recordAudit: ctx.recordAudit,
-      recordConfigVersion: ctx.recordConfigVersion,
-      requireMinimumRole: ctx.requireMinimumRole,
-      CONFIG_KEYS: ctx.CONFIG_KEYS,
-      store: ctx.store,
-      HttpError: ctx.HttpError,
-    },
+    chatsRoutes: buildChatsRoutesDeps(ctx),
     backupRoutes: buildBackupRoutesDeps(ctx),
     incidentRoutes: {
       asyncHandler: ctx.asyncHandler,
