@@ -4,6 +4,7 @@ import { buildBackupRoutesDeps } from "./route-deps-backup.js";
 import { buildChatsRoutesDeps } from "./route-deps-chats.js";
 import { buildChatRoutesDeps } from "./route-deps-chat.js";
 import { buildIncidentRoutesDeps } from "./route-deps-incident.js";
+import { buildResilienceRoutesDeps } from "./route-deps-resilience.js";
 import { buildRagRoutesDeps } from "./route-deps-rag.js";
 import { buildUserRoutesDeps } from "./route-deps-user.js";
 
@@ -32,22 +33,7 @@ export function buildRegisterAppRoutesDeps(ctx) {
     chatsRoutes: buildChatsRoutesDeps(ctx),
     backupRoutes: buildBackupRoutesDeps(ctx),
     incidentRoutes: buildIncidentRoutesDeps(ctx),
-    resilienceRoutes: {
-      asyncHandler: ctx.asyncHandler,
-      requireMinimumRole: ctx.requireMinimumRole,
-      assertBodyObject: ctx.assertBodyObject,
-      resolveActor: ctx.resolveActor,
-      recordAudit: ctx.recordAudit,
-      requireOperationalApproval: ctx.requireOperationalApproval,
-      parseAutoHealingConfigPatch: ctx.parseAutoHealingConfigPatch,
-      parseAutoHealingPolicy: ctx.parseAutoHealingPolicy,
-      parseDisasterScenarioId: ctx.parseDisasterScenarioId,
-      parseBackupPassphrase: ctx.parseBackupPassphrase,
-      parseBooleanLike: ctx.parseBooleanLike,
-      autoHealingService: ctx.autoHealingService,
-      disasterRecoveryService: ctx.disasterRecoveryService,
-      integrityService: ctx.integrityService,
-    },
+    resilienceRoutes: buildResilienceRoutesDeps(ctx),
     storageRoutes: {
       asyncHandler: ctx.asyncHandler,
       requireMinimumRole: ctx.requireMinimumRole,
