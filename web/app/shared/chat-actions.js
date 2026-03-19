@@ -86,21 +86,14 @@ export function createChatActionsController({
     if (!encodedChatId) return;
     const next = !current?.isFavorite;
 
-    try {
-      await fetchJsonBody(`/api/chats/${encodedChatId}/favorite`, "PATCH", { isFavorite: next });
-      await onLoadChats();
-      showStatus(
-        next ? "Aba marcada como favorita." : "Aba removida dos favoritos.",
-        {
-          type: "success",
-          autoHideMs: 2500,
-        },
-      );
-    } catch (error) {
-      showStatus(`Nao foi possivel atualizar favorito: ${error.message}`, {
-        type: "error",
-      });
-    }
+    await doFetchWithRetry(
+      async () => {
+        await fetchJsonBody(`/api/chats/${encodedChatId}/favorite`, "PATCH", { isFavorite: next });
+        await onLoadChats();
+      },
+      next ? "Aba marcada como favorita." : "Aba removida dos favoritos.",
+      "Nao foi possivel atualizar favorito",
+    );
   }
 
   async function toggleArchiveActiveChat() {
@@ -109,18 +102,14 @@ export function createChatActionsController({
     if (!encodedChatId) return;
     const next = !current?.archivedAt;
 
-    try {
-      await fetchJsonBody(`/api/chats/${encodedChatId}/archive`, "PATCH", { archived: next });
-      await onLoadChats();
-      showStatus(next ? "Aba arquivada." : "Aba desarquivada.", {
-        type: "success",
-        autoHideMs: 2500,
-      });
-    } catch (error) {
-      showStatus(`Nao foi possivel arquivar aba: ${error.message}`, {
-        type: "error",
-      });
-    }
+    await doFetchWithRetry(
+      async () => {
+        await fetchJsonBody(`/api/chats/${encodedChatId}/archive`, "PATCH", { archived: next });
+        await onLoadChats();
+      },
+      next ? "Aba arquivada." : "Aba desarquivada.",
+      "Nao foi possivel arquivar aba",
+    );
   }
 
   async function editTagsActiveChat() {
@@ -137,15 +126,14 @@ export function createChatActionsController({
     );
     if (tags === null) return;
 
-    try {
-      await fetchJsonBody(`/api/chats/${encodedChatId}/tags`, "PATCH", { tags });
-      await onLoadChats();
-      showStatus("Tags atualizadas.", { type: "success", autoHideMs: 2500 });
-    } catch (error) {
-      showStatus(`Nao foi possivel atualizar tags: ${error.message}`, {
-        type: "error",
-      });
-    }
+    await doFetchWithRetry(
+      async () => {
+        await fetchJsonBody(`/api/chats/${encodedChatId}/tags`, "PATCH", { tags });
+        await onLoadChats();
+      },
+      "Tags atualizadas.",
+      "Nao foi possivel atualizar tags",
+    );
   }
 
   async function editChatSystemPrompt() {
