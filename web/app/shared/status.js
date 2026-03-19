@@ -44,10 +44,21 @@ export function createStatusPresenter(options = {}) {
     }
   }
 
+  function openModalElement(element) {
+    if (!element) return;
+    element.classList.remove("hidden");
+    element.classList.add("flex");
+  }
+
+  function closeModalElement(element) {
+    if (!element) return;
+    element.classList.add("hidden");
+    element.classList.remove("flex");
+  }
+
   function hideStatus() {
     if (!statusBarEl) return;
-    statusBarEl.classList.add("hidden");
-    statusBarEl.classList.remove("flex");
+    closeModalElement(statusBarEl);
     retryAction = null;
     clearTimer();
   }
@@ -65,8 +76,7 @@ export function createStatusPresenter(options = {}) {
         : message;
 
     statusTextEl.textContent = displayText;
-    statusBarEl.classList.remove("hidden");
-    statusBarEl.classList.add("flex");
+    openModalElement(statusBarEl);
     statusBarEl.className = BASE_CLASS_NAME;
 
     const classNames = STATUS_CLASS_MAP[type] || STATUS_CLASS_MAP.info;
