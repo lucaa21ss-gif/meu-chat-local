@@ -6,6 +6,7 @@ import { createModalPresenter } from "./app/shared/modal.js";
 import { createHistorySearchController } from "./app/shared/history-search.js";
 import { createHealthStatusController } from "./app/shared/health-status.js";
 import { createOnboardingController } from "./app/shared/onboarding.js";
+import { createPreferencesController } from "./app/shared/preferences.js";
 import { createRagController } from "./app/shared/rag.js";
 import { createRbacController } from "./app/shared/rbac.js";
 import { createShortcutsController } from "./app/shared/shortcuts.js";
@@ -302,6 +303,14 @@ const rbacController = createRbacController({
   getCurrentUser: () => getCurrentUser(),
 });
 
+const preferencesController = createPreferencesController({
+  state,
+  fetchJson,
+  getCurrentUser: () => getCurrentUser(),
+  getMainModelSelect: () => document.getElementById("modelo"),
+  applyThemeMode,
+});
+
 const ragController = createRagController({
   state,
   ragStatusEl,
@@ -374,20 +383,11 @@ function cycleThemeMode() {
 }
 
 async function saveThemeForCurrentUser(theme) {
-  if (!state.userId) return;
-  await fetchJson(`/api/users/${encodeURIComponent(state.userId)}/ui-preferences`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ theme }),
-  });
-  const current = getCurrentUser();
-  if (current) current.theme = theme;
+  await preferencesController.saveThemeForCurrentUser(theme);
 }
 
 function syncThemeFromCurrentUser() {
-  const user = getCurrentUser();
-  const profileTheme = normalizeThemeMode(user?.theme || "system");
-  applyThemeMode(profileTheme, { persistLocal: true });
+  preferencesController.syncThemeFromCurrentUser();
 }
 
 async function loadUsers() {
@@ -728,26 +728,15 @@ async function runHistorySearch({ resetPage = false } = {}) {
 }
 
 function getPreferredModel() {
-  return localStorage.getItem("preferredModel") || "";
+  return preferencesController.getPreferredModel();
 }
 
 function savePreferredModel(model) {
-  if (!model) return;
-  localStorage.setItem("preferredModel", model);
+  preferencesController.savePreferredModel(model);
 }
 
 function applyPreferredModel() {
-  const preferred = getPreferredModel();
-  if (!preferred) return;
-
-  const modelSelect = document.getElementById("modelo");
-  if (!modelSelect) return;
-  const exists = Array.from(modelSelect.options).some(
-    (opt) => opt.value === preferred,
-  );
-  if (exists) {
-    modelSelect.value = preferred;
-  }
+  preferencesController.applyPreferredModel();
 }
 
 function resetOnboardingStatus() {
