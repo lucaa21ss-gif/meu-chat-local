@@ -39,11 +39,14 @@ export function createAppServices({
     parseStorageLimitMb,
     parseBooleanLike,
   } = parsers;
+  const dbPath = resolveDbPath(deps);
+  const repoRoot = path.resolve(serverDir, "..");
+  const artifactsDir = path.join(serverDir, "artifacts");
 
   const backupService =
     deps.backupService ||
     createDefaultBackupService({
-      dbPath: resolveDbPath(deps),
+      dbPath,
       backupRoot:
         deps.backupRoot ||
         process.env.BACKUP_DIR ||
@@ -57,12 +60,11 @@ export function createAppServices({
     deps.storageService ||
     createStorageService({
       baseDir: deps.storageBaseDir || serverDir,
-      dbPath: resolveDbPath(deps),
+      dbPath,
     });
 
   const incidentService =
     deps.incidentService || createDefaultIncidentService(deps.incidentState);
-  const dbPath = resolveDbPath(deps);
 
   const healthProviders =
     deps.healthProviders ||
@@ -91,14 +93,14 @@ export function createAppServices({
       store,
       backupService,
       healthProviders,
-      artifactsDir: path.join(serverDir, "artifacts", "dr"),
+      artifactsDir: path.join(artifactsDir, "dr"),
     });
 
   const integrityService =
     deps.integrityService ||
     createIntegrityRuntimeService({
-      baseDir: path.resolve(serverDir, ".."),
-      manifestPath: path.resolve(serverDir, "..", ".integrity-manifest.sha256"),
+      baseDir: repoRoot,
+      manifestPath: path.resolve(repoRoot, ".integrity-manifest.sha256"),
       targets: [
         "docker-compose.yml",
         "server/package.json",
@@ -116,8 +118,8 @@ export function createAppServices({
   const capacityService =
     deps.capacityService ||
     createCapacityProfileService({
-      baseDir: path.resolve(serverDir, ".."),
-      artifactsDir: path.join(serverDir, "artifacts", "capacity"),
+      baseDir: repoRoot,
+      artifactsDir: path.join(artifactsDir, "capacity"),
     });
 
   const queueService =
@@ -147,7 +149,7 @@ export function createAppServices({
   const baselineService =
     deps.baselineService ||
     createDefaultBaselineService({
-      baselinePath: path.join(serverDir, "artifacts", "baseline", "config-baseline.json"),
+      baselinePath: path.join(artifactsDir, "baseline", "config-baseline.json"),
       getConfig: () =>
         buildBaselineConfigSnapshot({
           isTelemetryEnabled,
@@ -166,8 +168,7 @@ export function createAppServices({
     deps.approvalService ||
     createDefaultOperationalApprovalService({
       approvalsPath: path.join(
-        serverDir,
-        "artifacts",
+        artifactsDir,
         "approvals",
         "operational-approvals.json",
       ),
@@ -190,7 +191,7 @@ export function createAppServices({
   const scorecardService =
     deps.scorecardService ||
     createScorecardService({
-      scorecardPath: path.join(serverDir, "artifacts", "scorecard", "scorecard-latest.json"),
+      scorecardPath: path.join(artifactsDir, "scorecard", "scorecard-latest.json"),
     });
 
   return {
