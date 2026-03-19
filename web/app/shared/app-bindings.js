@@ -341,25 +341,26 @@ export function createAppBindingsController({
   }
 
   function bindAdminTelemetryButtons() {
-    bindAsyncButton(
-      telemetryOptInEl,
-      () => setTelemetryEnabled(telemetryOptInEl.checked),
-      console.error,
-      "change",
-    );
-    bindAsyncButton(telemetryStatsBtnEl, showTelemetryStats);
-    bindAsyncButton(auditExportBtnEl, exportAuditLogsJson);
-    bindAsyncButton(configHistoryBtnEl, openConfigHistoryRollback, (error) => {
-      showStatus(`Falha no rollback de configuracao: ${error.message}`, {
-        type: "error",
-        traceId: error.traceId,
-      });
-    });
-    bindAsyncButton(diagnosticsExportBtnEl, exportDiagnosticsPackage, (error) => {
-      showStatus(`Falha ao exportar diagnostico: ${error.message}`, {
-        type: "error",
-        traceId: error.traceId,
-      });
+    const telemetryButtonHandlers = [
+      [telemetryOptInEl, () => setTelemetryEnabled(telemetryOptInEl.checked), console.error, "change"],
+      [telemetryStatsBtnEl, showTelemetryStats, console.error, "click"],
+      [auditExportBtnEl, exportAuditLogsJson, console.error, "click"],
+      [configHistoryBtnEl, openConfigHistoryRollback, (error) => {
+        showStatus(`Falha no rollback de configuracao: ${error.message}`, {
+          type: "error",
+          traceId: error.traceId,
+        });
+      }, "click"],
+      [diagnosticsExportBtnEl, exportDiagnosticsPackage, (error) => {
+        showStatus(`Falha ao exportar diagnostico: ${error.message}`, {
+          type: "error",
+          traceId: error.traceId,
+        });
+      }, "click"],
+    ];
+
+    telemetryButtonHandlers.forEach(([btn, action, onError, eventType = "click"]) => {
+      bindAsyncButton(btn, action, onError, eventType);
     });
   }
 
@@ -373,14 +374,21 @@ export function createAppBindingsController({
         checkOllamaStatus().catch(console.error);
       });
     }
-    bindAsyncButton(storageRefreshBtnEl, loadStorageUsage);
-    bindAsyncButton(storageCleanupBtnEl, runStorageCleanup, (error) => {
-      showStatus(`Falha na limpeza: ${error.message}`, { type: "error" });
-    });
-    bindAsyncButton(storageLimitBtnEl, updateStorageLimitForCurrentUser, (error) => {
-      showStatus(`Falha ao atualizar limite: ${error.message}`, {
-        type: "error",
-      });
+
+    const storageButtonHandlers = [
+      [storageRefreshBtnEl, loadStorageUsage, console.error],
+      [storageCleanupBtnEl, runStorageCleanup, (error) => {
+        showStatus(`Falha na limpeza: ${error.message}`, { type: "error" });
+      }],
+      [storageLimitBtnEl, updateStorageLimitForCurrentUser, (error) => {
+        showStatus(`Falha ao atualizar limite: ${error.message}`, {
+          type: "error",
+        });
+      }],
+    ];
+
+    storageButtonHandlers.forEach(([btn, action, onError]) => {
+      bindAsyncButton(btn, action, onError);
     });
   }
 
