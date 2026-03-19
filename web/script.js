@@ -1,4 +1,5 @@
 import { createApiClient } from "./app/shared/api.js";
+import { createChatFiltersController } from "./app/shared/chat-filters.js";
 import { escapeRegExp, formatBytes, formatDateLabel } from "./app/shared/format.js";
 import { filesToBase64, filesToDocuments, readFileAsBase64 } from "./app/shared/files.js";
 import { createChatListController } from "./app/shared/chat-list.js";
@@ -337,6 +338,16 @@ const storageController = createStorageController({
   onLoadUsers: () => loadUsers(),
 });
 
+const chatFiltersController = createChatFiltersController({
+  state,
+  filterAllBtnEl,
+  filterFavoritesBtnEl,
+  filterArchivedBtnEl,
+  filterTagInputEl,
+  onResetPagination: () => resetChatListPagination(),
+  onLoadChats: () => loadChats(),
+});
+
 const ragController = createRagController({
   state,
   ragStatusEl,
@@ -461,26 +472,11 @@ async function updateStorageLimitForCurrentUser() {
 }
 
 function updateFilterUi() {
-  const isAll = state.chatFilters.mode === "all";
-  const isFavorites = state.chatFilters.mode === "favorites";
-  const isArchived = state.chatFilters.mode === "archived";
-
-  if (filterAllBtnEl) filterAllBtnEl.classList.toggle("bg-slate-100", isAll);
-  if (filterFavoritesBtnEl)
-    filterFavoritesBtnEl.classList.toggle("bg-slate-100", isFavorites);
-  if (filterArchivedBtnEl)
-    filterArchivedBtnEl.classList.toggle("bg-slate-100", isArchived);
-
-  if (filterTagInputEl) {
-    filterTagInputEl.value = state.chatFilters.tag;
-  }
+  chatFiltersController.updateUi();
 }
 
 async function setFilterMode(mode) {
-  state.chatFilters.mode = mode;
-  resetChatListPagination();
-  updateFilterUi();
-  await loadChats();
+  await chatFiltersController.setMode(mode);
 }
 
 async function loadTelemetryState() {
@@ -2322,9 +2318,9 @@ if (filterArchivedBtnEl) {
 
 if (filterTagApplyBtnEl) {
   filterTagApplyBtnEl.addEventListener("click", () => {
-    state.chatFilters.tag = (filterTagInputEl?.value || "").trim();
-    resetChatListPagination();
-    loadChats().catch(console.error);
+    chatFiltersController
+      .applyTagFilter(filterTagInputEl?.value || "")
+      .catch(console.error);
   });
 }
 
@@ -2332,9 +2328,7 @@ if (filterTagInputEl) {
   filterTagInputEl.addEventListener("keydown", (event) => {
     if (event.key !== "Enter") return;
     event.preventDefault();
-    state.chatFilters.tag = (filterTagInputEl.value || "").trim();
-    resetChatListPagination();
-    loadChats().catch(console.error);
+    chatFiltersController.applyTagFilter(filterTagInputEl.value || "").catch(console.error);
   });
 }
 
