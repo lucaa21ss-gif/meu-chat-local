@@ -1,3 +1,5 @@
+import { createFetchHelpers } from "./fetch-helpers.js";
+
 function appendHighlightedText(container, text, query, escapeRegExp) {
   const safeText = String(text || "");
   if (!query) {
@@ -42,6 +44,8 @@ export function createHistorySearchController(options = {}) {
   const escapeRegExp = options.escapeRegExp;
   const getActiveChatId =
     options.getActiveChatId || (() => state?.activeChatId || null);
+
+  const { doFetchWithRetry } = createFetchHelpers(fetchJson, showStatus);
 
   function clearSearchResults() {
     state.search.page = 1;
@@ -144,24 +148,27 @@ export function createHistorySearchController(options = {}) {
     if (to) params.set("to", new Date(`${to}T23:59:59`).toISOString());
 
     try {
-      const data = await fetchJson(
-        `/api/chats/${encodeURIComponent(activeChatId)}/search?${params.toString()}`,
+      await doFetchWithRetry(
+        async () => {
+          const data = await fetchJson(
+            `/api/chats/${encodeURIComponent(activeChatId)}/search?${params.toString()}`,
+          );
+
+          const pagination = data.pagination || {};
+          state.search.total = Number.parseInt(pagination.total, 10) || 0;
+          state.search.totalPages = Number.parseInt(pagination.totalPages, 10) || 0;
+          state.search.page =
+            Number.parseInt(pagination.page, 10) || state.search.page;
+
+          renderSearchResults(data.matches || []);
+          updateSearchPaginationUi();
+          hideStatus();
+        },
+        "",
+        "Falha na busca",
       );
-
-      const pagination = data.pagination || {};
-      state.search.total = Number.parseInt(pagination.total, 10) || 0;
-      state.search.totalPages = Number.parseInt(pagination.totalPages, 10) || 0;
-      state.search.page =
-        Number.parseInt(pagination.page, 10) || state.search.page;
-
-      renderSearchResults(data.matches || []);
-      updateSearchPaginationUi();
-      hideStatus();
-    } catch (error) {
-      showStatus(`Falha na busca: ${error.message}`, {
-        type: "error",
-        retryAction: () => runHistorySearch({ resetPage: false }),
-      });
+    } catch {
+      // erro já tratado pelo doFetchWithRetry
     }
   }
 
