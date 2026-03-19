@@ -8,6 +8,16 @@ export function createChatActionsController({
   onLoadChats,
   onSwitchChat,
 }) {
+  function getActiveChat() {
+    if (!state.activeChatId) return null;
+    return state.chats.find((chat) => chat.id === state.activeChatId) || null;
+  }
+
+  function getEncodedActiveChatId() {
+    if (!state.activeChatId) return null;
+    return encodeURIComponent(state.activeChatId);
+  }
+
   async function createNewChat(title = "Nova conversa") {
     const id = uid();
     try {
@@ -30,8 +40,10 @@ export function createChatActionsController({
   }
 
   async function renameActiveChat() {
-    if (!state.activeChatId) return;
-    const current = state.chats.find((chat) => chat.id === state.activeChatId);
+    const current = getActiveChat();
+    const encodedChatId = getEncodedActiveChatId();
+    if (!encodedChatId) return;
+
     const input = window.prompt(
       "Novo nome da aba:",
       current?.title || "Nova conversa",
@@ -42,7 +54,7 @@ export function createChatActionsController({
     if (!title) return;
 
     try {
-      await fetchJson(`/api/chats/${encodeURIComponent(state.activeChatId)}`, {
+      await fetchJson(`/api/chats/${encodedChatId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title }),
@@ -60,13 +72,14 @@ export function createChatActionsController({
   }
 
   async function toggleFavoriteActiveChat() {
-    if (!state.activeChatId) return;
-    const current = state.chats.find((chat) => chat.id === state.activeChatId);
+    const current = getActiveChat();
+    const encodedChatId = getEncodedActiveChatId();
+    if (!encodedChatId) return;
     const next = !current?.isFavorite;
 
     try {
       await fetchJson(
-        `/api/chats/${encodeURIComponent(state.activeChatId)}/favorite`,
+        `/api/chats/${encodedChatId}/favorite`,
         {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
@@ -89,13 +102,14 @@ export function createChatActionsController({
   }
 
   async function toggleArchiveActiveChat() {
-    if (!state.activeChatId) return;
-    const current = state.chats.find((chat) => chat.id === state.activeChatId);
+    const current = getActiveChat();
+    const encodedChatId = getEncodedActiveChatId();
+    if (!encodedChatId) return;
     const next = !current?.archivedAt;
 
     try {
       await fetchJson(
-        `/api/chats/${encodeURIComponent(state.activeChatId)}/archive`,
+        `/api/chats/${encodedChatId}/archive`,
         {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
@@ -115,8 +129,10 @@ export function createChatActionsController({
   }
 
   async function editTagsActiveChat() {
-    if (!state.activeChatId) return;
-    const current = state.chats.find((chat) => chat.id === state.activeChatId);
+    const current = getActiveChat();
+    const encodedChatId = getEncodedActiveChatId();
+    if (!encodedChatId) return;
+
     const currentTags = Array.isArray(current?.tags)
       ? current.tags.join(", ")
       : "";
@@ -134,7 +150,7 @@ export function createChatActionsController({
 
     try {
       await fetchJson(
-        `/api/chats/${encodeURIComponent(state.activeChatId)}/tags`,
+        `/api/chats/${encodedChatId}/tags`,
         {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
@@ -151,11 +167,12 @@ export function createChatActionsController({
   }
 
   async function editChatSystemPrompt() {
-    if (!state.activeChatId) return;
+    const encodedChatId = getEncodedActiveChatId();
+    if (!encodedChatId) return;
 
     try {
       const promptData = await fetchJson(
-        `/api/chats/${encodeURIComponent(state.activeChatId)}/system-prompt`,
+        `/api/chats/${encodedChatId}/system-prompt`,
       );
       const current = String(promptData.systemPrompt || "");
       const next = window.prompt(
@@ -165,7 +182,7 @@ export function createChatActionsController({
       if (next === null) return;
 
       await fetchJson(
-        `/api/chats/${encodeURIComponent(state.activeChatId)}/system-prompt`,
+        `/api/chats/${encodedChatId}/system-prompt`,
         {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
@@ -183,9 +200,10 @@ export function createChatActionsController({
   }
 
   async function duplicateActiveChat() {
-    if (!state.activeChatId) return;
+    const current = getActiveChat();
+    const encodedChatId = getEncodedActiveChatId();
+    if (!encodedChatId) return;
 
-    const current = state.chats.find((chat) => chat.id === state.activeChatId);
     const defaultTitle = `${current?.title || "Conversa"} (copia)`;
     const modalResult = await openDuplicateModal(defaultTitle);
     if (!modalResult) return;
@@ -196,7 +214,7 @@ export function createChatActionsController({
 
     try {
       const payload = await fetchJson(
-        `/api/chats/${encodeURIComponent(state.activeChatId)}/duplicate`,
+        `/api/chats/${encodedChatId}/duplicate`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
