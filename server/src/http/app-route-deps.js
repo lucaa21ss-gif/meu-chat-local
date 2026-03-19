@@ -8,6 +8,7 @@ import { buildResilienceRoutesDeps } from "./route-deps-resilience.js";
 import { buildStorageRoutesDeps } from "./route-deps-storage.js";
 import { buildConfigRoutesDeps } from "./route-deps-config.js";
 import { buildApprovalRoutesDeps } from "./route-deps-approval.js";
+import { buildObservabilityRoutesDeps } from "./route-deps-observability.js";
 import { buildRagRoutesDeps } from "./route-deps-rag.js";
 import { buildUserRoutesDeps } from "./route-deps-user.js";
 
@@ -41,28 +42,6 @@ export function buildRegisterAppRoutesDeps(ctx) {
     configRoutes: buildConfigRoutesDeps(ctx),
     approvalRoutes: buildApprovalRoutesDeps(ctx),
     auditRoutes: buildAuditRoutesDeps(ctx),
-    observabilityRoutes: {
-      asyncHandler: ctx.asyncHandler,
-      requireMinimumRole: ctx.requireMinimumRole,
-      recordAudit: ctx.recordAudit,
-      buildOverallHealthStatus: ctx.buildOverallHealthStatus,
-      buildSloSnapshot: ctx.buildSloSnapshot,
-      buildTriageRecommendations: ctx.buildTriageRecommendations,
-      getTelemetryStats: ctx.getTelemetryStats,
-      isTelemetryEnabled: ctx.isTelemetryEnabled,
-      healthProviders: ctx.healthProviders,
-      backupService: ctx.backupService,
-      integrityService: ctx.integrityService,
-      capacityService: ctx.capacityService,
-      baselineService: ctx.baselineService,
-      autoHealingService: ctx.autoHealingService,
-      incidentService: ctx.incidentService,
-      queueService: ctx.queueService,
-      scorecardService: ctx.scorecardService,
-      approvalService: ctx.approvalService,
-      storageService: ctx.storageService,
-      roleLimiter: ctx.roleLimiter,
-      store: ctx.store,
-    },
+    observabilityRoutes: buildObservabilityRoutesDeps(ctx),
   };
 }
