@@ -22,13 +22,28 @@ export function createProfilesController({
     });
   }
 
+  function getCurrentUser() {
+    return state.users.find((user) => user.id === state.userId);
+  }
+
+  function setCurrentUser(userId) {
+    state.userId = userId;
+    localStorage.setItem("chatUserId", userId);
+  }
+
+  function getAndValidateProfileName(promptMessage, currentName = "") {
+    const name = window.prompt(promptMessage, currentName);
+    if (name === null) return null;
+    const trimmed = name.trim();
+    return trimmed || null;
+  }
+
   async function loadUsers() {
     try {
       const data = await fetchJson("/api/users");
       state.users = data.users || [];
       if (!state.users.some((user) => user.id === state.userId)) {
-        state.userId = "user-default";
-        localStorage.setItem("chatUserId", state.userId);
+        setCurrentUser("user-default");
       }
       renderUsers();
       onSyncThemeFromCurrentUser();
@@ -40,9 +55,8 @@ export function createProfilesController({
   }
 
   async function switchUser(userId) {
-    state.userId = userId;
+    setCurrentUser(userId);
     onResetChatListPagination();
-    localStorage.setItem("chatUserId", userId);
     try {
       await fetchJson("/api/audit/profile-switch", {
         headers: { "Content-Type": "application/json" },
@@ -60,11 +74,8 @@ export function createProfilesController({
   }
 
   async function createProfile() {
-    const name = window.prompt("Nome do novo perfil:");
-    if (name === null) return;
-
-    const trimmed = name.trim();
-    if (!trimmed) return;
+    const trimmed = getAndValidateProfileName("Nome do novo perfil:");
+    if (trimmed === null) return;
 
     try {
       const payload = await fetchJson("/api/users", {
@@ -86,14 +97,11 @@ export function createProfilesController({
   }
 
   async function renameCurrentProfile() {
-    const current = state.users.find((user) => user.id === state.userId);
+    const current = getCurrentUser();
     if (!current) return;
 
-    const name = window.prompt("Novo nome do perfil:", current.name || "");
-    if (name === null) return;
-
-    const trimmed = name.trim();
-    if (!trimmed || trimmed === current.name) return;
+    const trimmed = getAndValidateProfileName("Novo nome do perfil:", current.name || "");
+    if (trimmed === null || trimmed === current.name) return;
 
     try {
       await fetchJson(`/api/users/${encodeURIComponent(state.userId)}`, {
@@ -122,7 +130,7 @@ export function createProfilesController({
       return;
     }
 
-    const current = state.users.find((user) => user.id === state.userId);
+    const current = getCurrentUser();
     const confirmed = window.confirm(
       `Excluir o perfil "${current?.name || state.userId}" e TODAS as suas conversas?`,
     );
@@ -132,8 +140,7 @@ export function createProfilesController({
       await fetchJson(`/api/users/${encodeURIComponent(state.userId)}`, {
         method: "DELETE",
       });
-      state.userId = "user-default";
-      localStorage.setItem("chatUserId", state.userId);
+      setCurrentUser("user-default");
       await loadUsers();
       await onLoadChats();
       await onLoadRagDocuments();
