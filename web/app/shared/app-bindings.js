@@ -187,20 +187,17 @@ export function createAppBindingsController({
   }
 
   function bindVoiceHistoryButtons() {
-    if (voiceHistoryBtnEl) {
-      voiceHistoryBtnEl.addEventListener("click", openVoiceHistoryModalWithRender);
-    }
-    if (voiceHistoryCloseBtnEl) {
-      voiceHistoryCloseBtnEl.addEventListener("click", closeVoiceHistoryModal);
-    }
-    if (clearVoiceHistoryBtnEl) {
-      clearVoiceHistoryBtnEl.addEventListener("click", async () => {
+    const voiceButtonHandlers = [
+      [voiceHistoryBtnEl, openVoiceHistoryModalWithRender],
+      [voiceHistoryCloseBtnEl, closeVoiceHistoryModal],
+      [clearVoiceHistoryBtnEl, async () => {
         const confirmed = await openConfirmModal("Deseja limpar todo o historico de voz?");
-        if (confirmed) {
-          voiceController.clearHistory();
-        }
-      });
-    }
+        if (confirmed) voiceController.clearHistory();
+      }],
+    ];
+    voiceButtonHandlers.forEach(([btn, handler]) => {
+      if (btn) btn.addEventListener("click", handler);
+    });
   }
 
   function bindConfirmModalButtons() {
