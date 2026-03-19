@@ -1,8 +1,12 @@
+import { createRouteDeps } from "./route-deps-factory.js";
+
+const AUDIT_ROUTES_PROPS = [
+  "asyncHandler",
+  "requireMinimumRole",
+  "parseAuditFilters",
+  "store",
+];
+
 export function buildAuditRoutesDeps(ctx) {
-  return {
-    asyncHandler: ctx.asyncHandler,
-    requireMinimumRole: ctx.requireMinimumRole,
-    parseAuditFilters: ctx.parseAuditFilters,
-    store: ctx.store,
-  };
+  return createRouteDeps(ctx, AUDIT_ROUTES_PROPS);
 }

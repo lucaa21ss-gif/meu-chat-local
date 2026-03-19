@@ -1,15 +1,19 @@
+import { createRouteDeps } from "./route-deps-factory.js";
+
+const BACKUP_ROUTES_PROPS = [
+  "asyncHandler",
+  "requireMinimumRole",
+  "assertBodyObject",
+  "resolveActor",
+  "requireOperationalApproval",
+  "parseBackupPassphrase",
+  "parseBackupPayload",
+  "parsePositiveInt",
+  "recordAudit",
+  "backupService",
+  "HttpError",
+];
+
 export function buildBackupRoutesDeps(ctx) {
-  return {
-    asyncHandler: ctx.asyncHandler,
-    requireMinimumRole: ctx.requireMinimumRole,
-    assertBodyObject: ctx.assertBodyObject,
-    resolveActor: ctx.resolveActor,
-    requireOperationalApproval: ctx.requireOperationalApproval,
-    parseBackupPassphrase: ctx.parseBackupPassphrase,
-    parseBackupPayload: ctx.parseBackupPayload,
-    parsePositiveInt: ctx.parsePositiveInt,
-    recordAudit: ctx.recordAudit,
-    backupService: ctx.backupService,
-    HttpError: ctx.HttpError,
-  };
+  return createRouteDeps(ctx, BACKUP_ROUTES_PROPS);
 }

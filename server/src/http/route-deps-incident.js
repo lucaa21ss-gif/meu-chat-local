@@ -1,20 +1,24 @@
+import { createRouteDeps } from "./route-deps-factory.js";
+
+const INCIDENT_ROUTES_PROPS = [
+  "asyncHandler",
+  "requireMinimumRole",
+  "assertBodyObject",
+  "resolveActor",
+  "recordAudit",
+  "requireOperationalApproval",
+  "parseIncidentUpdatePayload",
+  "parseIncidentRunbookType",
+  "parseIncidentRunbookMode",
+  "parseIncidentOwner",
+  "parseIncidentSummary",
+  "parseIncidentNextUpdateAt",
+  "parseBackupPassphrase",
+  "collectIncidentRunbookSignals",
+  "incidentService",
+  "INCIDENT_RUNBOOK_TYPES",
+];
+
 export function buildIncidentRoutesDeps(ctx) {
-  return {
-    asyncHandler: ctx.asyncHandler,
-    requireMinimumRole: ctx.requireMinimumRole,
-    assertBodyObject: ctx.assertBodyObject,
-    resolveActor: ctx.resolveActor,
-    recordAudit: ctx.recordAudit,
-    requireOperationalApproval: ctx.requireOperationalApproval,
-    parseIncidentUpdatePayload: ctx.parseIncidentUpdatePayload,
-    parseIncidentRunbookType: ctx.parseIncidentRunbookType,
-    parseIncidentRunbookMode: ctx.parseIncidentRunbookMode,
-    parseIncidentOwner: ctx.parseIncidentOwner,
-    parseIncidentSummary: ctx.parseIncidentSummary,
-    parseIncidentNextUpdateAt: ctx.parseIncidentNextUpdateAt,
-    parseBackupPassphrase: ctx.parseBackupPassphrase,
-    collectIncidentRunbookSignals: ctx.collectIncidentRunbookSignals,
-    incidentService: ctx.incidentService,
-    INCIDENT_RUNBOOK_TYPES: ctx.INCIDENT_RUNBOOK_TYPES,
-  };
+  return createRouteDeps(ctx, INCIDENT_ROUTES_PROPS);
 }

@@ -1,22 +1,26 @@
+import { createRouteDeps } from "./route-deps-factory.js";
+
+const USER_ROUTES_PROPS = [
+  "asyncHandler",
+  "requireMinimumRole",
+  "requireAdminOrSelf",
+  "assertBodyObject",
+  "parseUserId",
+  "parseUserName",
+  "parseUserRole",
+  "parseChatId",
+  "parseSystemPrompt",
+  "parseTheme",
+  "parseUiPreferences",
+  "parseStorageLimitMb",
+  "resolveActor",
+  "recordAudit",
+  "recordConfigVersion",
+  "CONFIG_KEYS",
+  "HttpError",
+  "store",
+];
+
 export function buildUserRoutesDeps(ctx) {
-  return {
-    asyncHandler: ctx.asyncHandler,
-    requireMinimumRole: ctx.requireMinimumRole,
-    requireAdminOrSelf: ctx.requireAdminOrSelf,
-    assertBodyObject: ctx.assertBodyObject,
-    parseUserId: ctx.parseUserId,
-    parseUserName: ctx.parseUserName,
-    parseUserRole: ctx.parseUserRole,
-    parseChatId: ctx.parseChatId,
-    parseSystemPrompt: ctx.parseSystemPrompt,
-    parseTheme: ctx.parseTheme,
-    parseUiPreferences: ctx.parseUiPreferences,
-    parseStorageLimitMb: ctx.parseStorageLimitMb,
-    resolveActor: ctx.resolveActor,
-    recordAudit: ctx.recordAudit,
-    recordConfigVersion: ctx.recordConfigVersion,
-    CONFIG_KEYS: ctx.CONFIG_KEYS,
-    HttpError: ctx.HttpError,
-    store: ctx.store,
-  };
+  return createRouteDeps(ctx, USER_ROUTES_PROPS);
 }

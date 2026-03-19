@@ -1,28 +1,32 @@
+import { createRouteDeps } from "./route-deps-factory.js";
+
+const CHATS_ROUTES_PROPS = [
+  "asyncHandler",
+  "assertBodyObject",
+  "parseChatId",
+  "parseTitle",
+  "parseUserId",
+  "parseChatListFilters",
+  "parseBooleanLike",
+  "parseTags",
+  "parseSystemPrompt",
+  "parseSearchQuery",
+  "parseSearchPage",
+  "parseSearchLimit",
+  "parseSearchRole",
+  "parseSearchDate",
+  "parseChatImportPayload",
+  "parseUserOnly",
+  "recordBlockedAttempt",
+  "resolveActor",
+  "recordAudit",
+  "recordConfigVersion",
+  "requireMinimumRole",
+  "CONFIG_KEYS",
+  "store",
+  "HttpError",
+];
+
 export function buildChatsRoutesDeps(ctx) {
-  return {
-    asyncHandler: ctx.asyncHandler,
-    assertBodyObject: ctx.assertBodyObject,
-    parseChatId: ctx.parseChatId,
-    parseTitle: ctx.parseTitle,
-    parseUserId: ctx.parseUserId,
-    parseChatListFilters: ctx.parseChatListFilters,
-    parseBooleanLike: ctx.parseBooleanLike,
-    parseTags: ctx.parseTags,
-    parseSystemPrompt: ctx.parseSystemPrompt,
-    parseSearchQuery: ctx.parseSearchQuery,
-    parseSearchPage: ctx.parseSearchPage,
-    parseSearchLimit: ctx.parseSearchLimit,
-    parseSearchRole: ctx.parseSearchRole,
-    parseSearchDate: ctx.parseSearchDate,
-    parseChatImportPayload: ctx.parseChatImportPayload,
-    parseUserOnly: ctx.parseUserOnly,
-    recordBlockedAttempt: ctx.recordBlockedAttempt,
-    resolveActor: ctx.resolveActor,
-    recordAudit: ctx.recordAudit,
-    recordConfigVersion: ctx.recordConfigVersion,
-    requireMinimumRole: ctx.requireMinimumRole,
-    CONFIG_KEYS: ctx.CONFIG_KEYS,
-    store: ctx.store,
-    HttpError: ctx.HttpError,
-  };
+  return createRouteDeps(ctx, CHATS_ROUTES_PROPS);
 }

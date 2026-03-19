@@ -1,25 +1,29 @@
+import { createRouteDeps } from "./route-deps-factory.js";
+
+const OBSERVABILITY_ROUTES_PROPS = [
+  "asyncHandler",
+  "requireMinimumRole",
+  "recordAudit",
+  "buildOverallHealthStatus",
+  "buildSloSnapshot",
+  "buildTriageRecommendations",
+  "getTelemetryStats",
+  "isTelemetryEnabled",
+  "healthProviders",
+  "backupService",
+  "integrityService",
+  "capacityService",
+  "baselineService",
+  "autoHealingService",
+  "incidentService",
+  "queueService",
+  "scorecardService",
+  "approvalService",
+  "storageService",
+  "roleLimiter",
+  "store",
+];
+
 export function buildObservabilityRoutesDeps(ctx) {
-  return {
-    asyncHandler: ctx.asyncHandler,
-    requireMinimumRole: ctx.requireMinimumRole,
-    recordAudit: ctx.recordAudit,
-    buildOverallHealthStatus: ctx.buildOverallHealthStatus,
-    buildSloSnapshot: ctx.buildSloSnapshot,
-    buildTriageRecommendations: ctx.buildTriageRecommendations,
-    getTelemetryStats: ctx.getTelemetryStats,
-    isTelemetryEnabled: ctx.isTelemetryEnabled,
-    healthProviders: ctx.healthProviders,
-    backupService: ctx.backupService,
-    integrityService: ctx.integrityService,
-    capacityService: ctx.capacityService,
-    baselineService: ctx.baselineService,
-    autoHealingService: ctx.autoHealingService,
-    incidentService: ctx.incidentService,
-    queueService: ctx.queueService,
-    scorecardService: ctx.scorecardService,
-    approvalService: ctx.approvalService,
-    storageService: ctx.storageService,
-    roleLimiter: ctx.roleLimiter,
-    store: ctx.store,
-  };
+  return createRouteDeps(ctx, OBSERVABILITY_ROUTES_PROPS);
 }
