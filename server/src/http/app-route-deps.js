@@ -7,6 +7,7 @@ import { buildIncidentRoutesDeps } from "./route-deps-incident.js";
 import { buildResilienceRoutesDeps } from "./route-deps-resilience.js";
 import { buildStorageRoutesDeps } from "./route-deps-storage.js";
 import { buildConfigRoutesDeps } from "./route-deps-config.js";
+import { buildApprovalRoutesDeps } from "./route-deps-approval.js";
 import { buildRagRoutesDeps } from "./route-deps-rag.js";
 import { buildUserRoutesDeps } from "./route-deps-user.js";
 
@@ -38,21 +39,7 @@ export function buildRegisterAppRoutesDeps(ctx) {
     resilienceRoutes: buildResilienceRoutesDeps(ctx),
     storageRoutes: buildStorageRoutesDeps(ctx),
     configRoutes: buildConfigRoutesDeps(ctx),
-    approvalRoutes: {
-      asyncHandler: ctx.asyncHandler,
-      requireMinimumRole: ctx.requireMinimumRole,
-      assertBodyObject: ctx.assertBodyObject,
-      resolveActor: ctx.resolveActor,
-      recordAudit: ctx.recordAudit,
-      parseOperationalApprovalStatus: ctx.parseOperationalApprovalStatus,
-      parsePositiveInt: ctx.parsePositiveInt,
-      parseOperationalApprovalAction: ctx.parseOperationalApprovalAction,
-      parseOperationalApprovalReason: ctx.parseOperationalApprovalReason,
-      parseOperationalApprovalWindowMinutes: ctx.parseOperationalApprovalWindowMinutes,
-      parseOperationalApprovalId: ctx.parseOperationalApprovalId,
-      parseOperationalApprovalDecision: ctx.parseOperationalApprovalDecision,
-      approvalService: ctx.approvalService,
-    },
+    approvalRoutes: buildApprovalRoutesDeps(ctx),
     auditRoutes: buildAuditRoutesDeps(ctx),
     observabilityRoutes: {
       asyncHandler: ctx.asyncHandler,
