@@ -252,7 +252,7 @@ const chatListController = createChatListController({
   chatListPaginationInfoEl,
   chatListLoadMoreBtnEl,
   onScheduledSearch: () => {
-    loadChats().catch(console.error);
+    chatNavigationController.loadChats().catch(console.error);
   },
 });
 
@@ -283,7 +283,7 @@ const onboardingController = createOnboardingController({
   onboardingSmokeStatusEl,
   getMainModelSelect: () => document.getElementById("modelo"),
   getFallbackModel: () => getControls().model,
-  savePreferredModel,
+  savePreferredModel: (model) => preferencesController.savePreferredModel(model),
   showStatus,
 });
 
@@ -486,9 +486,9 @@ const shortcutsController = createShortcutsController({
   closeVoiceHistoryModal,
   isOnboardingOpen: () => onboardingController.isOpen(),
   closeOnboardingModal: () => onboardingController.closeModal(),
-  onCreateNewChat: () => createNewChat().catch(console.error),
-  onNavigateRelativeTab: (step) => navigateRelativeTab(step),
-  onDuplicateActiveChat: () => duplicateActiveChat().catch(console.error),
+  onCreateNewChat: () => chatNavigationController.createNewChat().catch(console.error),
+  onNavigateRelativeTab: (step) => chatNavigationController.navigateRelativeTab(step),
+  onDuplicateActiveChat: () => chatActionsController.duplicateActiveChat().catch(console.error),
 });
 
 const chatUtilsController = createChatUtilsController({
@@ -606,21 +606,21 @@ const appBindingsController = createAppBindingsController({
   openShortcutsModal,
   showStatus,
   enviar,
-  createNewChat,
-  renameActiveChat,
-  toggleFavoriteActiveChat,
-  toggleArchiveActiveChat,
-  editTagsActiveChat,
-  editChatSystemPrompt,
-  duplicateActiveChat,
-  deleteActiveChat,
-  exportChat,
-  exportChatJson,
-  exportAllChatsJson,
-  exportFavoriteChatsMarkdown,
-  importChatJson,
-  exportFullBackup,
-  restoreFullBackup,
+  createNewChat: (title) => chatNavigationController.createNewChat(title),
+  renameActiveChat: () => chatActionsController.renameActiveChat(),
+  toggleFavoriteActiveChat: () => chatActionsController.toggleFavoriteActiveChat(),
+  toggleArchiveActiveChat: () => chatActionsController.toggleArchiveActiveChat(),
+  editTagsActiveChat: () => chatActionsController.editTagsActiveChat(),
+  editChatSystemPrompt: () => chatActionsController.editChatSystemPrompt(),
+  duplicateActiveChat: () => chatActionsController.duplicateActiveChat(),
+  deleteActiveChat: () => chatActionsController.deleteActiveChat(),
+  exportChat: () => chatExportController.exportChat(),
+  exportChatJson: () => chatExportController.exportChatJson(),
+  exportAllChatsJson: () => chatExportController.exportAllChatsJson(),
+  exportFavoriteChatsMarkdown: () => chatExportController.exportFavoriteChatsMarkdown(),
+  importChatJson: () => chatExportController.importChatJson(),
+  exportFullBackup: () => backupController.exportFullBackup(),
+  restoreFullBackup: () => backupController.restoreFullBackup(),
   openVoiceHistoryModalWithRender: () => voiceController.openHistoryModalWithRender(),
   cycleThemeMode: () => themeLocalController.cycleMode(),
   saveThemeForCurrentUser: (theme) => preferencesController.saveThemeForCurrentUser(theme),
@@ -636,131 +636,10 @@ const appBindingsController = createAppBindingsController({
   exportAuditLogsJson: () => telemetryAdminController.exportAuditLogsJson(),
   openConfigHistoryRollback: () => telemetryAdminController.openConfigHistoryRollback(),
   exportDiagnosticsPackage: () => telemetryAdminController.exportDiagnosticsPackage(),
-  loadChats,
-  runHistorySearch,
-  clearSearchResults,
+  loadChats: (options) => chatNavigationController.loadChats(options),
+  runHistorySearch: (options) => historySearchController.runHistorySearch(options),
+  clearSearchResults: () => historySearchController.clearSearchResults(),
 });
-
-function getCurrentUser() {
-  return appRuntimeController.getCurrentUser();
-}
-
-async function loadUsers() {
-  await profilesController.loadUsers();
-}
-
-function updateFilterUi() {
-  chatFiltersController.updateUi();
-}
-
-async function loadTelemetryState() {
-  await telemetryAdminController.loadTelemetryState();
-}
-
-function getCurrentUserRole() {
-  return rbacController.getCurrentUserRole();
-}
-
-function hasRole(minimumRole) {
-  return rbacController.hasRole(minimumRole);
-}
-
-
-function clearSearchResults() {
-  historySearchController.clearSearchResults();
-}
-
-async function loadRagDocuments() {
-  await ragController.loadDocuments();
-}
-
-async function runHistorySearch({ resetPage = false } = {}) {
-  await historySearchController.runHistorySearch({ resetPage });
-}
-
-function savePreferredModel(model) {
-  preferencesController.savePreferredModel(model);
-}
-
-function smoothScrollToBottom() {
-  appRuntimeController.smoothScrollToBottom();
-}
-
-function uid() {
-  return appRuntimeController.uid();
-}
-
-function showTyping() {
-  chatRenderController.showTyping();
-}
-
-function hideTyping() {
-  chatRenderController.hideTyping();
-}
-
-function createAvatar(role) {
-  return chatRenderController.createAvatar(role);
-}
-
-function appendMessage(role, content, options = {}) {
-  return chatRenderController.appendMessage(role, content, options);
-}
-
-function renderTabs() {
-  chatRenderController.renderTabs();
-}
-
-async function loadChats(options = {}) {
-  return chatNavigationController.loadChats(options);
-}
-
-async function loadMessages(chatId) {
-  return chatNavigationController.loadMessages(chatId);
-}
-
-async function switchChat(chatId) {
-  return chatNavigationController.switchChat(chatId);
-}
-
-async function createNewChat(title = "Nova conversa") {
-  return chatNavigationController.createNewChat(title);
-}
-
-async function renameActiveChat() {
-  await chatActionsController.renameActiveChat();
-}
-
-async function toggleFavoriteActiveChat() {
-  await chatActionsController.toggleFavoriteActiveChat();
-}
-
-async function toggleArchiveActiveChat() {
-  await chatActionsController.toggleArchiveActiveChat();
-}
-
-async function editTagsActiveChat() {
-  await chatActionsController.editTagsActiveChat();
-}
-
-async function editChatSystemPrompt() {
-  await chatActionsController.editChatSystemPrompt();
-}
-
-function navigateRelativeTab(step) {
-  return chatNavigationController.navigateRelativeTab(step);
-}
-
-async function editUserDefaultSystemPrompt() {
-  await chatUtilsController.editUserDefaultSystemPrompt();
-}
-
-async function duplicateActiveChat() {
-  await chatActionsController.duplicateActiveChat();
-}
-
-async function deleteActiveChat() {
-  await chatActionsController.deleteActiveChat();
-}
 
 function getControls() {
   return chatUtilsController.getControls();
@@ -773,34 +652,6 @@ async function enviar() {
 
 async function resetar() {
   await chatUtilsController.resetar();
-}
-
-async function exportChat() {
-  await chatExportController.exportChat();
-}
-
-async function exportFavoriteChatsMarkdown() {
-  await chatExportController.exportFavoriteChatsMarkdown();
-}
-
-async function exportChatJson() {
-  await chatExportController.exportChatJson();
-}
-
-async function importChatJson() {
-  await chatExportController.importChatJson();
-}
-
-async function exportAllChatsJson() {
-  await chatExportController.exportAllChatsJson();
-}
-
-async function exportFullBackup() {
-  await backupController.exportFullBackup();
-}
-
-async function restoreFullBackup() {
-  await backupController.restoreFullBackup();
 }
 
 function updateSendButtonState() {
