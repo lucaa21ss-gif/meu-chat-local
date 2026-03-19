@@ -20,7 +20,7 @@ export function createFetchHelpers(fetchJson, showStatus) {
 async function doFetchWithRetryImpl(action, successMessage, errorMessagePrefix, fetchJson, showStatus) {
   try {
     const result = await action();
-    showStatus(successMessage, { type: "success" });
+    if (successMessage) showStatus(successMessage, { type: "success" });
     return result;
   } catch (error) {
     showStatus(`${errorMessagePrefix}: ${error.message}`, {
