@@ -1,3 +1,5 @@
+import { createFetchHelpers } from "./fetch-helpers.js";
+
 export function createChatUtilsController({
   state,
   fetchJson,
@@ -9,6 +11,8 @@ export function createChatUtilsController({
   showStatus,
   openConfirmModal,
 }) {
+  const { doFetchWithRetry, fetchJsonBody } = createFetchHelpers(fetchJson, showStatus);
+
   function getControls() {
     const temp = Number.parseFloat(document.getElementById("temp").value);
     const model = document.getElementById("modelo").value;
@@ -36,23 +40,18 @@ export function createChatUtilsController({
     );
     if (defaultSystemPrompt === null) return;
 
-    try {
-      await fetchJson(
-        `/api/users/${encodeURIComponent(state.userId)}/system-prompt-default`,
-        {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ defaultSystemPrompt }),
-        },
-      );
-
-      await loadUsers();
-      showStatus("Prompt padrao do perfil atualizado.", { type: "success" });
-    } catch (error) {
-      showStatus(`Falha ao atualizar prompt do perfil: ${error.message}`, {
-        type: "error",
-      });
-    }
+    await doFetchWithRetry(
+      async () => {
+        await fetchJsonBody(
+          `/api/users/${encodeURIComponent(state.userId)}/system-prompt-default`,
+          "PATCH",
+          { defaultSystemPrompt },
+        );
+        await loadUsers();
+      },
+      "Prompt padrao do perfil atualizado.",
+      "Falha ao atualizar prompt do perfil",
+    );
   }
 
   async function resetar() {
@@ -63,22 +62,19 @@ export function createChatUtilsController({
     );
     if (!confirmed) return;
 
-    try {
-      await fetchJson(
-        `/api/chats/${encodeURIComponent(state.activeChatId)}/reset`,
-        { method: "POST" },
-      );
-      chatEl.innerHTML = "";
-      hideTyping();
-      await loadChats();
-      showStatus("Conversa limpa com sucesso.", { type: "success" });
-    } catch (error) {
-      showStatus(`Nao foi possivel limpar conversa: ${error.message}`, {
-        type: "error",
-        retryAction: () => resetar(),
-      });
-      throw error;
-    }
+    await doFetchWithRetry(
+      async () => {
+        await fetchJson(
+          `/api/chats/${encodeURIComponent(state.activeChatId)}/reset`,
+          { method: "POST" },
+        );
+        chatEl.innerHTML = "";
+        hideTyping();
+        await loadChats();
+      },
+      "Conversa limpa com sucesso.",
+      "Nao foi possivel limpar conversa",
+    );
   }
 
   function setupDragAndDrop() {
