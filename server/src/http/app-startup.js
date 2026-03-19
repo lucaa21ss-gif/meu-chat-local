@@ -19,12 +19,18 @@ export async function startConfiguredServer({
   port = 3001,
   startupDeps,
 }) {
-  const deps = resolveStartupDeps(startupDeps);
+  const {
+    createApp,
+    initStoreDb: runInitStoreDb,
+    scheduleBackupJobFromEnv: runScheduleBackupJobFromEnv,
+    startHttpServer: runStartHttpServer,
+    logger: startupLogger,
+  } = resolveStartupDeps(startupDeps);
 
-  await deps.initStoreDb();
+  await runInitStoreDb();
 
-  const app = deps.createApp();
-  deps.scheduleBackupJobFromEnv({ app, logger: deps.logger });
+  const app = createApp();
+  runScheduleBackupJobFromEnv({ app, logger: startupLogger });
 
-  return deps.startHttpServer({ app, port, logger: deps.logger });
+  return runStartHttpServer({ app, port, logger: startupLogger });
 }
