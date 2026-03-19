@@ -3,6 +3,10 @@ import { createConfiguredApp } from "./app-create.js";
 import { initStoreDb } from "./app-store.js";
 import { scheduleBackupJobFromEnv } from "./app-backup-scheduler.js";
 import { startHttpServer } from "./app-server-listen.js";
+import {
+  createScheduledBackupDeps,
+  createStartServerDeps,
+} from "./app-startup-wiring.js";
 
 function resolveStartupDeps(startupDeps = {}) {
   return {
@@ -30,7 +34,11 @@ export async function startConfiguredServer({
   await runInitStoreDb();
 
   const app = createApp();
-  runScheduleBackupJobFromEnv({ app, logger: startupLogger });
+  runScheduleBackupJobFromEnv(
+    createScheduledBackupDeps({ app, logger: startupLogger }),
+  );
 
-  return runStartHttpServer({ app, port, logger: startupLogger });
+  return runStartHttpServer(
+    createStartServerDeps({ app, port, logger: startupLogger }),
+  );
 }

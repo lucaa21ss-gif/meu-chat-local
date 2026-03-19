@@ -138,6 +138,7 @@ Arquivos-chave para comecar rapido:
 - `server/src/http/app-services-wiring.js`: agrupamento de paths e configuracoes derivadas para a camada de services
 - `server/src/http/app-governance-wiring.js`: agrupamento nomeado de dependencias da camada de governanca
 - `server/src/http/app-guards-wiring.js`: agrupamento nomeado de dependencias de guards e auditoria
+- `server/src/http/app-startup-wiring.js`: agrupamento nomeado dos argumentos de agendamento e subida do servidor
 - `server/src/infra/db/db.js`: persistencia SQLite, historico de chats e configuracoes
 - `server/src/infra/backup/backup-archive.js`: exportacao/restauracao e validacao de backups
 - `server/src/infra/fs/storage-service.js`: uso e limpeza de armazenamento local
