@@ -1,3 +1,16 @@
+function downloadJsonFile(text, filename) {
+  const blob = new Blob([text], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  try {
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = filename;
+    anchor.click();
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
 export function createTelemetryAdminController({
   state,
   apiBase,
@@ -93,13 +106,7 @@ export function createTelemetryAdminController({
       }
 
       const jsonText = await response.text();
-      const blob = new Blob([jsonText], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const anchor = document.createElement("a");
-      anchor.href = url;
-      anchor.download = `audit-${state.userId}.json`;
-      anchor.click();
-      URL.revokeObjectURL(url);
+      downloadJsonFile(jsonText, `audit-${state.userId}.json`);
 
       showStatus("Auditoria exportada com sucesso.", {
         type: "success",
@@ -135,13 +142,7 @@ export function createTelemetryAdminController({
       }
 
       const jsonText = await response.text();
-      const blob = new Blob([jsonText], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const anchor = document.createElement("a");
-      anchor.href = url;
-      anchor.download = `diagnostics-${new Date().toISOString().slice(0, 10)}.json`;
-      anchor.click();
-      URL.revokeObjectURL(url);
+      downloadJsonFile(jsonText, `diagnostics-${new Date().toISOString().slice(0, 10)}.json`);
 
       showStatus("Pacote de diagnostico exportado com sucesso.", {
         type: "success",
