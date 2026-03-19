@@ -3,36 +3,38 @@
 ![CI](https://github.com/lucaa21ss-gif/meu-chat-local/actions/workflows/ci.yml/badge.svg)
 ![Release Please](https://github.com/lucaa21ss-gif/meu-chat-local/actions/workflows/release-please.yml/badge.svg)
 
-Projeto de chat local com frontend moderno, streaming em tempo real, persistencia de conversas em SQLite e controle avancado de inferencia (modelo, temperatura e contexto).
+Projeto de chat local com Web moderna, streaming em tempo real, persistencia de conversas em SQLite e controle avancado de inferencia (modelo, temperatura e contexto).
 
 ## Visao geral
 
-- Aplicacao local completa com backend Node.js/Express, frontend web e persistencia SQLite
+- Aplicacao local completa com API Node.js/Express, Web e persistencia SQLite
 - Integracao com Ollama para chat sincrono e streaming token a token
 - Experiencia multimodal com voz, imagens, RAG local por aba e exportacao de conversas
-- Operacao assistida com health checks, SLO, auto-healing, scorecard, diagnostico e auditoria local
+- Operacao assistida com checagens de saude, SLO, auto-healing, scorecard, diagnostico e auditoria local
 - Automacoes operacionais para canary, DR test, perfil de capacidade, backup e distribuicao
-- Suite de testes backend/frontend e pipeline CI para validar regressao, seguranca e qualidade
+- Suite de testes de API/Web e pipeline CI para validar regressao, seguranca e qualidade
 
 Pontos de entrada para usuario final:
 
 - `/`: aplicacao de chat
 - `/produto`: pagina de produto com proposta de valor e recursos
-- `/guia`: guia rapido com setup, primeiros passos e troubleshooting enxuto
+- `/guia`: guia rapido com configuracao, primeiros passos e resolucao de problemas enxuta
 
 ## Arquitetura
 
 Fluxo principal da aplicacao:
 
-1. O frontend envia mensagens para a API (`/api/chat` ou `/api/chat-stream`)
-2. O backend aplica validacao, RBAC, rate limiting, auditoria e controles operacionais
+1. A Web envia mensagens para a API (`/api/chat` ou `/api/chat-stream`)
+2. A API aplica validacao, RBAC, rate limiting, auditoria e controles operacionais
 3. A camada de aplicacao encaminha inferencia para o Ollama e integra recursos locais como RAG, backup e diagnostico
 4. Conversas, mensagens, configuracoes e trilhas operacionais sao persistidas em SQLite e artefatos locais
 5. A UI atualiza historico, status de saude, acoes administrativas e exportacoes sem depender de servicos externos
 
 Camadas por responsabilidade:
 
-- Interface (`web/`): paginas do produto/chat/guia, eventos, streaming no cliente, atalhos e indicadores de health
+Nomenclatura de transição (alvo -> atual): `apps/api -> server`, `apps/web -> web`, `ops/scripts -> scripts`, `ops/github/workflows -> .github/workflows`, `artifacts/ -> server/artifacts/`.
+
+- Interface (`web/`): paginas do produto/chat/guia, eventos, streaming no cliente, atalhos e indicadores de saude
 - Entrypoint e bootstrap (`server/index.js`, `server/src/http/app-startup.js`, `server/src/http/app-main-module.js`): inicializacao do servidor, modo main e agendamento operacional
 - HTTP e composicao (`server/src/http/`): montagem da aplicacao Express, middlewares, contexto de dependencias e wiring helpers para rotas, services, governanca e guards
 - Modulos de dominio (`server/src/modules/`): registro de rotas por dominio e servicos de governanca/saude/chat/usuarios
@@ -48,7 +50,7 @@ A estrutura do projeto segue princípios de **separação de responsabilidades**
 
 #### Invariantes de Portabilidade
 
-Garantias estabelecidas para compatibilidade cross-platform:
+Garantias estabelecidas para compatibilidade multiplataforma:
 
 | Aspecto | Garantia | Verificação |
 |---------|----------|------------|
@@ -59,224 +61,153 @@ Garantias estabelecidas para compatibilidade cross-platform:
 | **Permissões de script** | Scripts em `scripts/` marcados executable (+x) em Git; WSL/GitHub Actions herdam | CI pre-job: `chmod +x scripts/*.sh` antes de execução |
 | **Dependências Node** | `package-lock.json` versionado; Node 20+ obrigatório em todas as camadas | `npm ci` em CI/CD; `engines` em `package.json` documenta requerimento |
 
-#### Árvore Hierárquica (Estrutura Real — Nível 1-3)
+#### Árvore Hierárquica (Estrutura-Alvo — Nível 1-3)
+
+Objetivo desta estrutura: manter o monólito modular com fronteiras claras, em que `domain` e `application` não dependem de detalhes de infraestrutura.
 
 ```text
-.                                              # Raiz (Configuração Global)
-├── package.json / package-lock.json           # Metadados + scripts npm root
-├── docker-compose.yml                         # Orquestração de containers (Ollama + Backend)
-├── eslint.config.mjs                          # Linting centralizado (Node.js 20+)
-├── CHANGELOG.md                               # Histórico de mudanças (semver)
-├── .git* / .gitignore                         # Git control + normalização de line ending
-├── .prettierignore                            # Formatting exclusions
-├── .release-please-config.json                # Schema de versionamento automático
-├── .release-please-manifest.json              # Estado de versão por package
-├── .dockerignore                              # Exclusões de build Docker
+.
+├── apps/
+│   ├── api/                                  # Processo de API (HTTP + orchestration)
+│   │   ├── src/
+│   │   │   ├── entrypoints/                  # Nível 3: main, http server, cli
+│   │   │   ├── http/                         # Nível 3: controllers, middlewares, route maps
+│   │   │   └── bootstrap/                    # Nível 3: wiring/DI, startup order
+│   │   ├── tests/                            # Nível 2: integração e contrato HTTP
+│   │   └── package.json
+│   └── web/                                  # Processo Web
+│       ├── src/
+│       │   ├── app/                          # Nível 3: estado, ações, casos de uso de UI
+│       │   ├── ui/                           # Nível 3: componentes e páginas
+│       │   └── infra/                        # Nível 3: cliente HTTP, storage browser
+│       ├── tests/
+│       └── package.json
 │
-├── .github/                                   # Infraestrutura de CI/CD
-│   └── workflows/
-│       ├── ci.yml                             # Pipeline: test → lint → build → docker
-│       └── release-please.yml                 # Automação de release (semver)
+├── modules/                                  # Monólito modular (núcleo de negócio)
+│   ├── chat/
+│   │   ├── domain/                           # Nível 3: entidades, regras, VOs, eventos
+│   │   ├── application/                      # Nível 3: use-cases e portas (interfaces)
+│   │   └── contracts/                        # Nível 3: DTOs, schemas, erros de módulo
+│   ├── users/
+│   │   ├── domain/
+│   │   ├── application/
+│   │   └── contracts/
+│   ├── backup/
+│   │   ├── domain/
+│   │   ├── application/
+│   │   └── contracts/
+│   └── ...                                   # health, audit, config, resilience etc.
+│
+├── platform/                                 # Implementações de infraestrutura
+│   ├── persistence/                          # Nível 2: sqlite, migrations, repositories impl
+│   │   ├── sqlite/                           # Nível 3: client, statements, tx manager
+│   │   └── migrations/
+│   ├── llm/                                  # Nível 2: ollama e adapters
+│   │   └── ollama/                           # Nível 3: client, stream parser, health probe
+│   ├── fs/                                   # Nível 2: storage local, backup artifacts
+│   │   ├── storage/
+│   │   └── backup-archive/
+│   ├── observability/                        # Nível 2: logging, telemetry, diagnostics
+│   │   ├── logging/
+│   │   └── telemetry/
+│   └── queue/                                # Nível 2: rate-limit/backpressure
+│       └── local-queue/
+│
+├── shared/
+│   ├── kernel/                               # Nível 2: tipos base, Result, clock, id
+│   │   ├── errors/                           # Nível 3: erro base e mapeamento
+│   │   └── types/
+│   ├── config/                               # Nível 2: env schema e normalização
+│   │   ├── env/
+│   │   └── paths/
+│   └── security/                             # Nível 2: hashing, crypto helpers
+│       └── crypto/
+│
+├── ops/
+│   ├── docker/                               # Nível 2: Dockerfiles e compose fragments
+│   │   ├── api/
+│   │   └── ollama/
+│   ├── scripts/                              # Nível 2: start/stop/install/canary/dr
+│   │   ├── local/
+│   │   └── ci/
+│   └── github/
+│       └── workflows/                        # Nível 3: ci, release, security scans
 │
 ├── docs/
-│   └── plano-rearquitetura-modular.md         # Evolução arquitetural do backend
+│   ├── architecture/                         # Nível 2: decisões arquiteturais (ADRs)
+│   │   └── adr-*.md
+│   ├── runbooks/                             # Nível 2: incident, backup, rollback
+│   │   └── *.md
+│   └── api/
+│       └── openapi/
 │
-├── scripts/                                   # Automação operacional (cross-platform)
-│   ├── install.sh                             # Bootstrap em ambiente novo
-│   ├── start.sh / stop.sh                     # Orquestração de containers
-│   ├── uninstall.sh                           # Remoção limpa de containers + dados
-│   ├── package-dist.sh                        # Empacotamento + notarização
-│   ├── release-canary.mjs                     # Gate de smoke-tests pré-release
-│   ├── capacity-profile.mjs                   # Profiler operacional de carga
-│   ├── runbook-incident.sh                    # Playbook de resposta a incidentes
-│   └── disaster-recovery-test.sh              # Teste de recuperação de desastres
+├── artifacts/                                # Saídas geradas em runtime (não versionar)
+│   ├── backups/
+│   ├── diagnostics/
+│   └── capacity/
 │
-├── server/                                    # Backend Node.js + Persistência
-│   ├── package.json / package-lock.json       # Dependências backend isoladas
-│   ├── Dockerfile                             # Build reproducível para container
-│   ├── index.js                               # Entrypoint: inicializa Express + Ollama
-│   ├── chat.db*                               # SQLite database + WAL/SHM (runtime)
-│   ├── artifacts/                             # Runtime outputs (backups, diagnostics, capacity)
-│   ├── index.test.js                          # Suite principal (108 testes integração)
-│   ├── backup.test.js                         # Testes de backup/restore + validação
-│   ├── chaos.test.js                          # Testes de resiliência + falhas simuladas
-│   ├── db.migrations.test.js                  # Testes de schema + migrações
-│   ├── integrity.test.js                      # Testes de integridade de arquivo
-│   ├── storage.test.js                        # Testes de operações de filesystem
-│   │
-│   └── src/                                   # Código organizado por camada
-│       │
-│       ├── http/                              # Bootstrapping + Composição da Aplicação
-│       │   ├── app-create.js                  # Composição principal: Express + middlewares
-│       │   ├── app-create-wiring.js           # Helpers: contextDeps, bootstrapDeps, appLocalsDeps
-│       │   ├── app-context.js                 # Orquestração: monta contexto + dependências
-│       │   ├── app-context-wiring.js          # Helper: agregação do valor de contexto
-│       │   ├── app-route-registrars.js        # Mapa centralizado de registradores de rota
-│       │   ├── app-route-wiring.js            # Helper: dependências para registro de rotas
-│       │   ├── app-route-deps.js              # Factory base para route deps helpers
-│       │   ├── app-services.js                # Composição: DB, backup, fs, Ollama, fila
-│       │   ├── app-service-wiring.js          # Helper: dependências de service assembly
-│       │   ├── app-services-wiring.js         # Helper: paths derivadas + config derivadas
-│       │   ├── app-governance-runtime.js      # Inicialização: governança operacional
-│       │   ├── app-governance-wiring.js       # Helper: dependências de governança
-│       │   ├── app-guards-and-audit.js        # Inicialização: guards + auditoria
-│       │   ├── app-guards-wiring.js           # Helper: dependências de guards
-│       │   ├── app-incident-signals-runtime.js # Inicialização: sinais de incidente
-│       │   ├── app-bootstrap.js               # Sequência de bootstrap
-│       │   ├── app-startup.js                 # Orquestração: agendamento + listen HTTP
-│       │   ├── app-startup-wiring.js          # Helper: agregação de args de startup
-│       │   ├── app-server-listen.js           # Inicialização: HTTP server listener
-│       │   ├── app-backup-scheduler.js        # Inicialização: agendador de backup
-│       │   ├── app-main-module.js             # Modo "main" para automação/testes
-│       │   ├── app-runtime-config.js          # Leitura de config em runtime
-│       │   ├── app-paths.js                   # Normalização de caminhos
-│       │   ├── app-store.js                   # Aggregator de estado global
-│       │   ├── app-role-limiter.js            # Factory de rate-limiters por role
-│       │   ├── register-app-routes.js         # Registrador central de rotas
-│       │   ├── route-deps-factory.js          # Factory base de deps para rotas
-│       │   ├── route-deps-chat.js             # Deps: /api/chat, /api/chat-stream
-│       │   ├── route-deps-chats.js            # Deps: /api/chats (CRUD, search, export)
-│       │   ├── route-deps-rag.js              # Deps: /api/rag (document indexing)
-│       │   ├── route-deps-user.js             # Deps: /api/users (perfis + preferências)
-│       │   ├── route-deps-backup.js           # Deps: /api/backup (export, restore, validate)
-│       │   ├── route-deps-storage.js          # Deps: /api/storage (usage, cleanup)
-│       │   ├── route-deps-health.js           # Deps: /api/health, /healthz, /readyz
-│       │   ├── route-deps-observability.js    # Deps: /api/diagnostics, /api/telemetry
-│       │   ├── route-deps-config.js           # Deps: /api/config (baseline, rollback)
-│       │   ├── route-deps-audit.js            # Deps: /api/audit (export, consulta)
-│       │   ├── route-deps-approval.js         # Deps: /api/approvals (solicitações)
-│       │   ├── route-deps-incident.js         # Deps: /api/incident (status, runbook)
-│       │   ├── route-deps-resilience.js       # Deps: /api/auto-healing, /api/disaster-recovery
-│       │   ├── async-handler.js               # Wrapper para async route handlers
-│       │   ├── auth-guards.js                 # Middlewares: autentication / x-user-id
-│       │   ├── operational-guards.js          # Middlewares: RBAC, rate-limiting, telemetry
-│       │   ├── audit-helpers.js               # Utilitários: logging de auditoria
-│       │   └── (45 arquivos de composição)
-│       │
-│       ├── modules/                           # Domínios de Negócio (Bus. Logic)
-│       │   ├── chat/                          # Rotas: POST /api/chat, /api/chat-stream
-│       │   ├── users/                         # Rotas: /api/users (CRUD perfis)
-│       │   ├── backup/                        # Lógica: export, restore, validate, cleanup
-│       │   ├── health/                        # Lógica: checks, SLO, aggregators
-│       │   ├── audit/                         # Lógica: export, query, event streaming
-│       │   ├── config-governance/             # Lógica: baseline, drift, rollback
-│       │   ├── capacity/                      # Lógica: profiling, scorecard, queue
-│       │   ├── incident/                      # Lógica: estado, sinais, runbooks
-│       │   ├── resilience/                    # Lógica: auto-healing, DR, integridade
-│       │   ├── approvals/                     # Lógica: fluxo de aprovações operacionais
-│       │   ├── observability/                 # Lógica: diagnostics, telemetry, SLO
-│       │   ├── storage/                       # Lógica: quotas, cleanup, reporting
-│       │   └── governance/                    # Policies: RBAC, rate-limiting, baseline
-│       │
-│       ├── infra/                             # Camada de Infraestrutura (Adaptadores)
-│       │   ├── db/                            # SQLite: schema, queries, migrations
-│       │   ├── backup/                        # Backup: compress, encrypt, validate
-│       │   ├── fs/                            # Filesystem: storage, cleanup, quotas
-│       │   ├── logging/                       # Logging: formatação, níveis, export
-│       │   ├── ollama/                        # Ollama: client, streaming, health
-│       │   ├── queue/                         # Fila: concurrency control, rate-limiting
-│       │   └── telemetry/                     # Telemetry: metrics, middleware, export
-│       │
-│       └── shared/                            # Utilitários Transversais
-│           ├── app-constants.js               # Constantes globais
-│           ├── parsers.js                     # Validação, parsing, conversão
-│           ├── model-recovery.js              # Fallbacks e recuperação de modelo
-│           └── errors/                        # Tipos de erros customizados
-│
-├── web/                                       # Frontend (Aplicação Web Estática)
-│   ├── package.json / package-lock.json       # Dependências frontend isoladas
-│   ├── index.html / produto.html / guia.html  # Páginas estáticas (entrypoints)
-│   ├── script.js                              # Orquestrador principal do frontend
-│   ├── health-indicators.js                   # Componentes de renderização de saúde
-│   ├── health-indicators.test.cjs             # Testes de componentes de saúde
-│   ├── styles.css / style.css / output.css    # Estilos (Tailwind compilado)
-│   ├── tailwind.config.js                     # Configuração Tailwind CSS
-│   ├── assets/                                # Recursos estáticos (se houver)
-│   │
-│   └── app/                                   # Lógica da Aplicação (Cliente)
-│       └── shared/                            # Módulos compartilhados do frontend
-│           ├── api.js                         # Cliente HTTP: fetch helpers + interceptors
-│           ├── app-bindings.js                # Event bindings: botões, atalhos, modais
-│           ├── app-runtime.js                 # Estado global + lifecycle do app
-│           ├── button-binding.js              # Handlers de botões reutilizáveis
-│           ├── chat-actions.js                # Ações de chat: send, reset, export
-│           ├── chat-export.js                 # Export: markdown, JSON, lote
-│           ├── chat-filters.js                # Filtros: role, date range, search type
-│           ├── chat-list.js                   # Renderização: lista de abas
-│           ├── chat-navigation.js             # Navegação: aba ativa, histórico
-│           ├── chat-render.js                 # Renderização: mensagens, streaming
-│           ├── chat-send.js                   # Pipeline: validação, send, retry
-│           ├── chat-utils.js                  # Utilitários: parsing, formatting
-│           ├── fetch-helpers.js               # HTTP: requests, error handling, retry
-│           ├── files.js                       # File I/O: download, upload, validation
-│           ├── format.js                      # Formatting: texto, markdown, timestamps
-│           ├── health-status.js               # Polling: health status + indicadores
-│           ├── history-search.js              # UI: search modal, filtros, paginação
-│           ├── modal.js                       # Componentes: modal base + variações
-│           ├── onboarding.js                  # UI: onboarding flow + progress
-│           ├── preferences.js                 # Armazenamento: user preferences (localStorage)
-│           ├── profiles.js                    # UI: gerenciador de perfis
-│           ├── rag.js                         # RAG: document indexing, search, render
-│           ├── rbac.js                        # RBAC: role-based visibility + permissions
-│           ├── shortcuts.js                   # Atalhos: keyboard bindings + modal
-│           ├── status.js                      # UI: status bar + indicadores
-│           ├── storage.js                     # Quota: display, cleanup simulation
-│           ├── telemetry-admin.js             # Admin: telemetry status + toggles
-│           ├── theme-local.js                 # Theme: persistência em localStorage
-│           ├── theme.js                       # Theme: switching, defaults, media query
-│           └── voice.js                       # Voice: recording, transcription, playback
-│
-├── ollama/
-│   └── Modelfile                              # Definição de modelo base Ollama (runtime)
-│
-└── dist/                                      # Saída de Build/Empacotamento
-    └── meu-chat-local-<version>.tar.gz        # Pacote de distribuição (notarizado)
+└── package.json                              # scripts de workspace e validação global
 ```
 
-**Glossário de Abreviações na Árvore:**
-- `app-*`: Arquivos de composição/inicialização da aplicação Express
-- `app-*-wiring.js`: Helpers para agregação de dependências (padrão Dependency Injection)
-- `route-deps-*.js`: Factory de dependências para rotas específicas de domínio
-- `.test.js`: Testes de integração backend (Node.js test runner)
-- `.test.cjs`: Testes de frontend (CommonJS format para compatibilidade)
+**Regras de Isolamento (obrigatórias):**
+- `modules/*/domain` não pode importar nada de `platform/*`, `apps/*` ou bibliotecas de transporte.
+- `modules/*/application` só conhece portas (interfaces) e contratos.
+- `platform/*` implementa portas definidas em `modules/*/application`.
+- `apps/api` faz composição/wiring e nunca contém regra de negócio de domínio.
+
+**Contrato de Portabilidade (Windows WSL, Linux, Docker, VS Code, AI Studio e GitHub):**
+- Caminhos sempre via APIs de path, nunca string hardcoded de SO.
+- Scripts críticos em Node.js (ou shell POSIX + fallback) com comportamento equivalente em CI.
+- Configuração por ambiente validada por schema único (`shared/config/env`).
+- Build e teste executados com os mesmos comandos em todos os ambientes: `npm ci`, `npm run lint`, `npm test`, `npm run build`.
 
 
 
-#### Arquivos Críticos (Runtime vs. Versionados)
+#### Artefatos Críticos (Estrutura-Alvo)
 
-| Categoria | Localização | Comportamento | Portabilidade |
-|-----------|------------|---------------|-----|
-| **Versionados** (commited no Git) | `/` | Idênticos em toda clonagem | ✓ Garantida |
-| **Gerados em runtime** | `server/chat.db*` | Conteúdo vareia por ambiente | Isolado por ambiente |
-| **Artefatos operacionais** | `server/artifacts/` | Backups, diagnostico, capacity | Isolado por ambiente |
-| **Build output** | `web/output.css` (Tailwind compilado) | Regenerado por `npm run build:css` | ✓ Determinístico |
-| **Distribuição** | `dist/` | Criado por `npm run dist:package` | ✓ Notarizado |
+| Categoria | Estrutura-Alvo | Estado atual no repositório | Regra de portabilidade |
+|-----------|----------------|-----------------------------|------------------------|
+| **Código versionado** | `apps/`, `modules/`, `platform/`, `shared/`, `ops/`, `docs/` | `server/`, `web/`, `scripts/`, `.github/`, `docs/` | Mesmo conteúdo em qualquer clone/runner |
+| **Dados de runtime** | `artifacts/` (raiz) | `server/artifacts/` e `server/chat.db*` | Não versionar; isolar por ambiente |
+| **Build de Web** | `apps/web/dist/` | `web/output.css` | Resultado determinístico via script |
+| **Pacote de distribuição** | `dist/` | `dist/` | Gerado por pipeline com checksums |
+| **Configuração operacional** | `ops/docker/`, `ops/scripts/`, `ops/github/workflows/` | `docker-compose.yml`, `scripts/`, `.github/workflows/` | Comandos equivalentes local/CI |
+
+Nota de transição: a árvore acima representa o alvo arquitetural; os caminhos em "Estado atual" mostram o mapeamento prático até a migração completa.
 
 #### Configurações Ocultas Relevantes
 
 Arquivos de dot (.) relevantes na raiz:
 
 - `.gitattributes` — Força LF em checkout (compatibilidade line ending)
-- `.prettierignore` — Estilo código consistente cross-platform
+- `.prettierignore` — Estilo de codigo consistente em multiplataforma
 - `.release-please-config.json` — Schema de versionamento (semver)
 - `.release-please-manifest.json` — Rastreamento de versão por package
 - `.dockerignore` — Exclusões de build Docker
 
-### Mapa de Dependências: Fluxo de Inicialização
+### Mapa de Dependências: Fluxo de Inicialização (Alvo)
 
-**Sequência de Bootstrap (ordem importante):**
+**Sequência de bootstrap (ordem canônica):**
 
-1. **Entrypoint:** `server/index.js` → modo main ou aplicação HTTP
-2. **App Create:** `app-create.js` → Express application + middlewares globais
-3. **App Context:** `app-context.js` → composição de todos os contextos, serviços e dependências
-   - Chama `app-services.js` → SQLite, Backup, Filesystem, Ollama, Queue, Telemetry
-   - Chama `app-governance-runtime.js` → políticas de RBAC, baseline, config
-   - Chama `app-guards-and-audit.js` → authentication, rate-limiting, auditoria
-4. **App Bootstrap:** `app-bootstrap.js` → registra rotas e middlewares
-5. **App Startup:** `app-startup.js` → agenda backups, inicia servidor HTTP
-6. **App Listen:** `app-server-listen.js` → listen na porta
+1. **Entrypoint:** `apps/api/src/entrypoints/*` inicia processo HTTP/CLI.
+2. **Bootstrap:** `apps/api/src/bootstrap/*` monta DI container e configura middleware.
+3. **HTTP Adapter:** `apps/api/src/http/*` traduz HTTP para use cases de `modules/*/application`.
+4. **Application Layer:** `modules/*/application` executa casos de uso e chama portas.
+5. **Domain Layer:** `modules/*/domain` aplica regras puras sem dependência de infra.
+6. **Infrastructure Adapters:** `platform/*` implementa portas (db, fila, llm, fs, telemetria).
 
-**Estrutura de Rotas (por domínio):**
+**Regra de direção de dependências (obrigatória):**
+
+```text
+apps/*  -> modules/*/application -> modules/*/domain
+       modules/*/application -> ports/interfaces -> platform/*
+
+Nunca:
+modules/*/domain -> platform/*
+modules/*/domain -> apps/*
+```
+
+**Estrutura de rotas por domínio (responsabilidade de módulo):**
 
 ```
 POST   /api/chat                        → modules/chat/ (sem streaming)
@@ -329,50 +260,49 @@ GET    /api/integrity/status            → modules/resilience/
 POST   /api/integrity/verify            → modules/resilience/
 ```
 
-### Padrões Arquiteturais
+### Padrões Arquiteturais (Monólito Modular Portável)
 
-**Dependency Injection via Wiring Helpers:**
-- `app-*-wiring.js` agrupa dependências relacionadas para injeção
-- Exemplo: `createServiceDepsForApp({ core, runtime })` retorna `{ db, backup, fs, ... }`
-- Aplicado em: Create, Context, Services, Governance, Guards, Startup
+**1) Ports and Adapters (Hexagonal):**
+- Portas declaradas em `modules/*/application`.
+- Adaptadores concretos em `platform/*`.
+- Troca de infraestrutura sem tocar nas regras de negócio.
 
-**Factory Pattern em Route Dependencies:**
-- `route-deps-factory.js` base com helpers comuns
-- `route-deps-*.js` especializados: chat, users, backup, health, config, etc.
-- Cada factory retorna middlewares + handlers específicos da rota
+**2) Dependency Injection na borda:**
+- Composição apenas em `apps/api/src/bootstrap`.
+- Domínio e aplicação recebem dependências por interface.
 
-**Async Middleware Wrapper:**
-- `async-handler.js` encapsula route handlers async
-- Captura erros e passa para middleware de erro central
+**3) Vertical Slice por módulo:**
+- Cada módulo contém `domain`, `application` e `contracts`.
+- Rotas HTTP apenas orquestram; regra fica no módulo.
 
-**Frontend MVC Simplificado:**
-- Model: `app-runtime.js` (estado global)
-- View: `script.js` (orquestrador) + `*-render.js` modules
-- Controller: `*-actions.js` + `chat-send.js` (eventos)
-- Persistência: `preferences.js`, `theme-local.js` (localStorage)
+**4) Shared Kernel mínimo:**
+- Tipos base, erros comuns e config em `shared/*`.
+- Sem acoplamento de domínio com tecnologia.
+
+**5) Operação idêntica em qualquer ambiente:**
+- Configuração centralizada e validada por schema.
+- Mesmos comandos de build/test em local, WSL, Docker e CI.
 
 
 
-### Garantia de Portabilidade Cross-Platform
+### Garantia de Portabilidade Multiplataforma
 
 A aplicação é projetada para funcionar **de forma idêntica** em VS Code (local), VS Code (WSL), Google AI Studio, e GitHub Actions. As seguintes práticas garantem consistência:
 
-#### 1. Normalização de Caminhos
+#### 1. Normalização de Caminhos e Diretórios
 
-```javascript
-// ✓ Correto (normalizado automaticamente)
-const dbPath = path.join(__dirname, 'chat.db');
-const artifactsDir = path.resolve('./server/artifacts');
-
-// ✗ Evitado (caminhos hardcoded)
-const dbPath = './server/chat.db';  // Não funciona identicamente em WSL
-```
+Regra arquitetural:
+- Código-fonte usa apenas APIs de caminho (`path.join`, `path.resolve`, `path.normalize`).
+- Nada de caminhos absolutos por sistema operacional.
+- Diretórios de runtime são centralizados em `artifacts/` (alvo) com mapeamento temporário para o estado atual (`server/artifacts/`).
 
 **Verificação:**
 ```bash
-# Valida que path.join/resolve são usados em todo o codebase
-grep -r "path\.join\|path\.resolve" server/src --include="*.js" | wc -l
-npm run lint  # ESLint detecta strings de caminho suspeitas
+# Busca uso das APIs de path
+grep -R "path\.join\|path\.resolve\|path\.normalize" . --include="*.js" --include="*.mjs"
+
+# Validação estática geral
+npm run lint
 ```
 
 #### 2. Normalização de Line Endings
@@ -393,8 +323,10 @@ cat .gitattributes
 
 **Verificação:**
 ```bash
-# Valida LF em todos os arquivos críticos
-find server/src web -name "*.js" -exec sh -c 'file {} | grep -q "CRLF" && echo "FAIL: {}" || true' \;
+# Valida LF em arquivos de código (estrutura atual)
+find server web scripts -name "*.js" -o -name "*.mjs" -o -name "*.sh" | while read -r f; do
+  file "$f" | grep -q "CRLF" && echo "FAIL: $f"
+done
 # Esperado: sem output (sem falhas detectadas)
 ```
 
@@ -406,23 +338,23 @@ Cada pull request é validado automaticamente em:
 - **Node.js 20.x** (versão mínima declarada)
 - **Sem acesso a sistema de arquivos externo** (simula isolamento)
 
-**Pipeline CI (`.github/workflows/ci.yml`):**
-1. `npm ci` — Install determinístico (sem lock changes)
+**Pipeline CI (estrutura-alvo em `ops/github/workflows/`, estado atual em `.github/workflows/`):**
+1. `npm ci` — instalacao deterministica (sem alteracoes no lockfile)
 2. `npm run lint` — ESLint + Prettier validação
-3. `npm test` — Suite completa (108 testes backend + testes frontend)
+3. `cd server && npm test` e `cd web && npm test` — suite API + Web
 4. `node --check` — Sintaxe JS válida em todas as mudanças
-5. Build Docker validation
+5. validacao de build Docker
 
-**Comando local para simular CI:**
+**Comando local para simular CI (idêntico em local, WSL e runner):**
 ```bash
-# Simula ambientes isolados localmente
-npm ci              # Install determinístico
+npm ci              # instalacao deterministica
 npm run lint        # Valida código
-npm test            # Executa testes
-npm run build:css   # Regenera Tailwind CSS
+cd server && npm ci && npm test
+cd ../web && npm ci && npm run build:css && npm test
+cd ..
 ```
 
-#### 4. Compatibilidade Ambiental
+#### 4. Compatibilidade por Ambiente de Execução
 
 Teste funcional em um novo ambiente (simula Google AI Studio/GitHub):
 
@@ -431,9 +363,11 @@ Teste funcional em um novo ambiente (simula Google AI Studio/GitHub):
 git clone https://github.com/lucaa21ss-gif/meu-chat-local.git /tmp/test-clone
 cd /tmp/test-clone
 
-# 2. Setup sem configuração adicional
+# 2. Configuração sem ajustes adicionais
 npm ci
-npm test
+cd server && npm ci && npm test
+cd ../web && npm ci && npm run build:css && npm test
+cd ..
 
 # 3. Valida que não há dependências ocultas/ambiente-específicas
 npm list --depth=0
@@ -445,15 +379,20 @@ npm list --depth=0
 - ✓ Sem variáveis de ambiente obrigatórias (tudo tem fallback)
 - ✓ Sem acesso a APIs externas durante teste
 
+**Mapa de transição (alvo -> atual):**
+- `apps/api` -> `server`
+- `apps/web` -> `web`
+- `ops/scripts` -> `scripts`
+- `ops/github/workflows` -> `.github/workflows`
+- `artifacts` (raiz) -> `server/artifacts`
+
 #### 5. Verificação de Integridade em Runtime
 
 A aplicação monitora sua própria integridade ao iniciar:
 
-```javascript
-// server/src/infra/integrity/
-GET /api/integrity/status  // Verifica se arquivos críticos estão íntegros
-GET /api/diagnostics/export  // Pacote completo com checksums
-```
+Endpoints de verificação operacional:
+- `GET /api/integrity/status` -> valida artefatos críticos em runtime
+- `GET /api/diagnostics/export` -> snapshot forense com evidências
 
 **Exemplo de checksum:**
 ```bash
@@ -468,19 +407,18 @@ Estrutura de testes garante funcionamento idêntico:
 
 | Teste | Escopo | Portabilidade | Comando |
 |-------|--------|--------------|---------|
-| **Unitário** | Lógica isolada | ✓ Completa | `npm test` |
-| **Integração** | Backend completo | ✓ Completa | `npm test` (servidor mock) |
-| **E2E portável** | UI sem servidor externo | ✓ Portável | `npm run test:web` |
-| **Funcional com Docker** | Stack real | ✓ Determinístico | `docker compose up && npm run e2e` |
+| **Unitário** | `modules/*/domain` + `modules/*/application` | ✓ Completa | `cd server && npm test` |
+| **Integração** | `apps/api` + adaptadores `platform/*` | ✓ Completa | `cd server && npm test` |
+| **UI** | `apps/web` | ✓ Portável | `cd web && npm test` |
+| **Funcional com Docker** | stack completa | ✓ Determinístico | `docker compose up --build` |
 
-**Suite de validação cross-platform:**
+**Suite de validacao multiplataforma:**
 ```bash
-# Executar em sequência garante portabilidade
-npm ci                    # Install determinístico
+npm ci                    # instalacao deterministica
 npm run lint              # Validação estática
-npm test                  # Testes backend (108x)
-npm run test:web          # Testes frontend
-npm run build:css         # Build determinístico
+cd server && npm ci && npm test
+cd ../web && npm ci && npm run build:css && npm test
+cd ..
 npm run dist:package      # Pacoteamento reproducível
 ```
 
@@ -489,10 +427,11 @@ npm run dist:package      # Pacoteamento reproducível
 - Docker e Docker Compose para o fluxo empacotado/recomendado
 - Node.js 20+ e npm para execucao local, testes e automacoes
 - Ollama instalado localmente apenas se nao usar Docker para o servico de modelo
-- Ambiente Linux/macOS ou Windows com shell compativel para os scripts em `scripts/`
+- Ambiente Linux/macOS ou Windows (WSL2 recomendado) com shell compativel para os scripts em `scripts/`
+- Operacao equivalente em VS Code local, VS Code via WSL, Google AI Studio e GitHub Actions
 - OpenSSL e `sha256sum` para verificacao manual de integridade do pacote de distribuicao
 
-## Setup rapido (Docker)
+## Configuracao rapida (Docker)
 
 Fluxo recomendado para subir a stack completa localmente:
 
@@ -502,7 +441,7 @@ Fluxo recomendado para subir a stack completa localmente:
 docker compose up --build
 ```
 
-2. Aguarde o backend expor a interface e a API em `http://localhost:3001`.
+2. Aguarde a API expor a interface e os endpoints em `http://localhost:3001`.
 
 3. Abra a UI:
 
@@ -557,11 +496,11 @@ Tambem disponivel via npm na raiz do projeto:
 - `npm run dist:stop`
 - `npm run dist:uninstall`
 
-## Setup local (sem Docker para frontend/server)
+## Configuracao local (sem Docker para apps/api e apps/web)
 
-Fluxo util para desenvolvimento, troubleshooting e execucao das automacoes locais.
+Fluxo util para desenvolvimento, resolucao de problemas e execucao das automacoes locais.
 
-### Backend
+### API (apps/api -> `server` no estado atual)
 
 ```bash
 cd server
@@ -571,15 +510,15 @@ npm start
 
 API em `http://localhost:3001`.
 
-Com o backend em execucao, a interface tambem fica disponivel em `http://localhost:3001`.
+Com a API em execucao, a interface tambem fica disponivel em `http://localhost:3001`.
 
-Checks uteis no backend:
+Checks uteis da API:
 
 ```bash
 npm test
 ```
 
-### Frontend
+### Web (apps/web -> `web` no estado atual)
 
 ```bash
 cd web
@@ -587,7 +526,7 @@ npm install
 npm run build:css
 ```
 
-Teste unitario atual do frontend:
+Teste unitario atual da Web:
 
 ```bash
 npm test
@@ -599,7 +538,7 @@ Para desenvolvimento com recompilacao de CSS:
 npm run watch:css
 ```
 
-Se preferir teste sem backend, voce pode abrir `web/index.html` diretamente,
+Se preferir teste sem API, voce pode abrir `web/index.html` diretamente,
 mas o fluxo recomendado e usar `http://localhost:3001` para manter API e UI na mesma origem.
 
 ## Endpoints principais
@@ -607,7 +546,7 @@ mas o fluxo recomendado e usar `http://localhost:3001` para manter API e UI na m
 Saude e operacao:
 
 - `GET /healthz`: liveness check do servidor
-- `GET /readyz`: readiness check do backend
+- `GET /readyz`: readiness check da API
 - `GET /api/health`: saude expandida (checks, alerts, baseline, fila, telemetry e snapshots)
 - `GET /api/slo`: snapshot de confiabilidade por rotas criticas (`operator|admin`)
 - `GET /api/scorecard`: scorecard operacional consolidado (`operator|admin`)
@@ -713,7 +652,7 @@ Fluxo de restauracao:
 
 1. Clique em `Restaurar backup` e escolha arquivo `.tgz`, `.tar.gz` ou `.enc`.
 2. Informe passphrase apenas se o backup estiver protegido.
-3. O backend detecta o formato automaticamente e valida autenticidade.
+3. A API detecta o formato automaticamente e valida autenticidade.
 4. Chave incorreta ou ausente para arquivo protegido retorna erro de validacao.
 
 Compatibilidade:
@@ -915,7 +854,7 @@ Eventos de auditoria gerados:
 
 ## Canary local de release
 
-Gate operacional antes de promover release para uso local critico.
+Etapa de aprovacao operacional antes de promover release para uso local critico.
 
 Execucao por comando unico:
 
@@ -923,21 +862,21 @@ Execucao por comando unico:
 npm run release:canary
 ```
 
-Smoke checks executados:
+Checagens de fumaca executadas:
 
 - `GET /api/health` (exige status `healthy`)
 - `GET /api/diagnostics/export` (exige pacote valido)
 - `POST /api/chat` (exige fluxo basico de resposta)
 
-Regras de gate:
+Regras da etapa de aprovacao:
 
-- `approved`: todos os checks essenciais aprovados
-- `blocked`: qualquer check essencial falhou (processo retorna exit code 1)
+- `approved`: todas as checagens essenciais aprovadas
+- `blocked`: qualquer checagem essencial falhou (processo retorna exit code 1)
 
-Relatorio de gate:
+Relatorio da etapa de aprovacao:
 
 - JSON em `server/artifacts/canary/canary-report.json`
-- inclui status final, motivos de bloqueio/aprovacao e detalhes de cada check
+- inclui status final, motivos de bloqueio/aprovacao e detalhes de cada checagem
 
 Opcionalmente, customize a execucao:
 
@@ -950,7 +889,7 @@ Procedimento de promocao recomendado:
 1. Empacotar release (`npm run dist:package`).
 2. Subir ambiente local (`npm run dist:install` ou stack equivalente).
 3. Executar canary (`npm run release:canary`).
-4. Promover somente com gate `approved`.
+4. Promover somente com status `approved` na etapa de aprovacao.
 5. Em `blocked`, revisar o relatorio JSON e corrigir antes de nova tentativa.
 
 ## Perfil local de capacidade
@@ -967,7 +906,7 @@ O runner exercita os endpoints críticos abaixo com carga controlada:
 - `GET /api/diagnostics/export`
 - `POST /api/chat`
 
-Métricas e gate operacional:
+Metricas e criterio operacional:
 
 - latência `p50`, `p95` e `p99`
 - `throughputRps` por endpoint e total
@@ -1271,8 +1210,8 @@ Evidencias automaticas por execucao:
 O pipeline de CI executa verificacao de cadeia de dependencias em tres alvos:
 
 - raiz do repositorio (`package-lock.json`)
-- backend (`server/package-lock.json`)
-- frontend (`web/package-lock.json`)
+- apps/api (estado atual: `server/package-lock.json`)
+- apps/web (estado atual: `web/package-lock.json`)
 
 Politica aplicada:
 
@@ -1290,7 +1229,7 @@ Checklist de atualizacao segura:
 
 2. Priorizar atualizacoes `patch` e `minor` antes de `major`.
 3. Para atualizacoes com breaking change, abrir PR dedicado com plano de rollback.
-4. Reexecutar suite completa (`npm test` no backend + checks de CI locais).
+4. Reexecutar suite completa (`npm test` em apps/api e apps/web + checks de CI locais).
 5. Registrar no changelog qualquer excecao aceita temporariamente.
 
 ## Como usar
@@ -1330,7 +1269,7 @@ Checklist de atualizacao segura:
 Observacoes:
 
 - Os atalhos globais ficam desativados quando um `input`, `textarea` ou area editavel esta em foco.
-- O modal `Atalhos ?` usa o mesmo mapa centralizado de atalhos do frontend para evitar divergencia entre UI e comportamento.
+- O modal `Atalhos ?` usa o mesmo mapa centralizado de atalhos da Web para evitar divergencia entre UI e comportamento.
 
 ## Historico de chats
 
@@ -1350,7 +1289,7 @@ Observacoes:
 
 ## SLO local de confiabilidade
 
-Objetivos aplicados automaticamente pelo backend com base na telemetria:
+Objetivos aplicados automaticamente pela API com base na telemetria:
 
 - Disponibilidade: taxa de erro maxima de `5%` por rota critica.
 - Latencia p95 para rotas de leitura (`GET`): ate `400ms`.
@@ -1383,14 +1322,14 @@ curl -X POST http://localhost:3001/api/chats \
 
 ## Testes automatizados
 
-Backend:
+API (apps/api -> `server` no estado atual):
 
 ```bash
 cd server
 npm test
 ```
 
-Frontend:
+Web (apps/web -> `web` no estado atual):
 
 ```bash
 cd web
@@ -1411,21 +1350,21 @@ Cobertura atual da suite:
 - backup, restore, storage e validacao operacional
 - diagnostico, integridade, capacity profile, scorecard e approvals
 - caos local, DR test e governanca operacional
-- utilitarios de health no frontend
+- utilitarios de saude na Web
 
-## CI
+## CI (ops/github/workflows -> `.github/workflows` no estado atual)
 
 Pipeline automatizado em [ .github/workflows/ci.yml ](.github/workflows/ci.yml):
 
-- executa quality gate com lint e format check
-- executa auditoria de dependencias (`npm audit --audit-level=high`) em raiz, backend e frontend
+- executa etapa de qualidade com lint e format check
+- executa auditoria de dependencias (`npm audit --audit-level=high`) em raiz, apps/api e apps/web
 - publica reports JSON de auditoria como artifacts do workflow
-- executa testes do backend com Node 20
-- valida checks basicos de frontend (`npm run build:css` + sintaxe de `web/script.js` + validacao de IDs essenciais da UI)
+- executa testes da API com Node 20
+- valida checagens basicas da Web (`npm run build:css` + sintaxe de `web/script.js` + validacao de IDs essenciais da UI)
 - valida `docker compose config`
 - builda a imagem Docker do servidor sem publicar
 
-### Troubleshooting de CI
+### Resolucao de problemas de CI
 
 Falhas comuns e como reproduzir localmente:
 
@@ -1443,7 +1382,7 @@ npm ci
 npm run format:check
 ```
 
-- `Backend Tests` falhou:
+- `API Tests` falhou:
 
 ```bash
 cd server
@@ -1459,7 +1398,7 @@ cd server && npm ci && npm audit --audit-level=high
 cd ../web && npm ci && npm audit --audit-level=high
 ```
 
-- `Frontend Checks` falhou:
+- `Web Checks` falhou:
 
 ```bash
 cd web
@@ -1493,7 +1432,7 @@ Publicacao de imagem Docker:
 
 ## Personalizacao de modelos
 
-No frontend, voce pode trocar o modelo no seletor. No backend, o fallback padrao e `meu-llama3`.
+Na Web, voce pode trocar o modelo no seletor. Na API, o fallback padrao e `meu-llama3`.
 
 Para adicionar novos modelos, inclua novas opcoes no seletor em `web/index.html` e garanta que o modelo esteja disponivel no Ollama.
 
@@ -1519,10 +1458,10 @@ O envio de imagem e opcional e depende do modelo escolhido suportar imagens.
 - Upload/indexacao: `POST /api/chats/:chatId/rag/documents`
 - Listagem da base: `GET /api/chats/:chatId/rag/documents`
 - Busca de trechos: `GET /api/chats/:chatId/rag/search?q=termo&limit=4`
-- O frontend permite anexar arquivos texto por aba e ativar `RAG` no envio da mensagem.
+- A Web permite anexar arquivos texto por aba e ativar `RAG` no envio da mensagem.
 - Quando ativo, o endpoint `/api/chat` retorna `citations` com os trechos usados.
 
-## Troubleshooting
+## Resolucao de problemas
 
 - CSS nao atualiza:
   - execute `npm run build:css` em `web`
@@ -1535,14 +1474,14 @@ O envio de imagem e opcional e depende do modelo escolhido suportar imagens.
 - Voz indisponivel:
   - o navegador pode nao suportar Web Speech API
 
-## Seguranca e configuracao do backend
+## Seguranca e configuracao da API
 
 - Security headers via `helmet`
 - Rate limit por IP nas rotas `/api`, `/api/chat` e `/api/chat-stream`
-- Validacao de payload no backend (chatId, titulo, mensagem, imagens, opcoes)
+- Validacao de payload na API (chatId, titulo, mensagem, imagens, opcoes)
 - Tratamento global de erros com respostas JSON padronizadas para API
 
-Variaveis de ambiente opcionais no backend:
+Variaveis de ambiente opcionais na API:
 
 - `FRONTEND_ORIGIN`: origem permitida no CORS
 - `JSON_LIMIT`: limite de payload JSON (padrao atual: `32mb`)
@@ -1562,7 +1501,7 @@ Variaveis de ambiente opcionais no backend:
 
 Notas sobre CORS:
 
-- Sem `FRONTEND_ORIGIN`, o backend aceita por padrao apenas `http://localhost:3001` e `http://127.0.0.1:3001` (alem de requests sem header `Origin`, como health checks e curl)
+- Sem `FRONTEND_ORIGIN`, a API aceita por padrao apenas `http://localhost:3001` e `http://127.0.0.1:3001` (alem de requests sem header `Origin`, como checagens de saude e curl)
 - Para liberar outras origens, defina `FRONTEND_ORIGIN` com uma ou mais URLs separadas por virgula
 
 ## Observabilidade e performance
