@@ -1,3 +1,7 @@
+import { createFetchHelpers } from "./fetch-helpers.js";
+
+import { doFetchWithRetry, fetchJsonBody } from "./fetch-helpers.js";
+
 export function createChatActionsController({
   state,
   fetchJson,
@@ -8,6 +12,7 @@ export function createChatActionsController({
   onLoadChats,
   onSwitchChat,
 }) {
+    const { doFetchWithRetry, fetchJsonBody } = createFetchHelpers(fetchJson, showStatus);
   function getActiveChat() {
     if (!state.activeChatId) return null;
     return state.chats.find((chat) => chat.id === state.activeChatId) || null;
@@ -43,23 +48,15 @@ export function createChatActionsController({
 
   async function createNewChat(title = "Nova conversa") {
     const id = uid();
-    try {
-      await fetchJson("/api/chats", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, title, userId: state.userId }),
-      });
-
-      await onLoadChats();
-      await onSwitchChat(id);
-      showStatus("Nova aba criada com sucesso.", { type: "success" });
-    } catch (error) {
-      showStatus(`Nao foi possivel criar nova aba: ${error.message}`, {
-        type: "error",
-        retryAction: () => createNewChat(title),
-      });
-      throw error;
-    }
+      await doFetchWithRetry(
+        async () => {
+          await fetchJsonBody("/api/chats", "POST", { id, title, userId: state.userId });
+          await onLoadChats();
+          await onSwitchChat(id);
+        },
+        "Nova aba criada com sucesso.",
+        "Nao foi possivel criar nova aba",
+      );
   }
 
   async function renameActiveChat() {
@@ -73,22 +70,14 @@ export function createChatActionsController({
     );
     if (title === null) return;
 
-    try {
-      await fetchJson(`/api/chats/${encodedChatId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title }),
-      });
-
-      await onLoadChats();
-      showStatus("Aba renomeada com sucesso.", { type: "success" });
-    } catch (error) {
-      showStatus(`Nao foi possivel renomear aba: ${error.message}`, {
-        type: "error",
-        retryAction: () => renameActiveChat(),
-      });
-      throw error;
-    }
+      await doFetchWithRetry(
+        async () => {
+          await fetchJsonBody(`/api/chats/${encodedChatId}`, "PATCH", { title });
+          await onLoadChats();
+        },
+        "Aba renomeada com sucesso.",
+        "Nao foi possivel renomear aba",
+      );
   }
 
   async function toggleFavoriteActiveChat() {
@@ -98,14 +87,7 @@ export function createChatActionsController({
     const next = !current?.isFavorite;
 
     try {
-      await fetchJson(
-        `/api/chats/${encodedChatId}/favorite`,
-        {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ isFavorite: next }),
-        },
-      );
+      await fetchJsonBody(`/api/chats/${encodedChatId}/favorite`, "PATCH", { isFavorite: next });
       await onLoadChats();
       showStatus(
         next ? "Aba marcada como favorita." : "Aba removida dos favoritos.",
@@ -128,14 +110,7 @@ export function createChatActionsController({
     const next = !current?.archivedAt;
 
     try {
-      await fetchJson(
-        `/api/chats/${encodedChatId}/archive`,
-        {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ archived: next }),
-        },
-      );
+      await fetchJsonBody(`/api/chats/${encodedChatId}/archive`, "PATCH", { archived: next });
       await onLoadChats();
       showStatus(next ? "Aba arquivada." : "Aba desarquivada.", {
         type: "success",
@@ -163,14 +138,7 @@ export function createChatActionsController({
     if (tags === null) return;
 
     try {
-      await fetchJson(
-        `/api/chats/${encodedChatId}/tags`,
-        {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ tags }),
-        },
-      );
+      await fetchJsonBody(`/api/chats/${encodedChatId}/tags`, "PATCH", { tags });
       await onLoadChats();
       showStatus("Tags atualizadas.", { type: "success", autoHideMs: 2500 });
     } catch (error) {
@@ -195,15 +163,7 @@ export function createChatActionsController({
       );
       if (systemPrompt === null) return;
 
-      await fetchJson(
-        `/api/chats/${encodedChatId}/system-prompt`,
-        {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ systemPrompt }),
-        },
-      );
-
+      await fetchJsonBody(`/api/chats/${encodedChatId}/system-prompt`, "PATCH", { systemPrompt });
       await onLoadChats();
       showStatus("Prompt da conversa atualizado.", { type: "success" });
     } catch (error) {
@@ -226,26 +186,16 @@ export function createChatActionsController({
     const id = uid();
     const userOnly = modalResult.userOnly;
 
-    try {
-      const payload = await fetchJson(
-        `/api/chats/${encodedChatId}/duplicate`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ id, title, userOnly }),
-        },
-      );
-
-      await onLoadChats();
-      await onSwitchChat(payload.chat.id);
-      showStatus("Aba duplicada com sucesso.", { type: "success" });
-    } catch (error) {
-      showStatus(`Nao foi possivel duplicar aba: ${error.message}`, {
-        type: "error",
-        retryAction: () => duplicateActiveChat(),
-      });
-      throw error;
-    }
+    const payload = await doFetchWithRetry(
+      async () => {
+        const result = await fetchJsonBody(`/api/chats/${encodedChatId}/duplicate`, "POST", { id, title, userOnly });
+        await onLoadChats();
+        await onSwitchChat(result.chat.id);
+        return result;
+      },
+      "Aba duplicada com sucesso.",
+      "Nao foi possivel duplicar aba",
+    );
   }
 
   async function deleteActiveChat() {
@@ -256,20 +206,16 @@ export function createChatActionsController({
     );
     if (!confirmed) return;
 
-    try {
-      await fetchJson(`/api/chats/${encodeURIComponent(currentId)}`, {
-        method: "DELETE",
-      });
-
-      await onLoadChats();
-      showStatus("Aba excluida com sucesso.", { type: "success" });
-    } catch (error) {
-      showStatus(`Nao foi possivel excluir aba: ${error.message}`, {
-        type: "error",
-        retryAction: () => deleteActiveChat(),
-      });
-      throw error;
-    }
+    await doFetchWithRetry(
+      async () => {
+        await fetchJson(`/api/chats/${encodeURIComponent(currentId)}`, {
+          method: "DELETE",
+        });
+        await onLoadChats();
+      },
+      "Aba excluida com sucesso.",
+      "Nao foi possivel excluir aba",
+    );
   }
 
   return {
