@@ -22,13 +22,16 @@ export function createAppServices({
   store,
   serverDir,
   chatClient,
-  ollama,
+  ollamaFallbackModel,
+  ollamaMaxAttempts,
+  ollamaTimeoutMs,
+  ollamaRetryDelays,
   parsers,
-  telemetry,
-  constants,
+  isTelemetryEnabled,
+  setTelemetryEnabled,
+  resetTelemetryStats,
+  CONFIG_KEYS,
 }) {
-  const { ollamaFallbackModel, ollamaMaxAttempts, ollamaTimeoutMs, ollamaRetryDelays } =
-    ollama;
   const {
     parsePositiveInt,
     parseSystemPrompt,
@@ -36,8 +39,6 @@ export function createAppServices({
     parseStorageLimitMb,
     parseBooleanLike,
   } = parsers;
-  const { isTelemetryEnabled, setTelemetryEnabled, resetTelemetryStats } = telemetry;
-  const { CONFIG_KEYS } = constants;
 
   const backupService =
     deps.backupService ||

@@ -54,22 +54,12 @@ export function createAppContext({
     store,
     serverDir,
     chatClient,
-    ollama: {
-      ollamaFallbackModel: runtimeConfig.ollamaFallbackModel,
-      ollamaMaxAttempts: runtimeConfig.ollamaMaxAttempts,
-      ollamaTimeoutMs: runtimeConfig.ollamaTimeoutMs,
-      ollamaRetryDelays: runtimeConfig.ollamaRetryDelays,
-    },
+    ...runtimeConfig,
     parsers: sharedParsers,
-    telemetry: {
-      isTelemetryEnabled,
-      setTelemetryEnabled,
-      resetTelemetryStats,
-      getTelemetryStats,
-    },
-    constants: {
-      CONFIG_KEYS,
-    },
+    isTelemetryEnabled,
+    setTelemetryEnabled,
+    resetTelemetryStats,
+    CONFIG_KEYS,
   });
 
   const governanceRuntime = createGovernanceRuntime({
