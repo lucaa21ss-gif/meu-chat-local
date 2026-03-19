@@ -204,26 +204,32 @@ export function createTelemetryAdminController({
     );
     if (!confirmed) return;
 
-    const rollback = await fetchJson(
-      `/api/config/versions/${encodeURIComponent(versionId)}/rollback`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
-      },
-    );
+    try {
+      const rollback = await fetchJson(
+        `/api/config/versions/${encodeURIComponent(versionId)}/rollback`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({}),
+        },
+      );
 
-    await onAfterConfigRollback();
+      await onAfterConfigRollback();
 
-    showStatus(
-      rollback.changed
-        ? "Rollback de configuracao aplicado com sucesso."
-        : "Rollback idempotente: configuracao ja estava no valor selecionado.",
-      {
-        type: "success",
-        autoHideMs: 3000,
-      },
-    );
+      showStatus(
+        rollback.changed
+          ? "Rollback de configuracao aplicado com sucesso."
+          : "Rollback idempotente: configuracao ja estava no valor selecionado.",
+        {
+          type: "success",
+          autoHideMs: 3000,
+        },
+      );
+    } catch (error) {
+      showStatus(`Falha ao executar rollback: ${error.message}`, {
+        type: "error",
+      });
+    }
   }
 
   return {
