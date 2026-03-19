@@ -204,12 +204,13 @@ export function createAppBindingsController({
   }
 
   function bindConfirmModalButtons() {
-    if (confirmCancelBtnEl) {
-      confirmCancelBtnEl.addEventListener("click", () => closeConfirmModal(false));
-    }
-    if (confirmOkBtnEl) {
-      confirmOkBtnEl.addEventListener("click", () => closeConfirmModal(true));
-    }
+    const confirmButtonHandlers = [
+      [confirmCancelBtnEl, () => closeConfirmModal(false)],
+      [confirmOkBtnEl, () => closeConfirmModal(true)],
+    ];
+    confirmButtonHandlers.forEach(([btn, handler]) => {
+      if (btn) btn.addEventListener("click", handler);
+    });
   }
 
   function bindThemeButton() {
