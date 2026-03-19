@@ -1,5 +1,6 @@
 import { createApiClient } from "./app/shared/api.js";
 import { createBackupController } from "./app/shared/backup.js";
+import { createButtonBindingHelper } from "./app/shared/button-binding.js";
 import { createChatActionsController } from "./app/shared/chat-actions.js";
 import { createChatExportController } from "./app/shared/chat-export.js";
 import { createChatFiltersController } from "./app/shared/chat-filters.js";
@@ -899,591 +900,335 @@ function loadDarkMode() {
 
 shortcutsController.renderShortcutsHelp();
 
-inputEl.addEventListener("input", updateSendButtonState);
+const buttonBinding = createButtonBindingHelper();
 
-inputEl.addEventListener("keydown", (event) => {
-  if (event.key === "Enter" && !event.shiftKey) {
-    event.preventDefault();
-    enviar();
-  }
-});
-
-document.addEventListener("keydown", shortcutsController.handleGlobalShortcuts);
-
-if (duplicateModalEl) {
-  duplicateModalEl.addEventListener("click", (event) => {
-    if (event.target === duplicateModalEl) {
-      closeDuplicateModal(null);
-    }
-  });
-}
-
-if (duplicateCancelBtnEl) {
-  duplicateCancelBtnEl.addEventListener("click", () => {
-    closeDuplicateModal(null);
-  });
-}
-
-if (duplicateConfirmBtnEl) {
-  duplicateConfirmBtnEl.addEventListener("click", () => {
-    const typed = duplicateTitleInputEl.value.trim();
-    const title = typed || "Conversa (copia)";
-    const userOnly = duplicateModeUserEl.checked;
-    closeDuplicateModal({ title, userOnly });
-  });
-}
-
-if (newChatBtnEl) {
-  newChatBtnEl.addEventListener("click", () => {
-    createNewChat();
-  });
-}
-
-if (newChatBtnMobileEl) {
-  newChatBtnMobileEl.addEventListener("click", () => {
-    createNewChat();
-  });
-}
-
-if (renameBtnEl) {
-  renameBtnEl.addEventListener("click", () => {
-    renameActiveChat().catch((err) => {
-      console.error(err);
-    });
-  });
-}
-
-if (favoriteBtnEl) {
-  favoriteBtnEl.addEventListener("click", () => {
-    toggleFavoriteActiveChat().catch((err) => {
-      console.error(err);
-    });
-  });
-}
-
-if (archiveBtnEl) {
-  archiveBtnEl.addEventListener("click", () => {
-    toggleArchiveActiveChat().catch((err) => {
-      console.error(err);
-    });
-  });
-}
-
-if (tagsBtnEl) {
-  tagsBtnEl.addEventListener("click", () => {
-    editTagsActiveChat().catch((err) => {
-      console.error(err);
-    });
-  });
-}
-
-if (systemPromptBtnEl) {
-  systemPromptBtnEl.addEventListener("click", () => {
-    editChatSystemPrompt().catch((err) => {
-      console.error(err);
-    });
-  });
-}
-
-if (duplicateBtnEl) {
-  duplicateBtnEl.addEventListener("click", () => {
-    duplicateActiveChat().catch((err) => {
-      console.error(err);
-    });
-  });
-}
-
-if (deleteBtnEl) {
-  deleteBtnEl.addEventListener("click", () => {
-    deleteActiveChat().catch((err) => {
-      console.error(err);
-    });
-  });
-}
-
-if (renameBtnMobileEl) {
-  renameBtnMobileEl.addEventListener("click", () => {
-    renameActiveChat().catch((err) => {
-      console.error(err);
-    });
-  });
-}
-
-if (duplicateBtnMobileEl) {
-  duplicateBtnMobileEl.addEventListener("click", () => {
-    duplicateActiveChat().catch((err) => {
-      console.error(err);
-    });
-  });
-}
-
-if (deleteBtnMobileEl) {
-  deleteBtnMobileEl.addEventListener("click", () => {
-    deleteActiveChat().catch((err) => {
-      console.error(err);
-    });
-  });
-}
-
-if (exportBtnEl) {
-  exportBtnEl.addEventListener("click", () => {
-    exportChat().catch((err) => {
-      console.error(err);
-    });
-  });
-}
-
-if (exportBtnMobileEl) {
-  exportBtnMobileEl.addEventListener("click", () => {
-    exportChat().catch((err) => {
-      console.error(err);
-    });
-  });
-}
-
-if (exportJsonBtnEl) {
-  exportJsonBtnEl.addEventListener("click", () => {
-    exportChatJson().catch((err) => {
-      console.error(err);
-    });
-  });
-}
-
-if (exportJsonBtnMobileEl) {
-  exportJsonBtnMobileEl.addEventListener("click", () => {
-    exportChatJson().catch((err) => {
-      console.error(err);
-    });
-  });
-}
-
-if (importJsonBtnEl) {
-  importJsonBtnEl.addEventListener("click", () => {
-    importChatJson().catch((err) => {
-      console.error(err);
-    });
-  });
-}
-
-if (importJsonBtnMobileEl) {
-  importJsonBtnMobileEl.addEventListener("click", () => {
-    importChatJson().catch((err) => {
-      console.error(err);
-    });
-  });
-}
-
-if (exportAllJsonBtnEl) {
-  exportAllJsonBtnEl.addEventListener("click", () => {
-    exportAllChatsJson().catch((err) => {
-      console.error(err);
-    });
-  });
-}
-
-if (exportAllJsonBtnMobileEl) {
-  exportAllJsonBtnMobileEl.addEventListener("click", () => {
-    exportAllChatsJson().catch((err) => {
-      console.error(err);
-    });
-  });
-}
-
-if (exportFavoritesMdBtnEl) {
-  exportFavoritesMdBtnEl.addEventListener("click", () => {
-    exportFavoriteChatsMarkdown().catch((err) => {
-      console.error(err);
-    });
-  });
-}
-
-if (exportFavoritesMdBtnMobileEl) {
-  exportFavoritesMdBtnMobileEl.addEventListener("click", () => {
-    exportFavoriteChatsMarkdown().catch((err) => {
-      console.error(err);
-    });
-  });
-}
-
-if (backupBtnEl) {
-  backupBtnEl.addEventListener("click", () => {
-    exportFullBackup().catch(console.error);
-  });
-}
-
-if (backupBtnMobileEl) {
-  backupBtnMobileEl.addEventListener("click", () => {
-    exportFullBackup().catch(console.error);
-  });
-}
-
-if (restoreBackupBtnEl) {
-  restoreBackupBtnEl.addEventListener("click", () => {
-    restoreFullBackup().catch(console.error);
-  });
-}
-
-if (restoreBackupBtnMobileEl) {
-  restoreBackupBtnMobileEl.addEventListener("click", () => {
-    restoreFullBackup().catch(console.error);
-  });
-}
-
-if (voiceHistoryBtnEl) {
-  voiceHistoryBtnEl.addEventListener("click", openVoiceHistoryModalWithRender);
-}
-
-if (voiceHistoryCloseBtnEl) {
-  voiceHistoryCloseBtnEl.addEventListener("click", closeVoiceHistoryModal);
-}
-
-if (voiceHistoryModalEl) {
-  voiceHistoryModalEl.addEventListener("click", (e) => {
-    if (e.target === voiceHistoryModalEl) closeVoiceHistoryModal();
-  });
-}
-
-if (clearVoiceHistoryBtnEl) {
-  clearVoiceHistoryBtnEl.addEventListener("click", async () => {
-    const confirmed = await openConfirmModal(
-      "Deseja limpar todo o historico de voz?",
-    );
-    if (confirmed) {
-      voiceController.clearHistory();
-    }
-  });
-}
-
-if (confirmCancelBtnEl) {
-  confirmCancelBtnEl.addEventListener("click", () => closeConfirmModal(false));
-}
-
-if (confirmOkBtnEl) {
-  confirmOkBtnEl.addEventListener("click", () => closeConfirmModal(true));
-}
-
-if (confirmModalEl) {
-  confirmModalEl.addEventListener("click", (e) => {
-    if (e.target === confirmModalEl) closeConfirmModal(false);
-  });
-}
-
-if (darkModeBtnEl) {
-  darkModeBtnEl.addEventListener("click", async () => {
-    const nextTheme = cycleThemeMode();
-    try {
-      await saveThemeForCurrentUser(nextTheme);
-      showStatus(`Tema atualizado: ${nextTheme}.`, {
-        type: "success",
-        autoHideMs: 1800,
-      });
-    } catch (error) {
-      showStatus(`Falha ao salvar tema do perfil: ${error.message}`, {
-        type: "error",
-      });
-    }
-  });
-}
-
-if (onboardingBtnEl) {
-  onboardingBtnEl.addEventListener("click", () => {
-    openOnboardingModal();
-  });
-}
-
-if (onboardingRunChecksBtnEl) {
-  onboardingRunChecksBtnEl.addEventListener("click", () => {
-    runOnboardingChecks().catch((error) => {
-      showStatus(`Falha no onboarding: ${error.message}`, { type: "error" });
-      console.error(error);
-    });
-  });
-}
-
-if (onboardingSkipBtnEl) {
-  onboardingSkipBtnEl.addEventListener("click", () => {
-    closeOnboardingModal();
-  });
-}
-
-if (onboardingCompleteBtnEl) {
-  onboardingCompleteBtnEl.addEventListener("click", () => {
-    onboardingController.complete();
-  });
-}
-
-if (onboardingModalEl) {
-  onboardingModalEl.addEventListener("click", (event) => {
-    onboardingController.handleBackdropClick(event);
-  });
-}
-
-if (shortcutsHelpBtnEl) {
-  shortcutsHelpBtnEl.addEventListener("click", () => {
-    openShortcutsModal();
-  });
-}
-
-if (shortcutsCloseBtnEl) {
-  shortcutsCloseBtnEl.addEventListener("click", () => {
-    closeShortcutsModal();
-  });
-}
-
-if (shortcutsModalEl) {
-  shortcutsModalEl.addEventListener("click", (event) => {
-    if (event.target === shortcutsModalEl) {
-      closeShortcutsModal();
-    }
-  });
-}
-
-if (statusRetryBtnEl) {
-  statusRetryBtnEl.addEventListener("click", async () => {
-    const action = statusPresenter.getRetryAction();
-    if (!action) return;
-    try {
-      await action();
-    } catch (error) {
-      console.error(error);
-    }
-  });
-}
-
-if (searchBtnEl) {
-  searchBtnEl.addEventListener("click", () => {
-    runHistorySearch({ resetPage: true }).catch((error) => {
-      console.error(error);
-    });
-  });
-}
-
-if (searchInputEl) {
-  searchInputEl.addEventListener("keydown", (event) => {
-    if (event.key === "Enter") {
+// Setup core input bindings
+{
+  inputEl.addEventListener("input", updateSendButtonState);
+  inputEl.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
+      enviar();
+    }
+  });
+  document.addEventListener("keydown", shortcutsController.handleGlobalShortcuts);
+
+  // Modal backdrop clicks
+  if (duplicateModalEl) {
+    duplicateModalEl.addEventListener("click", (event) => {
+      if (event.target === duplicateModalEl) {
+        closeDuplicateModal(null);
+      }
+    });
+  }
+  if (confirmModalEl) {
+    confirmModalEl.addEventListener("click", (e) => {
+      if (e.target === confirmModalEl) closeConfirmModal(false);
+    });
+  }
+  if (shortcutsModalEl) {
+    shortcutsModalEl.addEventListener("click", (event) => {
+      if (event.target === shortcutsModalEl) {
+        closeShortcutsModal();
+      }
+    });
+  }
+  if (voiceHistoryModalEl) {
+    voiceHistoryModalEl.addEventListener("click", (e) => {
+      if (e.target === voiceHistoryModalEl) closeVoiceHistoryModal();
+    });
+  }
+  if (onboardingModalEl) {
+    onboardingModalEl.addEventListener("click", (event) => {
+      onboardingController.handleBackdropClick(event);
+    });
+  }
+}
+
+// Setup duplicate modal buttons
+{
+  if (duplicateCancelBtnEl) {
+    duplicateCancelBtnEl.addEventListener("click", () => {
+      closeDuplicateModal(null);
+    });
+  }
+  if (duplicateConfirmBtnEl) {
+    duplicateConfirmBtnEl.addEventListener("click", () => {
+      const typed = duplicateTitleInputEl.value.trim();
+      const title = typed || "Conversa (copia)";
+      const userOnly = duplicateModeUserEl.checked;
+      closeDuplicateModal({ title, userOnly });
+    });
+  }
+}
+
+// Setup chat action buttons (desktop + mobile pairs)
+{
+  buttonBinding.bindWithErrorHandling(newChatBtnEl, newChatBtnMobileEl, () => createNewChat());
+  buttonBinding.bindWithErrorHandling(renameBtnEl, renameBtnMobileEl, () => renameActiveChat());
+  buttonBinding.bindWithErrorHandling(favoriteBtnEl, undefined, () => toggleFavoriteActiveChat());
+  buttonBinding.bindWithErrorHandling(archiveBtnEl, undefined, () => toggleArchiveActiveChat());
+  buttonBinding.bindWithErrorHandling(tagsBtnEl, undefined, () => editTagsActiveChat());
+  buttonBinding.bindWithErrorHandling(systemPromptBtnEl, undefined, () => editChatSystemPrompt());
+  buttonBinding.bindWithErrorHandling(duplicateBtnEl, duplicateBtnMobileEl, () => duplicateActiveChat());
+  buttonBinding.bindWithErrorHandling(deleteBtnEl, deleteBtnMobileEl, () => deleteActiveChat());
+}
+
+// Setup export buttons (desktop + mobile pairs)
+{
+  buttonBinding.bindWithErrorHandling(exportBtnEl, exportBtnMobileEl, () => exportChat());
+  buttonBinding.bindWithErrorHandling(exportJsonBtnEl, exportJsonBtnMobileEl, () => exportChatJson());
+  buttonBinding.bindWithErrorHandling(exportAllJsonBtnEl, exportAllJsonBtnMobileEl, () => exportAllChatsJson());
+  buttonBinding.bindWithErrorHandling(exportFavoritesMdBtnEl, exportFavoritesMdBtnMobileEl, () => exportFavoriteChatsMarkdown());
+  buttonBinding.bindWithErrorHandling(importJsonBtnEl, importJsonBtnMobileEl, () => importChatJson());
+}
+
+// Setup backup buttons (desktop + mobile pairs)
+{
+  buttonBinding.bindWithErrorHandling(backupBtnEl, backupBtnMobileEl, () => exportFullBackup());
+  buttonBinding.bindWithErrorHandling(restoreBackupBtnEl, restoreBackupBtnMobileEl, () => restoreFullBackup());
+}
+
+// Setup voice history buttons
+{
+  if (voiceHistoryBtnEl) {
+    voiceHistoryBtnEl.addEventListener("click", openVoiceHistoryModalWithRender);
+  }
+  if (voiceHistoryCloseBtnEl) {
+    voiceHistoryCloseBtnEl.addEventListener("click", closeVoiceHistoryModal);
+  }
+  if (clearVoiceHistoryBtnEl) {
+    clearVoiceHistoryBtnEl.addEventListener("click", async () => {
+      const confirmed = await openConfirmModal("Deseja limpar todo o historico de voz?");
+      if (confirmed) {
+        voiceController.clearHistory();
+      }
+    });
+  }
+}
+
+// Setup confirm modal buttons
+{
+  if (confirmCancelBtnEl) {
+    confirmCancelBtnEl.addEventListener("click", () => closeConfirmModal(false));
+  }
+  if (confirmOkBtnEl) {
+    confirmOkBtnEl.addEventListener("click", () => closeConfirmModal(true));
+  }
+}
+
+// Setup theme button
+{
+  if (darkModeBtnEl) {
+    darkModeBtnEl.addEventListener("click", async () => {
+      const nextTheme = cycleThemeMode();
+      try {
+        await saveThemeForCurrentUser(nextTheme);
+        showStatus(`Tema atualizado: ${nextTheme}.`, {
+          type: "success",
+          autoHideMs: 1800,
+        });
+      } catch (error) {
+        showStatus(`Falha ao salvar tema do perfil: ${error.message}`, {
+          type: "error",
+        });
+      }
+    });
+  }
+}
+
+// Setup onboarding buttons
+{
+  if (onboardingBtnEl) {
+    onboardingBtnEl.addEventListener("click", () => {
+      openOnboardingModal();
+    });
+  }
+  if (onboardingRunChecksBtnEl) {
+    onboardingRunChecksBtnEl.addEventListener("click", () => {
+      runOnboardingChecks().catch((error) => {
+        showStatus(`Falha no onboarding: ${error.message}`, { type: "error" });
+        console.error(error);
+      });
+    });
+  }
+  if (onboardingSkipBtnEl) {
+    onboardingSkipBtnEl.addEventListener("click", () => {
+      closeOnboardingModal();
+    });
+  }
+  if (onboardingCompleteBtnEl) {
+    onboardingCompleteBtnEl.addEventListener("click", () => {
+      onboardingController.complete();
+    });
+  }
+}
+
+// Setup shortcuts modal buttons
+{
+  if (shortcutsHelpBtnEl) {
+    shortcutsHelpBtnEl.addEventListener("click", () => {
+      openShortcutsModal();
+    });
+  }
+  if (shortcutsCloseBtnEl) {
+    shortcutsCloseBtnEl.addEventListener("click", () => {
+      closeShortcutsModal();
+    });
+  }
+}
+
+// Setup status retry button
+{
+  if (statusRetryBtnEl) {
+    statusRetryBtnEl.addEventListener("click", async () => {
+      const action = statusPresenter.getRetryAction();
+      if (!action) return;
+      try {
+        await action();
+      } catch (error) {
+        console.error(error);
+      }
+    });
+  }
+}
+
+// Setup search buttons
+{
+  if (searchBtnEl) {
+    searchBtnEl.addEventListener("click", () => {
       runHistorySearch({ resetPage: true }).catch((error) => {
         console.error(error);
       });
-    }
-  });
-}
-
-if (searchClearBtnEl) {
-  searchClearBtnEl.addEventListener("click", () => {
-    if (searchInputEl) searchInputEl.value = "";
-    if (searchRoleEl) searchRoleEl.value = "all";
-    if (searchFromEl) searchFromEl.value = "";
-    if (searchToEl) searchToEl.value = "";
-    state.search.query = "";
-    clearSearchResults();
-  });
-}
-
-if (searchPrevBtnEl) {
-  searchPrevBtnEl.addEventListener("click", () => {
-    if (state.search.page <= 1) return;
-    state.search.page -= 1;
-    runHistorySearch({ resetPage: false }).catch((error) => {
-      console.error(error);
     });
-  });
-}
-
-if (searchNextBtnEl) {
-  searchNextBtnEl.addEventListener("click", () => {
-    if (
-      state.search.totalPages === 0 ||
-      state.search.page >= state.search.totalPages
-    )
-      return;
-    state.search.page += 1;
-    runHistorySearch({ resetPage: false }).catch((error) => {
-      console.error(error);
+  }
+  if (searchInputEl) {
+    searchInputEl.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        runHistorySearch({ resetPage: true }).catch((error) => {
+          console.error(error);
+        });
+      }
     });
-  });
-}
-
-if (docUploadBtnEl) {
-  docUploadBtnEl.addEventListener("click", () => {
-    uploadRagDocuments().catch((error) => {
-      console.error(error);
+  }
+  if (searchClearBtnEl) {
+    searchClearBtnEl.addEventListener("click", () => {
+      if (searchInputEl) searchInputEl.value = "";
+      if (searchRoleEl) searchRoleEl.value = "all";
+      if (searchFromEl) searchFromEl.value = "";
+      if (searchToEl) searchToEl.value = "";
+      state.search.query = "";
+      clearSearchResults();
     });
-  });
-}
-
-if (ragToggleEl) {
-  ragToggleEl.addEventListener("change", () => {
-    state.rag.enabled = Boolean(ragToggleEl.checked);
-    if (state.rag.enabled && state.rag.docCount === 0) {
-      showStatus("RAG ativado, mas ainda sem documentos indexados nesta aba.", {
-        type: "info",
-        autoHideMs: 3000,
-      });
-    }
-  });
-}
-
-if (userSelectEl) {
-  userSelectEl.addEventListener("change", () => {
-    const selected = userSelectEl.value;
-    if (selected && selected !== state.userId) {
-      switchUser(selected).catch(console.error);
-    }
-  });
-}
-
-if (newUserBtnEl) {
-  newUserBtnEl.addEventListener("click", () => {
-    createProfile().catch(console.error);
-  });
-}
-
-if (renameUserBtnEl) {
-  renameUserBtnEl.addEventListener("click", () => {
-    renameCurrentProfile().catch(console.error);
-  });
-}
-
-if (deleteUserBtnEl) {
-  deleteUserBtnEl.addEventListener("click", () => {
-    deleteCurrentProfile().catch(console.error);
-  });
-}
-
-if (userPromptBtnEl) {
-  userPromptBtnEl.addEventListener("click", () => {
-    editUserDefaultSystemPrompt().catch(console.error);
-  });
-}
-
-if (filterAllBtnEl) {
-  filterAllBtnEl.addEventListener("click", () => {
-    setFilterMode("all").catch(console.error);
-  });
-}
-
-if (filterFavoritesBtnEl) {
-  filterFavoritesBtnEl.addEventListener("click", () => {
-    setFilterMode("favorites").catch(console.error);
-  });
-}
-
-if (filterArchivedBtnEl) {
-  filterArchivedBtnEl.addEventListener("click", () => {
-    setFilterMode("archived").catch(console.error);
-  });
-}
-
-if (filterTagApplyBtnEl) {
-  filterTagApplyBtnEl.addEventListener("click", () => {
-    chatFiltersController
-      .applyTagFilter(filterTagInputEl?.value || "")
-      .catch(console.error);
-  });
-}
-
-if (filterTagInputEl) {
-  filterTagInputEl.addEventListener("keydown", (event) => {
-    if (event.key !== "Enter") return;
-    event.preventDefault();
-    chatFiltersController.applyTagFilter(filterTagInputEl.value || "").catch(console.error);
-  });
-}
-
-if (chatListSearchInputEl) {
-  chatListSearchInputEl.addEventListener("input", () => {
-    state.chatList.search = (chatListSearchInputEl.value || "").trim();
-    scheduleChatListSearch();
-  });
-}
-
-if (chatListLoadMoreBtnEl) {
-  chatListLoadMoreBtnEl.addEventListener("click", () => {
-    if (state.chatList.page >= state.chatList.totalPages) return;
-    state.chatList.page += 1;
-    loadChats({ appendPage: true }).catch(console.error);
-  });
-}
-
-if (tabsEl) {
-  tabsEl.addEventListener("scroll", () => {
-    state.chatList.scrollTop = tabsEl.scrollTop;
-  });
-}
-
-if (telemetryOptInEl) {
-  telemetryOptInEl.addEventListener("change", () => {
-    setTelemetryEnabled(telemetryOptInEl.checked).catch(console.error);
-  });
-}
-
-if (telemetryStatsBtnEl) {
-  telemetryStatsBtnEl.addEventListener("click", () => {
-    showTelemetryStats().catch(console.error);
-  });
-}
-
-if (auditExportBtnEl) {
-  auditExportBtnEl.addEventListener("click", () => {
-    exportAuditLogsJson().catch(console.error);
-  });
-}
-
-if (configHistoryBtnEl) {
-  configHistoryBtnEl.addEventListener("click", () => {
-    openConfigHistoryRollback().catch((error) => {
-      showStatus(`Falha no rollback de configuracao: ${error.message}`, {
-        type: "error",
-        traceId: error.traceId,
+  }
+  if (searchPrevBtnEl) {
+    searchPrevBtnEl.addEventListener("click", () => {
+      if (state.search.page <= 1) return;
+      state.search.page -= 1;
+      runHistorySearch({ resetPage: false }).catch((error) => {
+        console.error(error);
       });
     });
-  });
-}
-
-if (diagnosticsExportBtnEl) {
-  diagnosticsExportBtnEl.addEventListener("click", () => {
-    exportDiagnosticsPackage().catch((error) => {
-      showStatus(`Falha ao exportar diagnostico: ${error.message}`, {
-        type: "error",
-        traceId: error.traceId,
+  }
+  if (searchNextBtnEl) {
+    searchNextBtnEl.addEventListener("click", () => {
+      if (state.search.totalPages === 0 || state.search.page >= state.search.totalPages) return;
+      state.search.page += 1;
+      runHistorySearch({ resetPage: false }).catch((error) => {
+        console.error(error);
       });
     });
-  });
+  }
 }
 
-if (healthRefreshBtnEl) {
-  healthRefreshBtnEl.addEventListener("click", () => {
-    if (state.healthPoller) {
-      state.healthPoller.refreshNow();
-      return;
-    }
-    checkOllamaStatus().catch(console.error);
-  });
-}
-
-if (storageRefreshBtnEl) {
-  storageRefreshBtnEl.addEventListener("click", () => {
-    loadStorageUsage().catch(console.error);
-  });
-}
-
-if (storageCleanupBtnEl) {
-  storageCleanupBtnEl.addEventListener("click", () => {
-    runStorageCleanup().catch((error) => {
-      showStatus(`Falha na limpeza: ${error.message}`, { type: "error" });
+// Setup chat list buttons
+{
+  if (chatListLoadMoreBtnEl) {
+    chatListLoadMoreBtnEl.addEventListener("click", () => {
+      if (state.chatList.page >= state.chatList.totalPages) return;
+      state.chatList.page += 1;
+      loadChats({ appendPage: true }).catch(console.error);
     });
-  });
+  }
+  if (tabsEl) {
+    tabsEl.addEventListener("scroll", () => {
+      state.chatList.scrollTop = tabsEl.scrollTop;
+    });
+  }
 }
 
-if (storageLimitBtnEl) {
-  storageLimitBtnEl.addEventListener("click", () => {
-    updateStorageLimitForCurrentUser().catch((error) => {
-      showStatus(`Falha ao atualizar limite: ${error.message}`, {
-        type: "error",
+// Setup admin / telemetry buttons
+{
+  if (telemetryOptInEl) {
+    telemetryOptInEl.addEventListener("change", () => {
+      setTelemetryEnabled(telemetryOptInEl.checked).catch(console.error);
+    });
+  }
+  if (telemetryStatsBtnEl) {
+    telemetryStatsBtnEl.addEventListener("click", () => {
+      showTelemetryStats().catch(console.error);
+    });
+  }
+  if (auditExportBtnEl) {
+    auditExportBtnEl.addEventListener("click", () => {
+      exportAuditLogsJson().catch(console.error);
+    });
+  }
+  if (configHistoryBtnEl) {
+    configHistoryBtnEl.addEventListener("click", () => {
+      openConfigHistoryRollback().catch((error) => {
+        showStatus(`Falha no rollback de configuracao: ${error.message}`, {
+          type: "error",
+          traceId: error.traceId,
+        });
       });
     });
-  });
+  }
+  if (diagnosticsExportBtnEl) {
+    diagnosticsExportBtnEl.addEventListener("click", () => {
+      exportDiagnosticsPackage().catch((error) => {
+        showStatus(`Falha ao exportar diagnostico: ${error.message}`, {
+          type: "error",
+          traceId: error.traceId,
+        });
+      });
+    });
+  }
+}
+
+// Setup health / storage buttons
+{
+  if (healthRefreshBtnEl) {
+    healthRefreshBtnEl.addEventListener("click", () => {
+      if (state.healthPoller) {
+        state.healthPoller.refreshNow();
+        return;
+      }
+      checkOllamaStatus().catch(console.error);
+    });
+  }
+  if (storageRefreshBtnEl) {
+    storageRefreshBtnEl.addEventListener("click", () => {
+      loadStorageUsage().catch(console.error);
+    });
+  }
+  if (storageCleanupBtnEl) {
+    storageCleanupBtnEl.addEventListener("click", () => {
+      runStorageCleanup().catch((error) => {
+        showStatus(`Falha na limpeza: ${error.message}`, { type: "error" });
+      });
+    });
+  }
+  if (storageLimitBtnEl) {
+    storageLimitBtnEl.addEventListener("click", () => {
+      updateStorageLimitForCurrentUser().catch((error) => {
+        showStatus(`Falha ao atualizar limite: ${error.message}`, {
+          type: "error",
+        });
+      });
+    });
+  }
 }
 
 window.enviar = enviar;
