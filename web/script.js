@@ -15,6 +15,7 @@ import { createShortcutsController } from "./app/shared/shortcuts.js";
 import { createStatusPresenter } from "./app/shared/status.js";
 import { createStorageController } from "./app/shared/storage.js";
 import { createTelemetryAdminController } from "./app/shared/telemetry-admin.js";
+import { createThemeLocalController } from "./app/shared/theme-local.js";
 import { isDarkForMode, normalizeThemeMode } from "./app/shared/theme.js";
 import { buildHeaderPresentation, createHealthPoller } from "./health-indicators.js";
 
@@ -348,6 +349,15 @@ const chatFiltersController = createChatFiltersController({
   onLoadChats: () => loadChats(),
 });
 
+const themeLocalController = createThemeLocalController({
+  state,
+  darkModeBtnEl,
+  sunIconEl,
+  moonIconEl,
+  autoIconEl,
+  applyThemeMode,
+});
+
 const ragController = createRagController({
   state,
   ragStatusEl,
@@ -388,27 +398,11 @@ function getCurrentUser() {
 }
 
 function updateThemeToggleUi(mode) {
-  const safeMode = normalizeThemeMode(mode);
-  if (sunIconEl) sunIconEl.classList.toggle("hidden", safeMode !== "light");
-  if (moonIconEl) moonIconEl.classList.toggle("hidden", safeMode !== "dark");
-  if (autoIconEl) autoIconEl.classList.toggle("hidden", safeMode !== "system");
-
-  if (darkModeBtnEl) {
-    const labels = {
-      light: "Tema: claro",
-      dark: "Tema: escuro",
-      system: "Tema: sistema",
-    };
-    darkModeBtnEl.title = labels[safeMode];
-  }
+  themeLocalController.updateToggleUi(mode);
 }
 
 function cycleThemeMode() {
-  const order = ["light", "dark", "system"];
-  const idx = order.indexOf(normalizeThemeMode(state.themeMode));
-  const next = order[(idx + 1) % order.length];
-  applyThemeMode(next, { persistLocal: true });
-  return next;
+  return themeLocalController.cycleMode();
 }
 
 async function saveThemeForCurrentUser(theme) {
@@ -1824,16 +1818,7 @@ function setupDragAndDrop() {
 }
 
 function loadDarkMode() {
-  const saved = normalizeThemeMode(localStorage.getItem("themeMode") || "system");
-  applyThemeMode(saved, { persistLocal: false });
-
-  window
-    .matchMedia("(prefers-color-scheme: dark)")
-    .addEventListener("change", () => {
-      if (state.themeMode === "system") {
-        applyThemeMode("system", { persistLocal: false });
-      }
-    });
+  themeLocalController.loadSavedMode();
 }
 
 shortcutsController.renderShortcutsHelp();
