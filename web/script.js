@@ -4,6 +4,7 @@ import { filesToBase64, filesToDocuments, readFileAsBase64 } from "./app/shared/
 import { createChatListController } from "./app/shared/chat-list.js";
 import { createModalPresenter } from "./app/shared/modal.js";
 import { createHistorySearchController } from "./app/shared/history-search.js";
+import { createOnboardingController } from "./app/shared/onboarding.js";
 import { createShortcutsController } from "./app/shared/shortcuts.js";
 import { createStatusPresenter } from "./app/shared/status.js";
 import { isDarkForMode, normalizeThemeMode } from "./app/shared/theme.js";
@@ -254,6 +255,19 @@ const historySearchController = createHistorySearchController({
   getActiveChatId: () => state.activeChatId,
 });
 
+const onboardingController = createOnboardingController({
+  state,
+  apiBase: API_BASE,
+  onboardingModalEl,
+  onboardingModelSelectEl,
+  onboardingHealthStatusEl,
+  onboardingSmokeStatusEl,
+  getMainModelSelect: () => document.getElementById("modelo"),
+  getFallbackModel: () => getControls().model,
+  savePreferredModel,
+  showStatus,
+});
+
 const shortcutsController = createShortcutsController({
   shortcutsListEl,
   inputEl,
@@ -268,8 +282,8 @@ const shortcutsController = createShortcutsController({
   closeConfirmModal,
   isVoiceHistoryOpen,
   closeVoiceHistoryModal,
-  isOnboardingOpen: () => !!onboardingModalEl && !onboardingModalEl.classList.contains("hidden"),
-  closeOnboardingModal,
+  isOnboardingOpen: () => onboardingController.isOpen(),
+  closeOnboardingModal: () => onboardingController.closeModal(),
   onCreateNewChat: () => createNewChat().catch(console.error),
   onNavigateRelativeTab: (step) => navigateRelativeTab(step),
   onDuplicateActiveChat: () => duplicateActiveChat().catch(console.error),
@@ -1132,115 +1146,23 @@ function applyPreferredModel() {
 }
 
 function resetOnboardingStatus() {
-  state.onboardingChecksOk = false;
-  if (onboardingHealthStatusEl)
-    onboardingHealthStatusEl.textContent = "API: pendente";
-  if (onboardingSmokeStatusEl)
-    onboardingSmokeStatusEl.textContent = "Teste de chat: pendente";
+  onboardingController.resetStatus();
 }
 
 function syncOnboardingModels() {
-  const mainModelSelect = document.getElementById("modelo");
-  if (!mainModelSelect || !onboardingModelSelectEl) return;
-
-  onboardingModelSelectEl.innerHTML = "";
-  Array.from(mainModelSelect.options).forEach((opt) => {
-    const cloned = document.createElement("option");
-    cloned.value = opt.value;
-    cloned.textContent = opt.textContent;
-    onboardingModelSelectEl.appendChild(cloned);
-  });
-
-  onboardingModelSelectEl.value = mainModelSelect.value;
+  onboardingController.syncModels();
 }
 
 function closeOnboardingModal() {
-  if (!onboardingModalEl) return;
-  onboardingModalEl.classList.add("hidden");
-  onboardingModalEl.classList.remove("flex");
+  onboardingController.closeModal();
 }
 
 function openOnboardingModal() {
-  if (!onboardingModalEl) return;
-  syncOnboardingModels();
-  resetOnboardingStatus();
-  onboardingModalEl.classList.remove("hidden");
-  onboardingModalEl.classList.add("flex");
+  onboardingController.openModal();
 }
 
 async function runOnboardingChecks() {
-  const selectedModel = onboardingModelSelectEl?.value || getControls().model;
-  const modelSelect = document.getElementById("modelo");
-  if (modelSelect && selectedModel) {
-    modelSelect.value = selectedModel;
-    savePreferredModel(selectedModel);
-  }
-
-  state.onboardingChecksOk = false;
-  if (onboardingHealthStatusEl)
-    onboardingHealthStatusEl.textContent = "API: verificando...";
-  if (onboardingSmokeStatusEl)
-    onboardingSmokeStatusEl.textContent = "Teste de chat: aguardando...";
-
-  try {
-    const health = await fetch(`${API_BASE}/healthz`);
-    if (!health.ok) {
-      throw new Error("API indisponivel");
-    }
-    if (onboardingHealthStatusEl)
-      onboardingHealthStatusEl.textContent = "API: conectada";
-  } catch (error) {
-    if (onboardingHealthStatusEl)
-      onboardingHealthStatusEl.textContent = `API: falha (${error.message})`;
-    if (onboardingSmokeStatusEl)
-      onboardingSmokeStatusEl.textContent = "Teste de chat: cancelado";
-    showStatus(`Falha no onboarding: ${error.message}`, { type: "error" });
-    return;
-  }
-
-  const tempChatId = `onboarding-${Date.now()}`;
-  try {
-    const testResponse = await fetch(`${API_BASE}/api/chat`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        chatId: tempChatId,
-        model: selectedModel,
-        message: "Responda apenas OK para validar onboarding.",
-        temperature: 0,
-        context: 512,
-      }),
-    });
-
-    if (!testResponse.ok) {
-      throw new Error(`HTTP ${testResponse.status}`);
-    }
-
-    const payload = await testResponse.json();
-    const reply = String(payload.reply || "").trim();
-    if (!reply) {
-      throw new Error("resposta vazia");
-    }
-
-    if (onboardingSmokeStatusEl) {
-      onboardingSmokeStatusEl.textContent = `Teste de chat: ok (${reply.slice(0, 24)})`;
-    }
-
-    state.onboardingChecksOk = true;
-    showStatus("Onboarding validado com sucesso.", { type: "success" });
-  } catch (error) {
-    if (onboardingSmokeStatusEl)
-      onboardingSmokeStatusEl.textContent = `Teste de chat: falha (${error.message})`;
-    showStatus(`Falha no teste rapido: ${error.message}`, { type: "error" });
-  } finally {
-    try {
-      await fetch(`${API_BASE}/api/chats/${encodeURIComponent(tempChatId)}`, {
-        method: "DELETE",
-      });
-    } catch {
-      // Ignora falha de limpeza do chat temporario.
-    }
-  }
+  await onboardingController.runChecks();
 }
 
 function smoothScrollToBottom() {
@@ -2820,32 +2742,13 @@ if (onboardingSkipBtnEl) {
 
 if (onboardingCompleteBtnEl) {
   onboardingCompleteBtnEl.addEventListener("click", () => {
-    const selectedModel = onboardingModelSelectEl?.value || "";
-    const modelSelect = document.getElementById("modelo");
-    if (modelSelect && selectedModel) {
-      modelSelect.value = selectedModel;
-      savePreferredModel(selectedModel);
-    }
-
-    localStorage.setItem("onboardingDone", "true");
-    closeOnboardingModal();
-
-    if (state.onboardingChecksOk) {
-      showStatus("Assistente inicial concluido.", { type: "success" });
-    } else {
-      showStatus("Preferencias salvas. Rode a verificacao quando quiser.", {
-        type: "info",
-        autoHideMs: 3500,
-      });
-    }
+    onboardingController.complete();
   });
 }
 
 if (onboardingModalEl) {
   onboardingModalEl.addEventListener("click", (event) => {
-    if (event.target === onboardingModalEl) {
-      closeOnboardingModal();
-    }
+    onboardingController.handleBackdropClick(event);
   });
 }
 
