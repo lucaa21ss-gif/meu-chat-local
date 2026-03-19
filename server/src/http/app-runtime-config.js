@@ -15,9 +15,11 @@ export function createAppRuntimeConfig({
     parseOriginList,
     HttpError,
   );
-  const requestWindowMs = Number.parseInt(
-    process.env.RATE_LIMIT_WINDOW_MS || `${15 * 60 * 1000}`,
-    10,
+  const requestWindowMs = parsePositiveInt(
+    process.env.RATE_LIMIT_WINDOW_MS,
+    15 * 60 * 1000,
+    1,
+    Number.MAX_SAFE_INTEGER,
   );
   const ollamaTimeoutMs = parsePositiveInt(
     deps.ollamaTimeoutMs ?? process.env.OLLAMA_TIMEOUT_MS,
