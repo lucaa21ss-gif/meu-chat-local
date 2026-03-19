@@ -18,12 +18,9 @@ export function buildCorsOriginValidator(configuredOrigin, parseOriginList, Http
   );
 
   return (origin, callback) => {
-    if (!origin) {
-      callback(null, true);
-      return;
-    }
+    const isAllowed = !origin || allowlist.has(origin);
 
-    if (allowlist.has(origin)) {
+    if (isAllowed) {
       callback(null, true);
       return;
     }
