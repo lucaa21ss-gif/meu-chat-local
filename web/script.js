@@ -282,7 +282,7 @@ const onboardingController = createOnboardingController({
   onboardingHealthStatusEl,
   onboardingSmokeStatusEl,
   getMainModelSelect: () => document.getElementById("modelo"),
-  getFallbackModel: () => getControls().model,
+  getFallbackModel: () => chatUtilsController.getControls().model,
   savePreferredModel: (model) => preferencesController.savePreferredModel(model),
   showStatus,
 });
@@ -605,7 +605,10 @@ const appBindingsController = createAppBindingsController({
   openConfirmModal,
   openShortcutsModal,
   showStatus,
-  enviar,
+  enviar: async () => {
+    await chatSendController.enviar();
+    appBindingsController.updateSendButtonState();
+  },
   createNewChat: (title) => chatNavigationController.createNewChat(title),
   renameActiveChat: () => chatActionsController.renameActiveChat(),
   toggleFavoriteActiveChat: () => chatActionsController.toggleFavoriteActiveChat(),
@@ -641,31 +644,15 @@ const appBindingsController = createAppBindingsController({
   clearSearchResults: () => historySearchController.clearSearchResults(),
 });
 
-function getControls() {
-  return chatUtilsController.getControls();
-}
-
-async function enviar() {
-  await chatSendController.enviar();
-  updateSendButtonState();
-}
-
-async function resetar() {
-  await chatUtilsController.resetar();
-}
-
-function updateSendButtonState() {
-  appBindingsController.updateSendButtonState();
-}
-
-function setupDragAndDrop() {
-  chatUtilsController.setupDragAndDrop();
-}
-
 appBindingsController.bindAll();
 
-window.enviar = enviar;
-window.resetar = resetar;
+window.enviar = async () => {
+  await chatSendController.enviar();
+  appBindingsController.updateSendButtonState();
+};
+window.resetar = async () => {
+  await chatUtilsController.resetar();
+};
 
 (async function bootstrap() {
   await appRuntimeController.bootstrap();
