@@ -133,35 +133,17 @@ export function createAppBindingsController({
     });
     document.addEventListener("keydown", shortcutsController.handleGlobalShortcuts);
 
-    if (duplicateModalEl) {
-      duplicateModalEl.addEventListener("click", (event) => {
-        if (event.target === duplicateModalEl) {
-          closeDuplicateModal(null);
-        }
+      const modalBackdropHandlers = [
+        [duplicateModalEl, (event) => { if (event.target === duplicateModalEl) closeDuplicateModal(null); }],
+        [confirmModalEl, (event) => { if (event.target === confirmModalEl) closeConfirmModal(false); }],
+        [shortcutsModalEl, (event) => { if (event.target === shortcutsModalEl) closeShortcutsModal(); }],
+        [voiceHistoryModalEl, (event) => { if (event.target === voiceHistoryModalEl) closeVoiceHistoryModal(); }],
+        [onboardingModalEl, (event) => { onboardingController.handleBackdropClick(event); }],
+      ];
+
+      modalBackdropHandlers.forEach(([modal, handler]) => {
+        if (modal) modal.addEventListener("click", handler);
       });
-    }
-    if (confirmModalEl) {
-      confirmModalEl.addEventListener("click", (event) => {
-        if (event.target === confirmModalEl) closeConfirmModal(false);
-      });
-    }
-    if (shortcutsModalEl) {
-      shortcutsModalEl.addEventListener("click", (event) => {
-        if (event.target === shortcutsModalEl) {
-          closeShortcutsModal();
-        }
-      });
-    }
-    if (voiceHistoryModalEl) {
-      voiceHistoryModalEl.addEventListener("click", (event) => {
-        if (event.target === voiceHistoryModalEl) closeVoiceHistoryModal();
-      });
-    }
-    if (onboardingModalEl) {
-      onboardingModalEl.addEventListener("click", (event) => {
-        onboardingController.handleBackdropClick(event);
-      });
-    }
   }
 
   function bindDuplicateModalButtons() {
