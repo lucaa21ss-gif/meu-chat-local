@@ -140,24 +140,26 @@ export function createChatActionsController({
     const encodedChatId = getEncodedActiveChatId();
     if (!encodedChatId) return;
 
-    try {
-      const promptData = await fetchJson(
-        `/api/chats/${encodedChatId}/system-prompt`,
-      );
-      const current = String(promptData.systemPrompt || "");
-      const systemPrompt = promptSystemPrompt(
-        "Prompt de sistema desta conversa (vazio para remover):",
-        current,
-      );
-      if (systemPrompt === null) return;
-
-      await fetchJsonBody(`/api/chats/${encodedChatId}/system-prompt`, "PATCH", { systemPrompt });
-      await onLoadChats();
+    const result = await doFetchWithRetry(
+      async () => {
+        const promptData = await fetchJson(
+          `/api/chats/${encodedChatId}/system-prompt`,
+        );
+        const current = String(promptData.systemPrompt || "");
+        const systemPrompt = promptSystemPrompt(
+          "Prompt de sistema desta conversa (vazio para remover):",
+          current,
+        );
+        if (systemPrompt === null) return "cancelled";
+        await fetchJsonBody(`/api/chats/${encodedChatId}/system-prompt`, "PATCH", { systemPrompt });
+        await onLoadChats();
+        return "done";
+      },
+      null,
+      "Falha ao atualizar prompt da conversa",
+    );
+    if (result === "done") {
       showStatus("Prompt da conversa atualizado.", { type: "success" });
-    } catch (error) {
-      showStatus(`Falha ao atualizar prompt da conversa: ${error.message}`, {
-        type: "error",
-      });
     }
   }
 
