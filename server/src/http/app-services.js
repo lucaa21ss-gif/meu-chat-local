@@ -1,6 +1,11 @@
 import path from "node:path";
 import { createStorageService } from "../infra/fs/storage-service.js";
-import { resolveDbPath } from "./app-store.js";
+import {
+  createAppServicePaths,
+  createBaselineQueueConfig,
+  createIntegrityServiceConfig,
+  createQueueServiceConfig,
+} from "./app-services-wiring.js";
 import { createDefaultIncidentService } from "../modules/incident/incident-service.js";
 import { createDefaultBackupService } from "../modules/backup/backup-service.js";
 import { createDefaultAutoHealingService } from "../modules/resilience/auto-healing-service.js";
@@ -39,9 +44,10 @@ export function createAppServices({
     parseStorageLimitMb,
     parseBooleanLike,
   } = parsers;
-  const dbPath = resolveDbPath(deps);
-  const repoRoot = path.resolve(serverDir, "..");
-  const artifactsDir = path.join(serverDir, "artifacts");
+  const { dbPath, repoRoot, artifactsDir } = createAppServicePaths({
+    deps,
+    serverDir,
+  });
 
   const backupService =
     deps.backupService ||
@@ -98,22 +104,7 @@ export function createAppServices({
 
   const integrityService =
     deps.integrityService ||
-    createIntegrityRuntimeService({
-      baseDir: repoRoot,
-      manifestPath: path.resolve(repoRoot, ".integrity-manifest.sha256"),
-      targets: [
-        "docker-compose.yml",
-        "server/package.json",
-        "server/package-lock.json",
-        "web/package.json",
-        "web/package-lock.json",
-        "scripts/install.sh",
-        "scripts/start.sh",
-        "scripts/stop.sh",
-        "scripts/uninstall.sh",
-      ],
-      staleAfterMs: 30_000,
-    });
+    createIntegrityRuntimeService(createIntegrityServiceConfig(repoRoot));
 
   const capacityService =
     deps.capacityService ||
@@ -124,27 +115,7 @@ export function createAppServices({
 
   const queueService =
     deps.queueService ||
-    createQueueService({
-      maxConcurrency: parsePositiveInt(
-        process.env.QUEUE_MAX_CONCURRENCY,
-        4,
-        1,
-        32,
-      ),
-      maxQueueSize: parsePositiveInt(
-        process.env.QUEUE_MAX_SIZE,
-        100,
-        1,
-        500,
-      ),
-      taskTimeoutMs: parsePositiveInt(
-        process.env.QUEUE_TASK_TIMEOUT_MS,
-        30000,
-        5000,
-        120000,
-      ),
-      rejectPolicy: (process.env.QUEUE_REJECT_POLICY || "reject").trim(),
-    });
+    createQueueService(createQueueServiceConfig({ parsePositiveInt }));
 
   const baselineService =
     deps.baselineService ||
@@ -154,12 +125,7 @@ export function createAppServices({
         buildBaselineConfigSnapshot({
           isTelemetryEnabled,
           parsePositiveInt,
-          queueConfig: {
-            maxConcurrency: process.env.QUEUE_MAX_CONCURRENCY,
-            maxSize: process.env.QUEUE_MAX_SIZE,
-            taskTimeoutMs: process.env.QUEUE_TASK_TIMEOUT_MS,
-            rejectPolicy: process.env.QUEUE_REJECT_POLICY || "reject",
-          },
+          queueConfig: createBaselineQueueConfig(),
           autoHealingService,
         }),
     });

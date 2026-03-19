@@ -135,6 +135,7 @@ Arquivos-chave para comecar rapido:
 - `server/src/http/app-route-registrars.js`: mapa centralizado dos registradores de rota
 - `server/src/http/app-route-wiring.js`: agrupamento nomeado de dependencias para registro de rotas
 - `server/src/http/app-service-wiring.js`: agrupamento nomeado de dependencias para montagem dos services
+- `server/src/http/app-services-wiring.js`: agrupamento de paths e configuracoes derivadas para a camada de services
 - `server/src/http/app-governance-wiring.js`: agrupamento nomeado de dependencias da camada de governanca
 - `server/src/http/app-guards-wiring.js`: agrupamento nomeado de dependencias de guards e auditoria
 - `server/src/infra/db/db.js`: persistencia SQLite, historico de chats e configuracoes
