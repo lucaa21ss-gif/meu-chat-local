@@ -21,14 +21,20 @@ export function createChatUtilsController({
     };
   }
 
+  function promptAndStringify(message, defaultValue = "") {
+    const input = window.prompt(message, defaultValue);
+    if (input === null) return null;
+    return String(input || "");
+  }
+
   async function editUserDefaultSystemPrompt() {
     const currentUser = (state.users || []).find((u) => u.id === state.userId);
     const current = String(currentUser?.defaultSystemPrompt || "");
-    const next = window.prompt(
+    const defaultSystemPrompt = promptAndStringify(
       "Prompt padrao do perfil (vazio para remover):",
       current,
     );
-    if (next === null) return;
+    if (defaultSystemPrompt === null) return;
 
     try {
       await fetchJson(
@@ -36,7 +42,7 @@ export function createChatUtilsController({
         {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ defaultSystemPrompt: String(next || "") }),
+          body: JSON.stringify({ defaultSystemPrompt }),
         },
       );
 
