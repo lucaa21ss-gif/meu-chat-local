@@ -1,4 +1,5 @@
 import { createApiClient } from "./app/shared/api.js";
+import { createChatExportController } from "./app/shared/chat-export.js";
 import { createChatFiltersController } from "./app/shared/chat-filters.js";
 import { escapeRegExp, formatBytes, formatDateLabel } from "./app/shared/format.js";
 import { filesToBase64, filesToDocuments, readFileAsBase64 } from "./app/shared/files.js";
@@ -348,6 +349,15 @@ const chatFiltersController = createChatFiltersController({
   filterTagInputEl,
   onResetPagination: () => resetChatListPagination(),
   onLoadChats: () => loadChats(),
+});
+
+const chatExportController = createChatExportController({
+  state,
+  apiBase: API_BASE,
+  fetchJson,
+  showStatus,
+  onLoadChats: () => loadChats(),
+  onLoadMessages: () => loadMessages(),
 });
 
 const themeLocalController = createThemeLocalController({
@@ -1350,170 +1360,23 @@ async function resetar() {
 }
 
 async function exportChat() {
-  if (!state.activeChatId) return;
-
-  try {
-    const response = await fetch(
-      `${API_BASE}/api/chats/${encodeURIComponent(state.activeChatId)}/export?format=markdown`,
-    );
-    if (!response.ok) {
-      throw new Error("Falha ao exportar conversa");
-    }
-
-    const markdown = await response.text();
-    const blob = new Blob([markdown], { type: "text/markdown" });
-    const url = URL.createObjectURL(blob);
-
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = `${state.activeChatId}.md`;
-    anchor.click();
-
-    URL.revokeObjectURL(url);
-    showStatus("Conversa exportada com sucesso.", { type: "success" });
-  } catch (error) {
-    showStatus(`Nao foi possivel exportar conversa: ${error.message}`, {
-      type: "error",
-      retryAction: () => exportChat(),
-    });
-    throw error;
-  }
+  await chatExportController.exportChat();
 }
 
 async function exportFavoriteChatsMarkdown() {
-  try {
-    const response = await fetch(
-      `${API_BASE}/api/chats/export?userId=${encodeURIComponent(state.userId)}&favorites=true&format=markdown`,
-    );
-    if (!response.ok) {
-      throw new Error("Falha ao exportar favoritos em Markdown");
-    }
-
-    const markdownText = await response.text();
-    const blob = new Blob([markdownText], { type: "text/markdown" });
-    const url = URL.createObjectURL(blob);
-
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = `chats-favoritos-${state.userId}.md`;
-    anchor.click();
-
-    URL.revokeObjectURL(url);
-    showStatus("Favoritos exportados em Markdown com sucesso.", {
-      type: "success",
-    });
-  } catch (error) {
-    showStatus(`Nao foi possivel exportar favoritos em Markdown: ${error.message}`, {
-      type: "error",
-      retryAction: () => exportFavoriteChatsMarkdown(),
-    });
-    throw error;
-  }
+  await chatExportController.exportFavoriteChatsMarkdown();
 }
 
 async function exportChatJson() {
-  if (!state.activeChatId) return;
-
-  try {
-    const response = await fetch(
-      `${API_BASE}/api/chats/${encodeURIComponent(state.activeChatId)}/export?format=json`,
-    );
-    if (!response.ok) {
-      throw new Error("Falha ao exportar conversa em JSON");
-    }
-
-    const jsonText = await response.text();
-    const blob = new Blob([jsonText], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = `${state.activeChatId}.json`;
-    anchor.click();
-
-    URL.revokeObjectURL(url);
-    showStatus("Conversa exportada em JSON com sucesso.", { type: "success" });
-  } catch (error) {
-    showStatus(`Nao foi possivel exportar JSON: ${error.message}`, {
-      type: "error",
-      retryAction: () => exportChatJson(),
-    });
-    throw error;
-  }
+  await chatExportController.exportChatJson();
 }
 
 async function importChatJson() {
-  try {
-    const input = document.createElement("input");
-    input.type = "file";
-    input.accept = "application/json,.json";
-
-    const file = await new Promise((resolve) => {
-      input.addEventListener(
-        "change",
-        () => resolve(input.files?.[0] || null),
-        {
-          once: true,
-        },
-      );
-      input.click();
-    });
-
-    if (!file) return;
-    const raw = await file.text();
-    const payload = JSON.parse(raw);
-
-    const imported = await fetchJson("/api/chats/import", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-
-    await loadChats();
-    if (imported?.chat?.id) {
-      state.activeChatId = imported.chat.id;
-      await loadMessages();
-    }
-
-    showStatus("Conversa importada com sucesso.", { type: "success" });
-  } catch (error) {
-    showStatus(`Nao foi possivel importar JSON: ${error.message}`, {
-      type: "error",
-      retryAction: () => importChatJson(),
-    });
-    throw error;
-  }
+  await chatExportController.importChatJson();
 }
 
 async function exportAllChatsJson() {
-  try {
-    const response = await fetch(
-      `${API_BASE}/api/chats/export?userId=${encodeURIComponent(state.userId)}`,
-    );
-    if (!response.ok) {
-      throw new Error("Falha ao exportar lote de conversas");
-    }
-
-    const jsonText = await response.text();
-    const blob = new Blob([jsonText], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = `chats-${state.userId}.json`;
-    anchor.click();
-
-    URL.revokeObjectURL(url);
-    showStatus("Conversas exportadas em lote com sucesso.", {
-      type: "success",
-    });
-  } catch (error) {
-    showStatus(`Nao foi possivel exportar lote: ${error.message}`, {
-      type: "error",
-      retryAction: () => exportAllChatsJson(),
-    });
-    throw error;
-  }
+  await chatExportController.exportAllChatsJson();
 }
 
 async function exportFullBackup() {
