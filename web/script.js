@@ -3,6 +3,7 @@ import { createBackupController } from "./app/shared/backup.js";
 import { createChatActionsController } from "./app/shared/chat-actions.js";
 import { createChatExportController } from "./app/shared/chat-export.js";
 import { createChatFiltersController } from "./app/shared/chat-filters.js";
+import { createChatNavigationController } from "./app/shared/chat-navigation.js";
 import { createChatRenderController } from "./app/shared/chat-render.js";
 import { createChatSendController } from "./app/shared/chat-send.js";
 import { escapeRegExp, formatBytes, formatDateLabel } from "./app/shared/format.js";
@@ -409,6 +410,23 @@ const chatRenderController = createChatRenderController({
   updateChatListPaginationUi,
 });
 
+const chatNavigationController = createChatNavigationController({
+  state,
+  chatEl,
+  tabsEl,
+  fetchJson,
+  buildChatsQueryString,
+  renderTabs,
+  appendMessage,
+  hideTyping,
+  hideStatus,
+  showStatus,
+  loadRagDocuments,
+  runHistorySearch,
+  clearSearchResults,
+  chatActionsController,
+});
+
 const backupController = createBackupController({
   apiBase: API_BASE,
   backupRestoreInputEl,
@@ -676,92 +694,19 @@ function renderTabs() {
 }
 
 async function loadChats(options = {}) {
-  try {
-    const { appendPage = false } = options;
-    const previousScrollTop = tabsEl?.scrollTop || 0;
-    const query = buildChatsQueryString();
-    const data = await fetchJson(`/api/chats?${query}`);
-    const incomingChats = data.chats || [];
-    const pagination = data.pagination || {};
-
-    state.chatList.total = Number.parseInt(pagination.total, 10) || incomingChats.length;
-    state.chatList.totalPages = Number.parseInt(pagination.totalPages, 10) || 0;
-    state.chatList.page = Number.parseInt(pagination.page, 10) || state.chatList.page;
-
-    state.chats = appendPage
-      ? [...state.chats, ...incomingChats.filter((chat) => !state.chats.some((item) => item.id === chat.id))]
-      : incomingChats;
-    state.chatList.scrollTop = previousScrollTop;
-
-    if (!state.chats.length) {
-      if (
-        state.chatFilters.mode !== "archived" &&
-        !state.chatFilters.tag &&
-        !state.chatList.search
-      ) {
-        await createNewChat("Conversa Principal");
-      } else {
-        state.activeChatId = null;
-        renderTabs();
-        chatEl.innerHTML = "";
-      }
-      return;
-    }
-
-    if (
-      !state.activeChatId ||
-      !state.chats.some((chat) => chat.id === state.activeChatId)
-    ) {
-      state.activeChatId = state.chats[0].id;
-    }
-
-    renderTabs();
-    await loadMessages(state.activeChatId);
-    hideStatus();
-  } catch (error) {
-    showStatus(`Nao foi possivel carregar as conversas: ${error.message}`, {
-      type: "error",
-      retryAction: () => loadChats(),
-    });
-    throw error;
-  }
+  return chatNavigationController.loadChats(options);
 }
 
 async function loadMessages(chatId) {
-  try {
-    const data = await fetchJson(
-      `/api/chats/${encodeURIComponent(chatId)}/messages`,
-    );
-    chatEl.innerHTML = "";
-    for (const message of data.messages || []) {
-      appendMessage(message.role, message.content, { images: message.images });
-    }
-    hideTyping();
-    hideStatus();
-  } catch (error) {
-    showStatus(`Nao foi possivel carregar mensagens: ${error.message}`, {
-      type: "error",
-      retryAction: () => loadMessages(chatId),
-    });
-    throw error;
-  }
+  return chatNavigationController.loadMessages(chatId);
 }
 
 async function switchChat(chatId) {
-  state.activeChatId = chatId;
-  renderTabs();
-  await loadMessages(chatId);
-  await loadRagDocuments();
-
-  if (state.search.query) {
-    await runHistorySearch({ resetPage: true });
-  } else {
-    clearSearchResults();
-  }
+  return chatNavigationController.switchChat(chatId);
 }
 
 async function createNewChat(title = "Nova conversa") {
-  await chatActionsController.createNewChat(title);
+  return chatNavigationController.createNewChat(title);
 }
 
 async function renameActiveChat() {
@@ -782,6 +727,10 @@ async function editTagsActiveChat() {
 
 async function editChatSystemPrompt() {
   await chatActionsController.editChatSystemPrompt();
+}
+
+function navigateRelativeTab(step) {
+  return chatNavigationController.navigateRelativeTab(step);
 }
 
 async function editUserDefaultSystemPrompt() {
@@ -913,20 +862,6 @@ function openVoiceHistoryModalWithRender() {
 
 function updateSendButtonState() {
   sendBtnEl.disabled = inputEl.value.trim() === "";
-}
-
-function navigateRelativeTab(step) {
-  const totalChats = state.chats.length;
-  if (!totalChats) return;
-
-  const currentIndex = state.chats.findIndex(
-    (chat) => chat.id === state.activeChatId,
-  );
-  const baseIndex = currentIndex >= 0 ? currentIndex : 0;
-  const nextIndex = (baseIndex + step + totalChats) % totalChats;
-  const chat = state.chats[nextIndex];
-  if (!chat?.id) return;
-  switchChat(chat.id).catch(console.error);
 }
 
 function setupDragAndDrop() {
