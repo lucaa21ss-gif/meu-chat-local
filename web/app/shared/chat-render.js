@@ -15,14 +15,24 @@ export function createChatRenderController({
   smoothScrollToBottom,
   updateChatListPaginationUi,
 }) {
+  function openModalElement(element) {
+    if (!element) return;
+    element.classList.remove("hidden");
+    element.classList.add("flex");
+  }
+
+  function closeModalElement(element) {
+    if (!element) return;
+    element.classList.add("hidden");
+    element.classList.remove("flex");
+  }
+
   function showTyping() {
-    typingEl.classList.remove("hidden");
-    typingEl.classList.add("flex");
+    openModalElement(typingEl);
   }
 
   function hideTyping() {
-    typingEl.classList.add("hidden");
-    typingEl.classList.remove("flex");
+    closeModalElement(typingEl);
   }
 
   function createAvatar(role) {
