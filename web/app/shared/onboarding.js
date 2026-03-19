@@ -17,6 +17,18 @@ export function createOnboardingController({
     }
   }
 
+  function openModalElement(element) {
+    if (!element) return;
+    element.classList.remove("hidden");
+    element.classList.add("flex");
+  }
+
+  function closeModalElement(element) {
+    if (!element) return;
+    element.classList.add("hidden");
+    element.classList.remove("flex");
+  }
+
   function resetStatus() {
     state.onboardingChecksOk = false;
     setStatusText(onboardingHealthStatusEl, "API: pendente");
@@ -41,11 +53,7 @@ export function createOnboardingController({
   }
 
   function closeModal() {
-    if (!onboardingModalEl) {
-      return;
-    }
-    onboardingModalEl.classList.add("hidden");
-    onboardingModalEl.classList.remove("flex");
+    closeModalElement(onboardingModalEl);
   }
 
   function openModal() {
@@ -54,8 +62,7 @@ export function createOnboardingController({
     }
     syncModels();
     resetStatus();
-    onboardingModalEl.classList.remove("hidden");
-    onboardingModalEl.classList.add("flex");
+    openModalElement(onboardingModalEl);
   }
 
   function isOpen() {
