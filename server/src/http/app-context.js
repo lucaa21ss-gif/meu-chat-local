@@ -38,6 +38,11 @@ export function createAppContext({
   registrars,
 }) {
   const routeRegistrars = registrars || APP_ROUTE_REGISTRARS;
+  const healthBuilders = {
+    buildOverallHealthStatus,
+    buildSloSnapshot,
+    buildTriageRecommendations,
+  };
 
   const runtimeConfig = createAppRuntimeConfig({
     deps,
@@ -64,18 +69,14 @@ export function createAppContext({
 
   const governanceRuntime = createGovernanceRuntime({
     deps,
-    requestWindowMs:
-      runtimeConfig.requestWindowMs ??
-      Number.parseInt(process.env.RATE_LIMIT_WINDOW_MS || `${15 * 60 * 1000}`, 10),
+    requestWindowMs: runtimeConfig.requestWindowMs,
     store,
     normalizeRole: sharedParsers.normalizeRole,
     getTelemetryStats,
     backupService: services.backupService,
     incidentService: services.incidentService,
     healthProviders: services.healthProviders,
-    buildOverallHealthStatus,
-    buildSloSnapshot,
-    buildTriageRecommendations,
+    ...healthBuilders,
   });
 
   const guardsAndAudit = createAppGuardsAndAudit({
@@ -123,9 +124,7 @@ export function createAppContext({
     ...sharedParsers,
     recordAudit: guardsAndAudit.recordAudit,
     recordConfigVersion: guardsAndAudit.recordConfigVersion,
-    buildOverallHealthStatus,
-    buildSloSnapshot,
-    buildTriageRecommendations,
+    ...healthBuilders,
     executeWithModelRecovery,
   });
 
