@@ -1,3 +1,5 @@
+import { createFetchHelpers } from "./fetch-helpers.js";
+
 /**
  * Chat navigation controller - handles chat loading, switching, and message loading
  * Factory pattern with dependency injection for testability and loose coupling
@@ -19,9 +21,12 @@ export function createChatNavigationController({
   clearSearchResults,
   chatActionsController,
 }) {
+  const { doFetchWithRetry } = createFetchHelpers(fetchJson, showStatus);
+
   async function loadChats(options = {}) {
-    try {
-      const { appendPage = false } = options;
+    const { appendPage = false } = options;
+    await doFetchWithRetry(
+      async () => {
       const previousScrollTop = tabsEl?.scrollTop || 0;
       const query = buildChatsQueryString();
       const data = await fetchJson(`/api/chats?${query}`);
@@ -49,7 +54,7 @@ export function createChatNavigationController({
           renderTabs();
           chatEl.innerHTML = "";
         }
-        return;
+          return;
       }
 
       if (
@@ -62,33 +67,28 @@ export function createChatNavigationController({
       renderTabs();
       await loadMessages(state.activeChatId);
       hideStatus();
-    } catch (error) {
-      showStatus(`Nao foi possivel carregar as conversas: ${error.message}`, {
-        type: "error",
-        retryAction: () => loadChats(),
-      });
-      throw error;
-    }
+      },
+      "Conversas carregadas com sucesso.",
+      "Nao foi possivel carregar as conversas",
+    );
   }
 
   async function loadMessages(chatId) {
-    try {
-      const data = await fetchJson(
-        `/api/chats/${encodeURIComponent(chatId)}/messages`,
-      );
-      chatEl.innerHTML = "";
-      for (const message of data.messages || []) {
-        appendMessage(message.role, message.content, { images: message.images });
-      }
-      hideTyping();
-      hideStatus();
-    } catch (error) {
-      showStatus(`Nao foi possivel carregar mensagens: ${error.message}`, {
-        type: "error",
-        retryAction: () => loadMessages(chatId),
-      });
-      throw error;
-    }
+    await doFetchWithRetry(
+      async () => {
+        const data = await fetchJson(
+          `/api/chats/${encodeURIComponent(chatId)}/messages`,
+        );
+        chatEl.innerHTML = "";
+        for (const message of data.messages || []) {
+          appendMessage(message.role, message.content, { images: message.images });
+        }
+        hideTyping();
+        hideStatus();
+      },
+      "Mensagens carregadas com sucesso.",
+      "Nao foi possivel carregar mensagens",
+    );
   }
 
   async function switchChat(chatId) {
