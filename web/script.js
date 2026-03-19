@@ -1,8 +1,9 @@
 import { createApiClient } from "./app/shared/api.js";
+import { createBackupController } from "./app/shared/backup.js";
 import { createChatExportController } from "./app/shared/chat-export.js";
 import { createChatFiltersController } from "./app/shared/chat-filters.js";
 import { escapeRegExp, formatBytes, formatDateLabel } from "./app/shared/format.js";
-import { filesToBase64, filesToDocuments, readFileAsBase64 } from "./app/shared/files.js";
+import { filesToBase64, filesToDocuments } from "./app/shared/files.js";
 import { createChatListController } from "./app/shared/chat-list.js";
 import { createModalPresenter } from "./app/shared/modal.js";
 import { createHistorySearchController } from "./app/shared/history-search.js";
@@ -358,6 +359,17 @@ const chatExportController = createChatExportController({
   showStatus,
   onLoadChats: () => loadChats(),
   onLoadMessages: () => loadMessages(),
+});
+
+const backupController = createBackupController({
+  apiBase: API_BASE,
+  backupRestoreInputEl,
+  fetchJson,
+  showStatus,
+  openConfirmModal,
+  onLoadUsers: () => loadUsers(),
+  onLoadChats: () => loadChats(),
+  onLoadRagDocuments: () => loadRagDocuments(),
 });
 
 const themeLocalController = createThemeLocalController({
@@ -1380,135 +1392,11 @@ async function exportAllChatsJson() {
 }
 
 async function exportFullBackup() {
-  const passphraseInput = window.prompt(
-    "Passphrase opcional para proteger o backup (minimo 8 caracteres). Deixe vazio para gerar backup legado sem criptografia:",
-    "",
-  );
-
-  if (passphraseInput === null) return;
-
-  const passphrase = String(passphraseInput || "").trim();
-  if (passphrase && passphrase.length < 8) {
-    showStatus("A passphrase deve ter pelo menos 8 caracteres.", {
-      type: "error",
-      autoHideMs: 4000,
-    });
-    return;
-  }
-
-  try {
-    const headers = {};
-    if (passphrase) {
-      headers["x-backup-passphrase"] = passphrase;
-    }
-
-    const response = await fetch(`${API_BASE}/api/backup/export`, { headers });
-    if (!response.ok) {
-      throw new Error("Falha ao gerar backup");
-    }
-
-    const blob = await response.blob();
-    const header = String(response.headers.get("content-disposition") || "");
-    const match = header.match(/filename="?([^";]+)"?/i);
-    const fileName = match?.[1] || `meu-chat-local-backup-${Date.now()}.tgz`;
-    const isProtected = String(response.headers.get("x-backup-protected") || "") === "true";
-
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = fileName;
-    anchor.click();
-    URL.revokeObjectURL(url);
-
-    showStatus(
-      isProtected
-        ? "Backup completo exportado com criptografia (passphrase obrigatoria para restaurar)."
-        : "Backup completo exportado sem criptografia (compatibilidade legado).",
-      {
-        type: "success",
-        autoHideMs: 4000,
-      },
-    );
-  } catch (error) {
-    showStatus(`Nao foi possivel exportar backup: ${error.message}`, {
-      type: "error",
-      retryAction: () => exportFullBackup(),
-    });
-    throw error;
-  }
-}
-
-async function pickBackupFile() {
-  if (!backupRestoreInputEl) return null;
-
-  backupRestoreInputEl.value = "";
-  const file = await new Promise((resolve) => {
-    backupRestoreInputEl.addEventListener(
-      "change",
-      () => resolve(backupRestoreInputEl.files?.[0] || null),
-      { once: true },
-    );
-    backupRestoreInputEl.click();
-  });
-
-  return file;
+  await backupController.exportFullBackup();
 }
 
 async function restoreFullBackup() {
-  const confirmed = await openConfirmModal(
-    "Restaurar backup ira substituir o banco atual. Deseja continuar?",
-  );
-  if (!confirmed) return;
-
-  try {
-    const file = await pickBackupFile();
-    if (!file) return;
-
-    const passphraseInput = window.prompt(
-      "Se o backup estiver criptografado, informe a passphrase. Para backup legado, deixe vazio:",
-      "",
-    );
-    if (passphraseInput === null) return;
-
-    const passphrase = String(passphraseInput || "").trim();
-    if (passphrase && passphrase.length < 8) {
-      showStatus("A passphrase deve ter pelo menos 8 caracteres.", {
-        type: "error",
-        autoHideMs: 4000,
-      });
-      return;
-    }
-
-    const archiveBase64 = await readFileAsBase64(file, {
-      readErrorMessage: "Falha ao ler arquivo",
-      emptyFileMessage: "Arquivo de backup invalido",
-    });
-    await fetchJson("/api/backup/restore", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ archiveBase64, passphrase: passphrase || null }),
-    });
-
-    await loadUsers();
-    await loadChats();
-    await loadRagDocuments();
-
-    showStatus(
-      passphrase
-        ? "Backup restaurado com sucesso (modo protegido)."
-        : "Backup restaurado com sucesso.",
-      {
-        type: "success",
-        autoHideMs: 3500,
-      },
-    );
-  } catch (error) {
-    showStatus(`Nao foi possivel restaurar backup: ${error.message}`, {
-      type: "error",
-      retryAction: () => restoreFullBackup(),
-    });
-    throw error;
-  }
+  await backupController.restoreFullBackup();
 }
 
 function setupVoiceInput() {
