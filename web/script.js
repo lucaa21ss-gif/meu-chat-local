@@ -313,14 +313,16 @@ const telemetryAdminController = createTelemetryAdminController({
   },
 });
 
+const getCurrentUser = () => appRuntimeController.getCurrentUser();
+
 const rbacController = createRbacController({
-  getCurrentUser: () => appRuntimeController.getCurrentUser(),
+  getCurrentUser,
 });
 
 const preferencesController = createPreferencesController({
   state,
   fetchJson,
-  getCurrentUser: () => appRuntimeController.getCurrentUser(),
+  getCurrentUser,
   getMainModelSelect: () => document.getElementById("modelo"),
   applyThemeMode,
 });
@@ -329,6 +331,8 @@ const loadChats = () => chatNavigationController.loadChats();
 const loadUsers = () => profilesController.loadUsers();
 const loadRagDocuments = () => ragController.loadDocuments();
 const resetChatListPagination = () => chatListController.resetPagination();
+const hideTyping = () => chatRenderController.hideTyping();
+const smoothScrollToBottom = () => appRuntimeController.smoothScrollToBottom();
 
 const profilesController = createProfilesController({
   state,
@@ -395,8 +399,8 @@ const chatSendController = createChatSendController({
   filesToBase64,
   appendMessage: (role, content, options) => chatRenderController.appendMessage(role, content, options),
   showTyping: () => chatRenderController.showTyping(),
-  hideTyping: () => chatRenderController.hideTyping(),
-  smoothScrollToBottom: () => appRuntimeController.smoothScrollToBottom(),
+  hideTyping,
+  smoothScrollToBottom,
   showStatus,
   hideStatus,
   getControls: () => chatUtilsController.getControls(),
@@ -414,7 +418,7 @@ const chatRenderController = createChatRenderController({
   favoriteBtnEl,
   archiveBtnEl,
   switchChat: (chatId) => chatNavigationController.switchChat(chatId),
-  smoothScrollToBottom: () => appRuntimeController.smoothScrollToBottom(),
+  smoothScrollToBottom,
   updateChatListPaginationUi: () => chatListController.updatePaginationUi(),
 });
 
@@ -426,7 +430,7 @@ const chatNavigationController = createChatNavigationController({
   buildChatsQueryString: () => chatListController.buildQueryString(),
   renderTabs: () => chatRenderController.renderTabs(),
   appendMessage: (role, content, options) => chatRenderController.appendMessage(role, content, options),
-  hideTyping: () => chatRenderController.hideTyping(),
+  hideTyping,
   hideStatus,
   showStatus,
   loadRagDocuments: loadRagDocuments,
@@ -501,7 +505,7 @@ const chatUtilsController = createChatUtilsController({
   fetchJson,
   chatEl,
   imageInputEl,
-  hideTyping: () => chatRenderController.hideTyping(),
+  hideTyping,
   loadUsers,
   loadChats,
   showStatus,
