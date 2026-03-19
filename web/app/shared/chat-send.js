@@ -37,6 +37,32 @@ async function streamChatResponse({
   }
 }
 
+const STREAM_ERROR_MESSAGE = "Nao foi possivel gerar resposta agora. Tente novamente.";
+
+async function doStreamResponse({
+  apiBase,
+  activeChatId,
+  text,
+  controls,
+  images,
+  iaSpan,
+  onLoadChats,
+  hideStatus,
+  smoothScrollToBottom,
+}) {
+  await streamChatResponse({
+    apiBase,
+    activeChatId,
+    text,
+    controls,
+    images,
+    targetEl: iaSpan,
+    onChunk: () => smoothScrollToBottom(),
+  });
+  await onLoadChats();
+  hideStatus();
+}
+
 export function createChatSendController({
   state,
   inputEl,
@@ -119,43 +145,38 @@ export function createChatSendController({
         return;
       }
 
-      await streamChatResponse({
+      await doStreamResponse({
         apiBase,
         activeChatId: state.activeChatId,
         text: texto,
         controls,
         images: imagePayload,
-        targetEl: iaSpan,
-        onChunk: () => smoothScrollToBottom(),
+        iaSpan,
+        onLoadChats,
+        hideStatus,
+        smoothScrollToBottom,
       });
-
-      await onLoadChats();
-      hideStatus();
     } catch (error) {
-      iaSpan.textContent =
-        "Nao foi possivel gerar resposta agora. Tente novamente.";
+      iaSpan.textContent = STREAM_ERROR_MESSAGE;
       showStatus(`Falha ao gerar resposta: ${error.message}`, {
         type: "error",
         retryAction: async () => {
           try {
             showTyping();
             iaSpan.textContent = "";
-
-            await streamChatResponse({
+            await doStreamResponse({
               apiBase,
               activeChatId: state.activeChatId,
               text: texto,
               controls: getControls(),
               images: imagePayload,
-              targetEl: iaSpan,
-              onChunk: () => smoothScrollToBottom(),
+              iaSpan,
+              onLoadChats,
+              hideStatus,
+              smoothScrollToBottom,
             });
-
-            await onLoadChats();
-            hideStatus();
           } catch (retryError) {
-            iaSpan.textContent =
-              "Nao foi possivel gerar resposta agora. Tente novamente.";
+            iaSpan.textContent = STREAM_ERROR_MESSAGE;
             showStatus(`Falha ao tentar novamente: ${retryError.message}`, {
               type: "error",
               retryAction: getRetryAction(),
