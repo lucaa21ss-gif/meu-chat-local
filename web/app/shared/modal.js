@@ -12,6 +12,18 @@ function isModalVisible(element) {
   return !!element && !element.classList.contains("hidden");
 }
 
+function openModalElement(element) {
+  if (!element) return;
+  element.classList.remove("hidden");
+  element.classList.add("flex");
+}
+
+function closeModalElement(element) {
+  if (!element) return;
+  element.classList.add("hidden");
+  element.classList.remove("flex");
+}
+
 export function createModalPresenter(options = {}) {
   const MODAL_ELEMENT_NAMES = [
     "duplicateModal", "duplicateTitleInput", "duplicateModeFullEl", "duplicateModeUser",
@@ -109,8 +121,7 @@ export function createModalPresenter(options = {}) {
     }
 
     confirmModalTextEl.textContent = text;
-    confirmModalEl.classList.remove("hidden");
-    confirmModalEl.classList.add("flex");
+    openModalElement(confirmModalEl);
 
     return new Promise((resolve) => {
       confirmResolver = resolve;
@@ -120,8 +131,7 @@ export function createModalPresenter(options = {}) {
   function closeConfirmModal(result) {
     if (!confirmModalEl) return;
 
-    confirmModalEl.classList.add("hidden");
-    confirmModalEl.classList.remove("flex");
+    closeModalElement(confirmModalEl);
     if (confirmResolver) {
       const resolve = confirmResolver;
       confirmResolver = null;
@@ -130,15 +140,11 @@ export function createModalPresenter(options = {}) {
   }
 
   function openVoiceHistoryModal() {
-    if (!voiceHistoryModalEl) return;
-    voiceHistoryModalEl.classList.remove("hidden");
-    voiceHistoryModalEl.classList.add("flex");
+    openModalElement(voiceHistoryModalEl);
   }
 
   function closeVoiceHistoryModal() {
-    if (!voiceHistoryModalEl) return;
-    voiceHistoryModalEl.classList.add("hidden");
-    voiceHistoryModalEl.classList.remove("flex");
+    closeModalElement(voiceHistoryModalEl);
   }
 
   function isVoiceHistoryOpen() {
@@ -147,15 +153,12 @@ export function createModalPresenter(options = {}) {
 
   function openShortcutsModal() {
     if (!shortcutsModalEl) return;
-    shortcutsModalEl.classList.remove("hidden");
-    shortcutsModalEl.classList.add("flex");
+    openModalElement(shortcutsModalEl);
     shortcutsCloseBtnEl?.focus();
   }
 
   function closeShortcutsModal() {
-    if (!shortcutsModalEl) return;
-    shortcutsModalEl.classList.add("hidden");
-    shortcutsModalEl.classList.remove("flex");
+    closeModalElement(shortcutsModalEl);
   }
 
   function isShortcutsModalOpen() {
