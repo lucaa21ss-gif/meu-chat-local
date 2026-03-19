@@ -1,3 +1,5 @@
+import { createFetchHelpers } from "./fetch-helpers.js";
+
 export function createStorageController({
   state,
   storageUsageTextEl,
@@ -32,6 +34,8 @@ export function createStorageController({
     if (raw === null) return null;
     return Number.parseInt(raw, 10);
   }
+
+  const { doFetchWithRetry, fetchJsonBody } = createFetchHelpers(fetchJson, showStatus);
 
   async function loadUsage() {
     if (!state.userId) return;
@@ -70,11 +74,7 @@ export function createStorageController({
       maxDeleteMb,
     };
 
-    const dryRun = await fetchJson("/api/storage/cleanup", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ mode: "dry-run", ...cleanupPayload }),
-    });
+    const dryRun = await fetchJsonBody("/api/storage/cleanup", "POST", { mode: "dry-run", ...cleanupPayload });
 
     const summary = dryRun?.cleanup || {};
     const confirmed = await openConfirmModal(
@@ -82,17 +82,14 @@ export function createStorageController({
     );
     if (!confirmed) return;
 
-    await fetchJson("/api/storage/cleanup", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ mode: "execute", ...cleanupPayload }),
-    });
-
-    await loadUsage();
-    showStatus("Limpeza de armazenamento concluida.", {
-      type: "success",
-      autoHideMs: 3000,
-    });
+    await doFetchWithRetry(
+      async () => {
+        await fetchJsonBody("/api/storage/cleanup", "POST", { mode: "execute", ...cleanupPayload });
+        await loadUsage();
+      },
+      "Limpeza de armazenamento concluida.",
+      "Nao foi possivel executar limpeza",
+    );
   }
 
   async function updateLimitForCurrentUser() {
@@ -101,18 +98,15 @@ export function createStorageController({
     const limit = promptAndParseInt("Novo limite de armazenamento (MB):", String(current));
     if (limit === null) return;
 
-    await fetchJson(`/api/users/${encodeURIComponent(state.userId)}/storage-limit`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ storageLimitMb: limit }),
-    });
-
-    await onLoadUsers();
-    await loadUsage();
-    showStatus("Limite de armazenamento atualizado.", {
-      type: "success",
-      autoHideMs: 2500,
-    });
+    await doFetchWithRetry(
+      async () => {
+        await fetchJsonBody(`/api/users/${encodeURIComponent(state.userId)}/storage-limit`, "PATCH", { storageLimitMb: limit });
+        await onLoadUsers();
+        await loadUsage();
+      },
+      "Limite de armazenamento atualizado.",
+      "Nao foi possivel atualizar limite",
+    );
   }
 
   return {
