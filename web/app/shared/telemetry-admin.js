@@ -1,3 +1,5 @@
+import { createFetchHelpers } from "./fetch-helpers.js";
+
 function downloadJsonFile(text, filename) {
   const blob = new Blob([text], { type: "application/json" });
   const url = URL.createObjectURL(blob);
@@ -21,6 +23,8 @@ export function createTelemetryAdminController({
   onAfterConfigRollback,
   fetchImpl = fetch,
 }) {
+  const { doFetchWithRetry, fetchJsonBody } = createFetchHelpers(fetchJson, showStatus);
+
   function formatConfigVersionLabel(item) {
     const map = {
       "chat.systemPrompt": "Prompt da conversa",
@@ -58,25 +62,20 @@ export function createTelemetryAdminController({
   }
 
   async function setTelemetryEnabled(enabled) {
-    try {
-      const data = await fetchJson("/api/telemetry", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ enabled: !!enabled }),
-      });
-      state.telemetryEnabled = !!data.enabled;
-      if (telemetryOptInEl) telemetryOptInEl.checked = state.telemetryEnabled;
-      showStatus(
-        state.telemetryEnabled
-          ? "Telemetria local ativada."
-          : "Telemetria local desativada e limpa.",
-        { type: "success", autoHideMs: 2500 },
-      );
-    } catch (error) {
-      showStatus(`Nao foi possivel atualizar telemetria: ${error.message}`, {
-        type: "error",
-      });
-    }
+    const data = await doFetchWithRetry(
+      () => fetchJsonBody("/api/telemetry", "PATCH", { enabled: !!enabled }),
+      null,
+      "Nao foi possivel atualizar telemetria",
+    );
+    if (!data) return;
+    state.telemetryEnabled = !!data.enabled;
+    if (telemetryOptInEl) telemetryOptInEl.checked = state.telemetryEnabled;
+    showStatus(
+      state.telemetryEnabled
+        ? "Telemetria local ativada."
+        : "Telemetria local desativada e limpa.",
+      { type: "success", autoHideMs: 2500 },
+    );
   }
 
   async function showTelemetryStats() {
@@ -204,32 +203,26 @@ export function createTelemetryAdminController({
     );
     if (!confirmed) return;
 
-    try {
-      const rollback = await fetchJson(
-        `/api/config/versions/${encodeURIComponent(versionId)}/rollback`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({}),
-        },
-      );
-
-      await onAfterConfigRollback();
-
-      showStatus(
-        rollback.changed
-          ? "Rollback de configuracao aplicado com sucesso."
-          : "Rollback idempotente: configuracao ja estava no valor selecionado.",
-        {
-          type: "success",
-          autoHideMs: 3000,
-        },
-      );
-    } catch (error) {
-      showStatus(`Falha ao executar rollback: ${error.message}`, {
-        type: "error",
-      });
-    }
+    const rollback = await doFetchWithRetry(
+      async () => {
+        const result = await fetchJsonBody(
+          `/api/config/versions/${encodeURIComponent(versionId)}/rollback`,
+          "POST",
+          {},
+        );
+        await onAfterConfigRollback();
+        return result;
+      },
+      null,
+      "Falha ao executar rollback",
+    );
+    if (!rollback) return;
+    showStatus(
+      rollback.changed
+        ? "Rollback de configuracao aplicado com sucesso."
+        : "Rollback idempotente: configuracao ja estava no valor selecionado.",
+      { type: "success", autoHideMs: 3000 },
+    );
   }
 
   return {
