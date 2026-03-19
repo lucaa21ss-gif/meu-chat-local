@@ -230,42 +230,32 @@ export function createAppBindingsController({
   }
 
   function bindOnboardingButtons() {
-    if (onboardingBtnEl) {
-      onboardingBtnEl.addEventListener("click", () => {
-        openOnboardingModal();
-      });
-    }
-    if (onboardingRunChecksBtnEl) {
-      onboardingRunChecksBtnEl.addEventListener("click", () => {
+    const onboardingButtonHandlers = [
+      [onboardingBtnEl, () => openOnboardingModal()],
+      [onboardingRunChecksBtnEl, () => {
         runOnboardingChecks().catch((error) => {
           showStatus(`Falha no onboarding: ${error.message}`, { type: "error" });
           console.error(error);
         });
-      });
-    }
-    if (onboardingSkipBtnEl) {
-      onboardingSkipBtnEl.addEventListener("click", () => {
-        closeOnboardingModal();
-      });
-    }
-    if (onboardingCompleteBtnEl) {
-      onboardingCompleteBtnEl.addEventListener("click", () => {
-        onboardingController.complete();
-      });
-    }
+      }],
+      [onboardingSkipBtnEl, () => closeOnboardingModal()],
+      [onboardingCompleteBtnEl, () => onboardingController.complete()],
+    ];
+
+    onboardingButtonHandlers.forEach(([btn, handler]) => {
+      if (btn) btn.addEventListener("click", handler);
+    });
   }
 
   function bindShortcutsModalButtons() {
-    if (shortcutsHelpBtnEl) {
-      shortcutsHelpBtnEl.addEventListener("click", () => {
-        openShortcutsModal();
-      });
-    }
-    if (shortcutsCloseBtnEl) {
-      shortcutsCloseBtnEl.addEventListener("click", () => {
-        closeShortcutsModal();
-      });
-    }
+    const shortcutsButtonHandlers = [
+      [shortcutsHelpBtnEl, () => openShortcutsModal()],
+      [shortcutsCloseBtnEl, () => closeShortcutsModal()],
+    ];
+
+    shortcutsButtonHandlers.forEach(([btn, handler]) => {
+      if (btn) btn.addEventListener("click", handler);
+    });
   }
 
   function bindStatusRetryButton() {
