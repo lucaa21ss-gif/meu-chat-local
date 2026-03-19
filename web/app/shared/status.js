@@ -29,9 +29,11 @@ const STATUS_CLASS_MAP = {
 };
 
 export function createStatusPresenter(options = {}) {
-  const statusBarEl = options.statusBarEl || null;
-  const statusTextEl = options.statusTextEl || null;
-  const statusRetryBtnEl = options.statusRetryBtnEl || null;
+  const STATUS_ELEMENT_NAMES = ["statusBar", "statusText", "statusRetryBtn"];
+  const statusElements = Object.fromEntries(
+    STATUS_ELEMENT_NAMES.map(name => [name + "El", options[name + "El"] || null])
+  );
+  const { statusBarEl, statusTextEl, statusRetryBtnEl } = statusElements;
   let retryAction = null;
   let statusTimer = null;
 
