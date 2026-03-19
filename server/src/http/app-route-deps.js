@@ -3,6 +3,7 @@ import { buildAuditRoutesDeps } from "./route-deps-audit.js";
 import { buildBackupRoutesDeps } from "./route-deps-backup.js";
 import { buildChatsRoutesDeps } from "./route-deps-chats.js";
 import { buildChatRoutesDeps } from "./route-deps-chat.js";
+import { buildIncidentRoutesDeps } from "./route-deps-incident.js";
 import { buildRagRoutesDeps } from "./route-deps-rag.js";
 import { buildUserRoutesDeps } from "./route-deps-user.js";
 
@@ -30,24 +31,7 @@ export function buildRegisterAppRoutesDeps(ctx) {
     userRoutes: buildUserRoutesDeps(ctx),
     chatsRoutes: buildChatsRoutesDeps(ctx),
     backupRoutes: buildBackupRoutesDeps(ctx),
-    incidentRoutes: {
-      asyncHandler: ctx.asyncHandler,
-      requireMinimumRole: ctx.requireMinimumRole,
-      assertBodyObject: ctx.assertBodyObject,
-      resolveActor: ctx.resolveActor,
-      recordAudit: ctx.recordAudit,
-      requireOperationalApproval: ctx.requireOperationalApproval,
-      parseIncidentUpdatePayload: ctx.parseIncidentUpdatePayload,
-      parseIncidentRunbookType: ctx.parseIncidentRunbookType,
-      parseIncidentRunbookMode: ctx.parseIncidentRunbookMode,
-      parseIncidentOwner: ctx.parseIncidentOwner,
-      parseIncidentSummary: ctx.parseIncidentSummary,
-      parseIncidentNextUpdateAt: ctx.parseIncidentNextUpdateAt,
-      parseBackupPassphrase: ctx.parseBackupPassphrase,
-      collectIncidentRunbookSignals: ctx.collectIncidentRunbookSignals,
-      incidentService: ctx.incidentService,
-      INCIDENT_RUNBOOK_TYPES: ctx.INCIDENT_RUNBOOK_TYPES,
-    },
+    incidentRoutes: buildIncidentRoutesDeps(ctx),
     resilienceRoutes: {
       asyncHandler: ctx.asyncHandler,
       requireMinimumRole: ctx.requireMinimumRole,
