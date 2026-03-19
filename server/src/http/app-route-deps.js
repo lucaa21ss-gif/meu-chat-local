@@ -1,4 +1,5 @@
 import { buildHealthRoutesDeps } from "./route-deps-health.js";
+import { buildChatRoutesDeps } from "./route-deps-chat.js";
 
 export function buildRegisterAppRoutesDeps(ctx) {
   return {
@@ -19,27 +20,7 @@ export function buildRegisterAppRoutesDeps(ctx) {
     registerAuditRoutes: ctx.registerAuditRoutes,
     registerObservabilityRoutes: ctx.registerObservabilityRoutes,
     healthRoutes: buildHealthRoutesDeps(ctx),
-    chatRoutes: {
-      asyncHandler: ctx.asyncHandler,
-      assertBodyObject: ctx.assertBodyObject,
-      parseMessage: ctx.parseMessage,
-      getChatId: ctx.getChatId,
-      parseOptions: ctx.parseOptions,
-      parseRagOptions: ctx.parseRagOptions,
-      getMessageImages: ctx.getMessageImages,
-      recordBlockedAttempt: ctx.recordBlockedAttempt,
-      buildRagSystemMessage: ctx.buildRagSystemMessage,
-      buildSystemMessages: ctx.buildSystemMessages,
-      executeWithModelRecovery: ctx.executeWithModelRecovery,
-      ollamaFallbackModel: ctx.ollamaFallbackModel,
-      ollamaMaxAttempts: ctx.ollamaMaxAttempts,
-      ollamaTimeoutMs: ctx.ollamaTimeoutMs,
-      ollamaRetryDelays: ctx.ollamaRetryDelays,
-      chatClient: ctx.chatClient,
-      queueService: ctx.queueService,
-      store: ctx.store,
-      HttpError: ctx.HttpError,
-    },
+    chatRoutes: buildChatRoutesDeps(ctx),
     ragRoutes: {
       asyncHandler: ctx.asyncHandler,
       assertBodyObject: ctx.assertBodyObject,
