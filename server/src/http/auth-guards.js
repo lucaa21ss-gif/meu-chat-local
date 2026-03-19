@@ -38,9 +38,15 @@ export function createAuthGuards({
         return req.actor;
     }
 
-    function requireMinimumRole(minimumRole) {
+    function withResolvedActor(handler) {
         return asyncHandler(async (req, _res, next) => {
             const actor = await resolveActor(req);
+            await handler({ req, next, actor });
+        });
+    }
+
+    function requireMinimumRole(minimumRole) {
+        return withResolvedActor(({ actor, next }) => {
             if (!hasRequiredRole(actor.role, minimumRole)) {
                 throw new HttpError(403, INSUFFICIENT_PERMISSION_MESSAGE);
             }
@@ -49,8 +55,7 @@ export function createAuthGuards({
     }
 
     function requireAdminOrSelf(userIdParam = "userId") {
-        return asyncHandler(async (req, _res, next) => {
-            const actor = await resolveActor(req);
+        return withResolvedActor(({ req, actor, next }) => {
             const targetUserId = parseUserId(req.params[userIdParam]);
             if (actor.userId === targetUserId || actor.role === "admin") {
                 next();
