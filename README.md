@@ -34,7 +34,7 @@ Camadas por responsabilidade:
 
 - Interface (`web/`): paginas do produto/chat/guia, eventos, streaming no cliente, atalhos e indicadores de health
 - Entrypoint e bootstrap (`server/index.js`, `server/src/http/app-startup.js`, `server/src/http/app-main-module.js`): inicializacao do servidor, modo main e agendamento operacional
-- HTTP e composicao (`server/src/http/`): montagem da aplicacao Express, middlewares, wiring de rotas e contexto de dependencias
+- HTTP e composicao (`server/src/http/`): montagem da aplicacao Express, middlewares, contexto de dependencias e wiring helpers para rotas, services, governanca e guards
 - Modulos de dominio (`server/src/modules/`): registro de rotas por dominio e servicos de governanca/saude/chat/usuarios
 - Infraestrutura (`server/src/infra/`): SQLite, backup, storage local, fila/rate limiting, integracao com Ollama, logs e telemetria
 - Automacao operacional (`scripts/`): empacotamento, instalacao, canary, DR test, runbook de incidente e capacity profile
@@ -109,7 +109,7 @@ Visao resumida dos diretorios e arquivos principais (nao exaustiva):
 
 Mapa rapido do backend modular:
 
-- `server/src/http/`: bootstrap HTTP, middlewares, composicao do app e wiring de rotas
+- `server/src/http/`: bootstrap HTTP, middlewares, composicao do app e wiring de rotas/services/governanca/guards
 - `server/src/infra/`: adaptadores locais de banco, backup, filesystem, logging, Ollama, fila e telemetria
 - `server/src/modules/approvals/`: fluxo de approvals operacionais
 - `server/src/modules/audit/`: exportacao e consulta de trilhas de auditoria
@@ -131,6 +131,10 @@ Arquivos-chave para comecar rapido:
 - `server/src/http/app-create.js`: composicao principal da aplicacao Express
 - `server/src/http/app-context.js`: montagem de contexto, servicos e dependencias de rota
 - `server/src/http/app-route-registrars.js`: mapa centralizado dos registradores de rota
+- `server/src/http/app-route-wiring.js`: agrupamento nomeado de dependencias para registro de rotas
+- `server/src/http/app-service-wiring.js`: agrupamento nomeado de dependencias para montagem dos services
+- `server/src/http/app-governance-wiring.js`: agrupamento nomeado de dependencias da camada de governanca
+- `server/src/http/app-guards-wiring.js`: agrupamento nomeado de dependencias de guards e auditoria
 - `server/src/infra/db/db.js`: persistencia SQLite, historico de chats e configuracoes
 - `server/src/infra/backup/backup-archive.js`: exportacao/restauracao e validacao de backups
 - `server/src/infra/fs/storage-service.js`: uso e limpeza de armazenamento local
