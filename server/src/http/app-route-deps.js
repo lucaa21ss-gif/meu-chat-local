@@ -1,5 +1,6 @@
 import { buildHealthRoutesDeps } from "./route-deps-health.js";
 import { buildAuditRoutesDeps } from "./route-deps-audit.js";
+import { buildBackupRoutesDeps } from "./route-deps-backup.js";
 import { buildChatRoutesDeps } from "./route-deps-chat.js";
 import { buildRagRoutesDeps } from "./route-deps-rag.js";
 import { buildUserRoutesDeps } from "./route-deps-user.js";
@@ -52,19 +53,7 @@ export function buildRegisterAppRoutesDeps(ctx) {
       store: ctx.store,
       HttpError: ctx.HttpError,
     },
-    backupRoutes: {
-      asyncHandler: ctx.asyncHandler,
-      requireMinimumRole: ctx.requireMinimumRole,
-      assertBodyObject: ctx.assertBodyObject,
-      resolveActor: ctx.resolveActor,
-      requireOperationalApproval: ctx.requireOperationalApproval,
-      parseBackupPassphrase: ctx.parseBackupPassphrase,
-      parseBackupPayload: ctx.parseBackupPayload,
-      parsePositiveInt: ctx.parsePositiveInt,
-      recordAudit: ctx.recordAudit,
-      backupService: ctx.backupService,
-      HttpError: ctx.HttpError,
-    },
+    backupRoutes: buildBackupRoutesDeps(ctx),
     incidentRoutes: {
       asyncHandler: ctx.asyncHandler,
       requireMinimumRole: ctx.requireMinimumRole,
