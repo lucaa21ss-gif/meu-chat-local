@@ -26,6 +26,34 @@ function pickJsonFile() {
   });
 }
 
+async function exportTextFromEndpoint({
+  url,
+  contentType,
+  filename,
+  requestErrorMessage,
+  successMessage,
+  errorMessagePrefix,
+  showStatus,
+  retryAction,
+}) {
+  try {
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(requestErrorMessage);
+    }
+
+    const text = await response.text();
+    downloadTextFile(text, contentType, filename);
+    showStatus(successMessage, { type: "success" });
+  } catch (error) {
+    showStatus(`${errorMessagePrefix}: ${error.message}`, {
+      type: "error",
+      retryAction,
+    });
+    throw error;
+  }
+}
+
 export function createChatExportController({
   state,
   apiBase,
@@ -37,81 +65,44 @@ export function createChatExportController({
   async function exportChat() {
     if (!state.activeChatId) return;
 
-    try {
-      const response = await fetch(
-        `${apiBase}/api/chats/${encodeURIComponent(state.activeChatId)}/export?format=markdown`,
-      );
-      if (!response.ok) {
-        throw new Error("Falha ao exportar conversa");
-      }
-
-      const markdown = await response.text();
-      downloadTextFile(markdown, "text/markdown", `${state.activeChatId}.md`);
-      showStatus("Conversa exportada com sucesso.", { type: "success" });
-    } catch (error) {
-      showStatus(`Nao foi possivel exportar conversa: ${error.message}`, {
-        type: "error",
-        retryAction: () => exportChat(),
-      });
-      throw error;
-    }
+    await exportTextFromEndpoint({
+      url: `${apiBase}/api/chats/${encodeURIComponent(state.activeChatId)}/export?format=markdown`,
+      contentType: "text/markdown",
+      filename: `${state.activeChatId}.md`,
+      requestErrorMessage: "Falha ao exportar conversa",
+      successMessage: "Conversa exportada com sucesso.",
+      errorMessagePrefix: "Nao foi possivel exportar conversa",
+      showStatus,
+      retryAction: () => exportChat(),
+    });
   }
 
   async function exportFavoriteChatsMarkdown() {
-    try {
-      const response = await fetch(
-        `${apiBase}/api/chats/export?userId=${encodeURIComponent(state.userId)}&favorites=true&format=markdown`,
-      );
-      if (!response.ok) {
-        throw new Error("Falha ao exportar favoritos em Markdown");
-      }
-
-      const markdownText = await response.text();
-      downloadTextFile(
-        markdownText,
-        "text/markdown",
-        `chats-favoritos-${state.userId}.md`,
-      );
-      showStatus("Favoritos exportados em Markdown com sucesso.", {
-        type: "success",
-      });
-    } catch (error) {
-      showStatus(
-        `Nao foi possivel exportar favoritos em Markdown: ${error.message}`,
-        {
-          type: "error",
-          retryAction: () => exportFavoriteChatsMarkdown(),
-        },
-      );
-      throw error;
-    }
+    await exportTextFromEndpoint({
+      url: `${apiBase}/api/chats/export?userId=${encodeURIComponent(state.userId)}&favorites=true&format=markdown`,
+      contentType: "text/markdown",
+      filename: `chats-favoritos-${state.userId}.md`,
+      requestErrorMessage: "Falha ao exportar favoritos em Markdown",
+      successMessage: "Favoritos exportados em Markdown com sucesso.",
+      errorMessagePrefix: "Nao foi possivel exportar favoritos em Markdown",
+      showStatus,
+      retryAction: () => exportFavoriteChatsMarkdown(),
+    });
   }
 
   async function exportChatJson() {
     if (!state.activeChatId) return;
 
-    try {
-      const response = await fetch(
-        `${apiBase}/api/chats/${encodeURIComponent(state.activeChatId)}/export?format=json`,
-      );
-      if (!response.ok) {
-        throw new Error("Falha ao exportar conversa em JSON");
-      }
-
-      const jsonText = await response.text();
-      downloadTextFile(
-        jsonText,
-        "application/json",
-        `${state.activeChatId}.json`,
-      );
-      showStatus("Conversa exportada em JSON com sucesso.", { type: "success" });
-    } catch (error) {
-      showStatus(`Nao foi possivel exportar JSON: ${error.message}`, {
-        type: "error",
-        retryAction: () => exportChatJson(),
-      });
-      throw error;
-    }
+    await exportTextFromEndpoint({
+      url: `${apiBase}/api/chats/${encodeURIComponent(state.activeChatId)}/export?format=json`,
+      contentType: "application/json",
+      filename: `${state.activeChatId}.json`,
+      requestErrorMessage: "Falha ao exportar conversa em JSON",
+      successMessage: "Conversa exportada em JSON com sucesso.",
+      errorMessagePrefix: "Nao foi possivel exportar JSON",
+      showStatus,
+      retryAction: () => exportChatJson(),
+    });
   }
 
   async function importChatJson() {
@@ -145,30 +136,16 @@ export function createChatExportController({
   }
 
   async function exportAllChatsJson() {
-    try {
-      const response = await fetch(
-        `${apiBase}/api/chats/export?userId=${encodeURIComponent(state.userId)}`,
-      );
-      if (!response.ok) {
-        throw new Error("Falha ao exportar lote de conversas");
-      }
-
-      const jsonText = await response.text();
-      downloadTextFile(
-        jsonText,
-        "application/json",
-        `chats-${state.userId}.json`,
-      );
-      showStatus("Conversas exportadas em lote com sucesso.", {
-        type: "success",
-      });
-    } catch (error) {
-      showStatus(`Nao foi possivel exportar lote: ${error.message}`, {
-        type: "error",
-        retryAction: () => exportAllChatsJson(),
-      });
-      throw error;
-    }
+    await exportTextFromEndpoint({
+      url: `${apiBase}/api/chats/export?userId=${encodeURIComponent(state.userId)}`,
+      contentType: "application/json",
+      filename: `chats-${state.userId}.json`,
+      requestErrorMessage: "Falha ao exportar lote de conversas",
+      successMessage: "Conversas exportadas em lote com sucesso.",
+      errorMessagePrefix: "Nao foi possivel exportar lote",
+      showStatus,
+      retryAction: () => exportAllChatsJson(),
+    });
   }
 
   return {
