@@ -24,38 +24,41 @@ export function registerAppRoutes(app, deps) {
     res.status(200).json({ status: "ok", service: "chat-server" });
   });
 
-  registerHealthRoutes(app, deps.healthRoutes);
-  registerChatRoutes(app, deps.chatRoutes);
-  registerRagRoutes(app, deps.ragRoutes);
-  registerUserRoutes(app, deps.userRoutes);
-  registerChatsRoutes(app, deps.chatsRoutes);
-  registerBackupRoutes(app, deps.backupRoutes);
-  registerIncidentRoutes(app, deps.incidentRoutes);
-  registerResilienceRoutes(app, deps.resilienceRoutes);
-  registerStorageRoutes(app, deps.storageRoutes);
-  registerConfigRoutes(app, deps.configRoutes);
-  registerApprovalRoutes(app, deps.approvalRoutes);
-  registerAuditRoutes(app, deps.auditRoutes);
-  registerObservabilityRoutes(app, deps.observabilityRoutes);
+  const moduleRegistrars = [
+    [registerHealthRoutes, deps.healthRoutes],
+    [registerChatRoutes, deps.chatRoutes],
+    [registerRagRoutes, deps.ragRoutes],
+    [registerUserRoutes, deps.userRoutes],
+    [registerChatsRoutes, deps.chatsRoutes],
+    [registerBackupRoutes, deps.backupRoutes],
+    [registerIncidentRoutes, deps.incidentRoutes],
+    [registerResilienceRoutes, deps.resilienceRoutes],
+    [registerStorageRoutes, deps.storageRoutes],
+    [registerConfigRoutes, deps.configRoutes],
+    [registerApprovalRoutes, deps.approvalRoutes],
+    [registerAuditRoutes, deps.auditRoutes],
+    [registerObservabilityRoutes, deps.observabilityRoutes],
+  ];
+
+  moduleRegistrars.forEach(([register, routeDeps]) => {
+    register(app, routeDeps);
+  });
 
   app.use("/api", (_req, res) => {
     res.status(404).json({ error: "Endpoint nao encontrado" });
   });
 
-  app.get("/app", (_req, res) => {
-    res.sendFile(path.join(webDir, "index.html"));
-  });
+  const staticPages = [
+    ["/app", "index.html"],
+    ["/produto", "produto.html"],
+    ["/guia", "guia.html"],
+    ["/", "index.html"],
+  ];
 
-  app.get("/produto", (_req, res) => {
-    res.sendFile(path.join(webDir, "produto.html"));
-  });
-
-  app.get("/guia", (_req, res) => {
-    res.sendFile(path.join(webDir, "guia.html"));
-  });
-
-  app.get("/", (_req, res) => {
-    res.sendFile(path.join(webDir, "index.html"));
+  staticPages.forEach(([routePath, fileName]) => {
+    app.get(routePath, (_req, res) => {
+      res.sendFile(path.join(webDir, fileName));
+    });
   });
 
   app.use((err, req, res, next) => {
