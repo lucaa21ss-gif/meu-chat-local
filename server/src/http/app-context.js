@@ -1,5 +1,6 @@
 import { createAppRuntimeConfig } from "./app-runtime-config.js";
 import { createAppServices } from "./app-services.js";
+import { createServiceDepsForApp } from "./app-service-wiring.js";
 import { createGovernanceRuntime } from "./app-governance-runtime.js";
 import { createAppGuardsAndAudit } from "./app-guards-and-audit.js";
 import { createRouteDepsForApp } from "./app-route-wiring.js";
@@ -54,18 +55,24 @@ export function createAppContext({
     buildCorsOriginValidator,
   });
 
-  const services = createAppServices({
-    deps,
-    store,
-    serverDir,
-    chatClient,
-    ...runtimeConfig,
-    parsers: sharedParsers,
-    isTelemetryEnabled,
-    setTelemetryEnabled,
-    resetTelemetryStats,
-    CONFIG_KEYS,
-  });
+  const services = createAppServices(
+    createServiceDepsForApp({
+      core: {
+        deps,
+        store,
+        serverDir,
+        chatClient,
+      },
+      runtime: runtimeConfig,
+      parsers: sharedParsers,
+      features: {
+        isTelemetryEnabled,
+        setTelemetryEnabled,
+        resetTelemetryStats,
+        CONFIG_KEYS,
+      },
+    }),
+  );
 
   const governanceRuntime = createGovernanceRuntime({
     deps,
