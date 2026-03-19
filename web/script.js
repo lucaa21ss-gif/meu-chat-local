@@ -32,125 +32,71 @@ import { buildHeaderPresentation, createHealthPoller } from "./health-indicators
 const API_BASE = window.location.origin;
 const { fetchJson } = createApiClient({ baseUrl: API_BASE });
 
-const chatEl = document.getElementById("chat");
-const inputEl = document.getElementById("msg");
-const typingEl = document.getElementById("typing");
-const sendBtnEl = document.getElementById("sendBtn");
-const tabsEl = document.getElementById("chatTabs");
-const newChatBtnEl = document.getElementById("newChatBtn");
-const exportBtnEl = document.getElementById("exportBtn");
-const exportJsonBtnEl = document.getElementById("exportJsonBtn");
-const exportAllJsonBtnEl = document.getElementById("exportAllJsonBtn");
-const exportFavoritesMdBtnEl = document.getElementById("exportFavoritesMdBtn");
-const importJsonBtnEl = document.getElementById("importJsonBtn");
-const tabsMobileEl = document.getElementById("chatTabsMobile");
-const newChatBtnMobileEl = document.getElementById("newChatBtnMobile");
-const duplicateBtnEl = document.getElementById("duplicateBtn");
-const duplicateBtnMobileEl = document.getElementById("duplicateBtnMobile");
-const renameBtnEl = document.getElementById("renameBtn");
-const deleteBtnEl = document.getElementById("deleteBtn");
-const systemPromptBtnEl = document.getElementById("systemPromptBtn");
-const renameBtnMobileEl = document.getElementById("renameBtnMobile");
-const deleteBtnMobileEl = document.getElementById("deleteBtnMobile");
-const exportBtnMobileEl = document.getElementById("exportBtnMobile");
-const exportJsonBtnMobileEl = document.getElementById("exportJsonBtnMobile");
-const exportAllJsonBtnMobileEl = document.getElementById(
-  "exportAllJsonBtnMobile",
-);
-const exportFavoritesMdBtnMobileEl = document.getElementById(
-  "exportFavoritesMdBtnMobile",
-);
-const backupBtnEl = document.getElementById("backupBtn");
-const restoreBackupBtnEl = document.getElementById("restoreBackupBtn");
-const backupBtnMobileEl = document.getElementById("backupBtnMobile");
-const restoreBackupBtnMobileEl = document.getElementById(
-  "restoreBackupBtnMobile",
-);
-const backupRestoreInputEl = document.getElementById("backupRestoreInput");
-const importJsonBtnMobileEl = document.getElementById("importJsonBtnMobile");
-const voiceBtnEl = document.getElementById("voiceBtn");
-const voiceHistoryBtnEl = document.getElementById("voiceHistoryBtn");
-const imageInputEl = document.getElementById("imageInput");
-const favoriteBtnEl = document.getElementById("favoriteBtn");
-const archiveBtnEl = document.getElementById("archiveBtn");
-const tagsBtnEl = document.getElementById("tagsBtn");
-const duplicateModalEl = document.getElementById("duplicateModal");
-const duplicateTitleInputEl = document.getElementById("duplicateTitleInput");
-const duplicateModeFullEl = document.getElementById("duplicateModeFull");
-const duplicateModeUserEl = document.getElementById("duplicateModeUser");
-const duplicateCancelBtnEl = document.getElementById("duplicateCancelBtn");
-const duplicateConfirmBtnEl = document.getElementById("duplicateConfirmBtn");
-const voiceHistoryModalEl = document.getElementById("voiceHistoryModal");
-const voiceHistoryListEl = document.getElementById("voiceHistoryList");
-const voiceHistoryCloseBtnEl = document.getElementById("voiceHistoryCloseBtn");
-const clearVoiceHistoryBtnEl = document.getElementById("clearVoiceHistoryBtn");
-const confirmModalEl = document.getElementById("confirmModal");
-const confirmModalTextEl = document.getElementById("confirmModalText");
-const confirmCancelBtnEl = document.getElementById("confirmCancelBtn");
-const confirmOkBtnEl = document.getElementById("confirmOkBtn");
-const onboardingModalEl = document.getElementById("onboardingModal");
-const ollamaStatusBadgeEl = document.getElementById("ollamaStatusBadge");
-const systemHealthBadgeEl = document.getElementById("systemHealthBadge");
-const ollamaLatencyTextEl = document.getElementById("ollamaLatencyText");
-const statusBarEl = document.getElementById("statusBar");
-const statusTextEl = document.getElementById("statusText");
-const statusRetryBtnEl = document.getElementById("statusRetryBtn");
-const userPromptBtnEl = document.getElementById("userPromptBtn");
-const shortcutsHelpBtnEl = document.getElementById("shortcutsHelpBtn");
-const shortcutsModalEl = document.getElementById("shortcutsModal");
-const shortcutsCloseBtnEl = document.getElementById("shortcutsCloseBtn");
-const shortcutsListEl = document.getElementById("shortcutsList");
-const userSelectEl = document.getElementById("userSelect");
-const darkModeBtnEl = document.getElementById("darkModeBtn");
-const sunIconEl = document.getElementById("sunIcon");
-const moonIconEl = document.getElementById("moonIcon");
-const autoIconEl = document.getElementById("autoIcon");
-const storageUsageTextEl = document.getElementById("storageUsageText");
-const storageAlertTextEl = document.getElementById("storageAlertText");
-const storageRefreshBtnEl = document.getElementById("storageRefreshBtn");
-const storageCleanupBtnEl = document.getElementById("storageCleanupBtn");
-const storageLimitBtnEl = document.getElementById("storageLimitBtn");
-const telemetryOptInEl = document.getElementById("telemetryOptIn");
-const telemetryStatsBtnEl = document.getElementById("telemetryStatsBtn");
-const auditExportBtnEl = document.getElementById("auditExportBtn");
-const configHistoryBtnEl = document.getElementById("configHistoryBtn");
-const diagnosticsExportBtnEl = document.getElementById("diagnosticsExportBtn");
-const healthRefreshBtnEl = document.getElementById("healthRefreshBtn");
-const healthSummaryTextEl = document.getElementById("healthSummaryText");
-const healthChecksTextEl = document.getElementById("healthChecksText");
-const healthSloTextEl = document.getElementById("healthSloText");
-const filterAllBtnEl = document.getElementById("filterAllBtn");
-const filterFavoritesBtnEl = document.getElementById("filterFavoritesBtn");
-const filterArchivedBtnEl = document.getElementById("filterArchivedBtn");
-const filterTagInputEl = document.getElementById("filterTagInput");
-const filterTagApplyBtnEl = document.getElementById("filterTagApplyBtn");
-const chatListSearchInputEl = document.getElementById("chatListSearchInput");
-const chatListPaginationInfoEl = document.getElementById("chatListPaginationInfo");
-const chatListLoadMoreBtnEl = document.getElementById("chatListLoadMoreBtn");
-const searchInputEl = document.getElementById("searchInput");
-const searchRoleEl = document.getElementById("searchRole");
-const searchFromEl = document.getElementById("searchFrom");
-const searchToEl = document.getElementById("searchTo");
-const searchBtnEl = document.getElementById("searchBtn");
-const searchClearBtnEl = document.getElementById("searchClearBtn");
-const searchPageInfoEl = document.getElementById("searchPageInfo");
-const searchPrevBtnEl = document.getElementById("searchPrevBtn");
-const searchNextBtnEl = document.getElementById("searchNextBtn");
-const searchResultsEl = document.getElementById("searchResults");
-const ragToggleEl = document.getElementById("ragToggle");
-const docInputEl = document.getElementById("docInput");
-const docUploadBtnEl = document.getElementById("docUploadBtn");
-const ragStatusEl = document.getElementById("ragStatus");
-const newUserBtnEl = document.getElementById("newUserBtn");
-const renameUserBtnEl = document.getElementById("renameUserBtn");
-const deleteUserBtnEl = document.getElementById("deleteUserBtn");
-const onboardingBtnEl = document.getElementById("onboardingBtn");
-const onboardingModelSelectEl = document.getElementById("onboardingModelSelect");
-const onboardingHealthStatusEl = document.getElementById("onboardingHealthStatus");
-const onboardingSmokeStatusEl = document.getElementById("onboardingSmokeStatus");
-const onboardingRunChecksBtnEl = document.getElementById("onboardingRunChecksBtn");
-const onboardingSkipBtnEl = document.getElementById("onboardingSkipBtn");
-const onboardingCompleteBtnEl = document.getElementById("onboardingCompleteBtn");
+function createElementRefs(elementIds) {
+  return Object.fromEntries(
+    elementIds.map(id => [id + "El", document.getElementById(id)])
+  );
+}
+
+const DOM_ELEMENT_IDS = [
+  "chat", "msg", "typing", "sendBtn", "chatTabs", "newChatBtn", "exportBtn",
+  "exportJsonBtn", "exportAllJsonBtn", "exportFavoritesMdBtn", "importJsonBtn",
+  "chatTabsMobile", "newChatBtnMobile", "duplicateBtn", "duplicateBtnMobile",
+  "renameBtn", "deleteBtn", "systemPromptBtn", "renameBtnMobile", "deleteBtnMobile",
+  "exportBtnMobile", "exportJsonBtnMobile", "exportAllJsonBtnMobile",
+  "exportFavoritesMdBtnMobile", "backupBtn", "restoreBackupBtn", "backupBtnMobile",
+  "restoreBackupBtnMobile", "backupRestoreInput", "importJsonBtnMobile", "voiceBtn",
+  "voiceHistoryBtn", "imageInput", "favoriteBtn", "archiveBtn", "tagsBtn",
+  "duplicateModal", "duplicateTitleInput", "duplicateModeFull", "duplicateModeUser",
+  "duplicateCancelBtn", "duplicateConfirmBtn", "voiceHistoryModal", "voiceHistoryList",
+  "voiceHistoryCloseBtn", "clearVoiceHistoryBtn", "confirmModal", "confirmModalText",
+  "confirmCancelBtn", "confirmOkBtn", "onboardingModal", "ollamaStatusBadge",
+  "systemHealthBadge", "ollamaLatencyText", "statusBar", "statusText", "statusRetryBtn",
+  "userPromptBtn", "shortcutsHelpBtn", "shortcutsModal", "shortcutsCloseBtn",
+  "shortcutsList", "userSelect", "darkModeBtn", "sunIcon", "moonIcon", "autoIcon",
+  "storageUsageText", "storageAlertText", "storageRefreshBtn", "storageCleanupBtn",
+  "storageLimitBtn", "telemetryOptIn", "telemetryStatsBtn", "auditExportBtn",
+  "configHistoryBtn", "diagnosticsExportBtn", "healthRefreshBtn", "healthSummaryText",
+  "healthChecksText", "healthSloText", "filterAllBtn", "filterFavoritesBtn",
+  "filterArchivedBtn", "filterTagInput", "filterTagApplyBtn", "chatListSearchInput",
+  "chatListPaginationInfo", "chatListLoadMoreBtn", "searchInput", "searchRole",
+  "searchFrom", "searchTo", "searchBtn", "searchClearBtn", "searchPageInfo",
+  "searchPrevBtn", "searchNextBtn", "searchResults", "ragToggle", "docInput",
+  "docUploadBtn", "ragStatus", "newUserBtn", "renameUserBtn", "deleteUserBtn",
+  "onboardingBtn", "onboardingModelSelect", "onboardingHealthStatus",
+  "onboardingSmokeStatus", "onboardingRunChecksBtn", "onboardingSkipBtn",
+  "onboardingCompleteBtn",
+];
+
+const {
+  chatEl, inputEl, typingEl, sendBtnEl, tabsEl, newChatBtnEl, exportBtnEl,
+  exportJsonBtnEl, exportAllJsonBtnEl, exportFavoritesMdBtnEl, importJsonBtnEl,
+  chatTabsMobileEl, newChatBtnMobileEl, duplicateBtnEl, duplicateBtnMobileEl,
+  renameBtnEl, deleteBtnEl, systemPromptBtnEl, renameBtnMobileEl, deleteBtnMobileEl,
+  exportBtnMobileEl, exportJsonBtnMobileEl, exportAllJsonBtnMobileEl,
+  exportFavoritesMdBtnMobileEl, backupBtnEl, restoreBackupBtnEl, backupBtnMobileEl,
+  restoreBackupBtnMobileEl, backupRestoreInputEl, importJsonBtnMobileEl, voiceBtnEl,
+  voiceHistoryBtnEl, imageInputEl, favoriteBtnEl, archiveBtnEl, tagsBtnEl,
+  duplicateModalEl, duplicateTitleInputEl, duplicateModeFullEl, duplicateModeUserEl,
+  duplicateCancelBtnEl, duplicateConfirmBtnEl, voiceHistoryModalEl, voiceHistoryListEl,
+  voiceHistoryCloseBtnEl, clearVoiceHistoryBtnEl, confirmModalEl, confirmModalTextEl,
+  confirmCancelBtnEl, confirmOkBtnEl, onboardingModalEl, ollamaStatusBadgeEl,
+  systemHealthBadgeEl, ollamaLatencyTextEl, statusBarEl, statusTextEl, statusRetryBtnEl,
+  userPromptBtnEl, shortcutsHelpBtnEl, shortcutsModalEl, shortcutsCloseBtnEl,
+  shortcutsListEl, userSelectEl, darkModeBtnEl, sunIconEl, moonIconEl, autoIconEl,
+  storageUsageTextEl, storageAlertTextEl, storageRefreshBtnEl, storageCleanupBtnEl,
+  storageLimitBtnEl, telemetryOptInEl, telemetryStatsBtnEl, auditExportBtnEl,
+  configHistoryBtnEl, diagnosticsExportBtnEl, healthRefreshBtnEl, healthSummaryTextEl,
+  healthChecksTextEl, healthSloTextEl, filterAllBtnEl, filterFavoritesBtnEl,
+  filterArchivedBtnEl, filterTagInputEl, filterTagApplyBtnEl, chatListSearchInputEl,
+  chatListPaginationInfoEl, chatListLoadMoreBtnEl, searchInputEl, searchRoleEl,
+  searchFromEl, searchToEl, searchBtnEl, searchClearBtnEl, searchPageInfoEl,
+  searchPrevBtnEl, searchNextBtnEl, searchResultsEl, ragToggleEl, docInputEl,
+  docUploadBtnEl, ragStatusEl, newUserBtnEl, renameUserBtnEl, deleteUserBtnEl,
+  onboardingBtnEl, onboardingModelSelectEl, onboardingHealthStatusEl,
+  onboardingSmokeStatusEl, onboardingRunChecksBtnEl, onboardingSkipBtnEl,
+  onboardingCompleteBtnEl,
+} = createElementRefs(DOM_ELEMENT_IDS);
 const state = {
   chats: [],
   activeChatId: null,
