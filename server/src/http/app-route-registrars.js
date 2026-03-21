@@ -1,7 +1,9 @@
 import { registerUserRoutes } from "../modules/users/register-users-routes.js";
 import { registerIncidentRoutes } from "../modules/incident/register-incident-routes.js";
 import { registerApprovalRoutes } from "../modules/approvals/register-approval-routes.js";
-import { registerResilienceRoutes } from "../modules/resilience/register-resilience-routes.js";
+import { registerAutoHealingRoutes } from "../modules/resilience/register-auto-healing-routes.js";
+import { registerIntegrityRoutes } from "../modules/resilience/register-integrity-routes.js";
+import { registerDisasterRecoveryRoutes } from "../modules/resilience/register-disaster-recovery-routes.js";
 import { registerStorageRoutes } from "../modules/storage/register-storage-routes.js";
 import { registerConfigRoutes } from "../modules/config-governance/register-config-routes.js";
 import { registerAuditRoutes } from "../modules/audit/register-audit-routes.js";
@@ -20,7 +22,9 @@ export const APP_ROUTE_REGISTRARS = {
   registerChatsRoutes,
   registerBackupRoutes,
   registerIncidentRoutes,
-  registerResilienceRoutes,
+  registerAutoHealingRoutes,
+  registerIntegrityRoutes,
+  registerDisasterRecoveryRoutes,
   registerStorageRoutes,
   registerConfigRoutes,
   registerApprovalRoutes,

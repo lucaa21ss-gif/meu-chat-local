@@ -14,7 +14,11 @@ export function formatBytes(value) {
 
 export function formatDateLabel(isoString) {
   if (!isoString) return "";
-  const date = new Date(isoString);
+  // SQLite format "YYYY-MM-DD HH:mm:ss" needs to be converted to ISO format for reliable UTC parsing
+  const normalized = isoString.includes("T")
+    ? isoString
+    : isoString.replace(" ", "T") + "Z";
+  const date = new Date(normalized);
   if (Number.isNaN(date.getTime())) return "";
   return date.toLocaleString("pt-BR");
 }

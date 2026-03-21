@@ -20,21 +20,9 @@ Etapas ja concluídas nesta frente:
 2. Extracao de auth guards (resolveActor, requireMinimumRole, requireAdminOrSelf).
 3. Extracao de operational guards (recordBlockedAttempt, requireOperationalApproval).
 4. Extracao de rotas de users, approvals e incident para registradores dedicados.
+5. Onda 1: Modularizacao de governanca operacional (auto-healing, integridade, disaster-recovery).
 
 ## Escopo da Proxima Onda
-
-### Onda 1: Modularizacao de governanca operacional
-
-1. Extrair rotas de auto-healing para modulo dedicado.
-2. Extrair rotas de integridade para modulo dedicado.
-3. Extrair rota de disaster-recovery para modulo dedicado.
-4. Garantir que auditoria e approvals permaneçam intactos.
-
-Criterio de pronto:
-
-1. Lint verde.
-2. npm test no backend com exit code 0.
-3. Nenhum diff funcional nas respostas das rotas extraidas.
 
 ### Onda 2: Modularizacao de configuracao e storage
 

@@ -889,10 +889,10 @@ export async function searchMessages(chatId, query, options = {}) {
   const safeFrom = options.from ? String(options.from) : null;
   const safeTo = options.to ? String(options.to) : null;
 
-  const likeQuery = `%${safeQuery}%`;
+  const likeQuery = `%${safeQuery.replace(/[%_]/g, "\\$&")}%`;
   const whereParts = [
     "chat_id = ?",
-    "content LIKE ? COLLATE NOCASE",
+    "content LIKE ? ESCAPE '\\' COLLATE NOCASE",
   ];
   const whereParams = [chatId, likeQuery];
 
@@ -924,7 +924,7 @@ export async function searchMessages(chatId, query, options = {}) {
   const totalPages = total === 0 ? 0 : Math.ceil(total / safeLimit);
 
   const rows = await db.all(
-    `SELECT role, content, created_at AS createdAt
+    `SELECT id, role, content, created_at AS createdAt
      FROM messages
      WHERE ${whereClause}
      ORDER BY id DESC
@@ -934,6 +934,7 @@ export async function searchMessages(chatId, query, options = {}) {
 
   return {
     items: rows.map((row) => ({
+      id: row.id,
       role: row.role,
       content: row.content,
       createdAt: row.createdAt,

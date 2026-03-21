@@ -77,7 +77,8 @@ export function createHistorySearchController(options = {}) {
     matches.forEach((item) => {
       const card = document.createElement("article");
       card.className =
-        "rounded-lg border border-slate-200 bg-slate-50 p-2 text-sm dark:border-slate-700 dark:bg-slate-900/40";
+
+        "group relative rounded-lg border border-slate-200 bg-slate-50 p-2 text-sm transition-colors hover:border-teal-300 dark:border-slate-700 dark:bg-slate-900/40 dark:hover:border-teal-800";
 
       const meta = document.createElement("p");
       meta.className =
@@ -88,7 +89,7 @@ export function createHistorySearchController(options = {}) {
 
       const content = document.createElement("p");
       content.className =
-        "whitespace-pre-wrap text-slate-700 dark:text-slate-200";
+        "whitespace-pre-wrap text-slate-700 dark:text-slate-200 line-clamp-6";
       appendHighlightedText(content, item.content, state.search.query, escapeRegExp);
 
       card.appendChild(meta);
@@ -126,26 +127,45 @@ export function createHistorySearchController(options = {}) {
     const from = searchFromEl?.value || "";
     const to = searchToEl?.value || "";
 
-    state.search.query = query;
-    state.search.role = role;
-    state.search.from = from;
-    state.search.to = to;
-    if (resetPage) state.search.page = 1;
+    if (resetPage) {
+      state.search.query = query;
+      state.search.role = role;
+      state.search.from = from;
+      state.search.to = to;
+      state.search.page = 1;
+    }
 
-    if (!query) {
+    const currentQuery = state.search.query;
+    if (!currentQuery) {
       clearSearchResults();
       return;
     }
 
+    if (currentQuery.length < 2) {
+      showStatus("A busca precisa de pelo menos 2 caracteres", { type: "error", autoHideMs: 3000 });
+      return;
+    }
+
     const params = new URLSearchParams({
-      q: query,
-      role,
+      q: currentQuery,
+      role: state.search.role,
       limit: String(state.search.limit),
       page: String(state.search.page),
     });
 
-    if (from) params.set("from", new Date(`${from}T00:00:00`).toISOString());
-    if (to) params.set("to", new Date(`${to}T23:59:59`).toISOString());
+    if (state.search.from) {
+      try {
+        params.set("from", new Date(`${state.search.from}T00:00:00`).toISOString());
+      } catch { /* ignore invalid date */ }
+    }
+    if (state.search.to) {
+      try {
+        params.set("to", new Date(`${state.search.to}T23:59:59`).toISOString());
+      } catch { /* ignore invalid date */ }
+    }
+
+    // Clear UI but not state before fetching to show activity
+    if (searchResultsEl) searchResultsEl.classList.add("opacity-50");
 
     await doFetchWithRetry(
       async () => {
@@ -153,19 +173,25 @@ export function createHistorySearchController(options = {}) {
           `/api/chats/${encodeURIComponent(activeChatId)}/search?${params.toString()}`,
         );
 
+        // Check if we are still on the same chat to avoid race conditions
+        if (activeChatId !== getActiveChatId()) return;
+
         const pagination = data.pagination || {};
         state.search.total = Number.parseInt(pagination.total, 10) || 0;
         state.search.totalPages = Number.parseInt(pagination.totalPages, 10) || 0;
         state.search.page =
           Number.parseInt(pagination.page, 10) || state.search.page;
 
+        if (searchResultsEl) searchResultsEl.classList.remove("opacity-50");
         renderSearchResults(data.matches || []);
         updateSearchPaginationUi();
         hideStatus();
       },
       null,
       "Falha na busca",
-    ).catch(() => {});
+    ).catch(() => {
+      if (searchResultsEl) searchResultsEl.classList.remove("opacity-50");
+    });
   }
 
   return {
