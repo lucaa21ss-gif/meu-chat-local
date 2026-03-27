@@ -40,6 +40,9 @@ jobs:
       - name: Install root tooling
         run: npm ci
 
+      - name: Validate skills (strict)
+        run: npm run skill:validate:strict
+
       - name: Lint JavaScript
         run: npm run lint
 

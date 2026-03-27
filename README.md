@@ -27,7 +27,7 @@ Este projeto mantem skills em `.agents/skills/` para padronizar como assistentes
 - `arquitetura`: mapeamento estrutural e diretrizes arquiteturais do projeto.
 - `code-reviewer`: revisao tecnica de qualidade, risco e seguranca.
 - `local-first`: praticas para operacao local sem dependencia de cloud.
-- `portuguese_assistant`: padrao de respostas em pt-BR com termos tecnicos.
+- `portuguese-assistant`: padrao de respostas em pt-BR com termos tecnicos.
 - `skill-creator`: meta-skill para criacao de novas skills.
 - `gemini-context-profissional`: skill oficial para onboarding arquitetural com base em `CONTEXT.md`, especialmente para Google AI Studio (Gemini).
 

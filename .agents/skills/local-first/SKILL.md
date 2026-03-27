@@ -1,9 +1,41 @@
 ---
 name: local-first
+version: 1.1.0
 description: 'Guia de contexto para sistemas local-first: automação sem nuvem, privacidade de dados, processamento local, integração de dispositivos e resiliência offline. Use quando: projetar arquitetura sem dependência de cloud, implementar automação local, garantir privacidade dos dados, integrar dispositivos heterogêneos, configurar Home Assistant, processar dados de sensores localmente, armazenar histórico de eventos sem serviços externos.'
+lastReviewed: 2026-03-27
 ---
 
 # Sistemas Local-First: Guia de Contexto
+
+## Proposito
+Fornecer diretrizes praticas para projetar e operar sistemas local-first com foco em privacidade, resiliência offline e previsibilidade de latencia.
+
+## Escopo
+- Inclui arquitetura local sem dependencia obrigatoria de cloud.
+- Inclui automacao com Home Assistant, Node-RED, MQTT e inferencia local.
+- Inclui boas praticas de seguranca de rede e armazenamento local.
+- Inclui orientacoes de hardware e anti-padroes operacionais.
+- Exclui recomendacoes que dependam de processamento externo como requisito de funcionamento.
+
+## Instrucoes
+1. Validar primeiro os requisitos de privacidade e operacao offline do cenario.
+2. Definir arquitetura base local (automacao, mensageria, armazenamento e inferencia).
+3. Priorizar integracoes abertas e protocolos locais para evitar lock-in de fabricante.
+4. Aplicar segmentacao de rede, autenticacao forte e trilha de auditoria local.
+5. Dimensionar hardware conforme carga de trabalho (automacao, visao computacional e LLM).
+6. Revisar anti-padroes para evitar dependencia involuntaria de cloud.
+
+## Melhores Praticas
+- Tratar internet como opcional para atualizacoes, nao como dependencia de runtime.
+- Medir latencia ponta a ponta e manter metas claras para automacoes criticas.
+- Garantir persistencia em SSD/HDD e evitar SD card em carga continua.
+- Padronizar telemetria e logs locais para facilitar troubleshooting.
+
+## Validacao
+- Frontmatter contem `name`, `version`, `description`, `lastReviewed`.
+- Secoes obrigatorias (Proposito, Escopo, Instrucoes, Melhores Praticas, Validacao) estao presentes.
+- O conteudo reforca operacao local sem dependencia mandatória de cloud.
+- O guia inclui seguranca, resiliencia, hardware e anti-padroes.
 
 ## Quando Usar Esta Skill
 
@@ -116,3 +148,9 @@ Câmera IP (RTSP) → Frigate → Detecção local → Evento MQTT → Home Assi
 - **Dispositivos com firmware fechado**: prefira ESPHome, Tasmota ou similares open-source
 - **Único ponto de falha**: distribua responsabilidades (ex: HA separado do broker MQTT)
 - **Storage em SD card**: SD cards falham; use SSD ou HDD para dados persistentes
+
+## Recursos
+- Home Assistant: https://www.home-assistant.io/
+- Node-RED: https://nodered.org/
+- Eclipse Mosquitto (MQTT): https://mosquitto.org/
+- Ollama: https://docs.ollama.com/

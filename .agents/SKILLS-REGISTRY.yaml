@@ -24,23 +24,23 @@ skills:
     tags: [architecture, design, mapping]
     requires: [README.md]
 
-  - name: portuguese_assistant
-    version: 1.0.0
-    status: legacy
-    path: .agents/skills/portuguese_assistant/SKILL.md
+  - name: portuguese-assistant
+    version: 1.1.0
+    status: migrated
+    path: .agents/skills/portuguese-assistant/SKILL.md
     tags: [language, communication]
     requires: []
 
   - name: code-reviewer
-    version: 1.0.0
-    status: legacy
+    version: 1.1.0
+    status: migrated
     path: .agents/skills/code-reviewer/SKILL.md
     tags: [review, quality, security]
     requires: []
 
   - name: local-first
-    version: 1.0.0
-    status: legacy
+    version: 1.1.0
+    status: migrated
     path: .agents/skills/local-first/SKILL.md
     tags: [local-first, offline, privacy]
     requires: []
@@ -51,6 +51,13 @@ skills:
     path: .agents/skills/docker-especialista/SKILL.md
     tags: [docker, container, compose, operations]
     requires: [apps/api/Dockerfile, ops/docker/docker-compose.yml]
+
+  - name: ollama-especialista
+    version: 1.0.0
+    status: migrated
+    path: .agents/skills/ollama-especialista/SKILL.md
+    tags: [ollama, llm, inference, modelfile, operations]
+    requires: [platform/llm/ollama/ollama-client.js, ollama/Modelfile, ops/docker/docker-compose.yml]
 
 templates:
   - name: default-skill-template
