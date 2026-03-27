@@ -8,6 +8,7 @@ yarn.lock
 .env.*.local
 
 # Database
+*.db
 server/chat.db
 server/chat.db-shm
 server/chat.db-wal
