@@ -34,6 +34,8 @@
     "skill:validate:strict:json": "node scripts/skill-validator.mjs --strict --json",
     "skill:validate:strict:json:compact": "node scripts/skill-validator.mjs --strict --json --pretty false",
     "test:skills:validator": "node --test scripts/skill-validator.test.mjs",
+    "test:skills:schema-note": "node --test scripts/skill-validator-schema-note.test.mjs",
+    "skill:schema-note": "node scripts/skill-validator-schema-note.mjs",
     "admin:dev": "npm run dev --workspace apps/web-admin",
     "admin:build": "npm run build --workspace apps/web-admin",
     "admin:preview": "npm run preview --workspace apps/web-admin"

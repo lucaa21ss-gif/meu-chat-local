@@ -54,6 +54,13 @@ Lista de objetos com:
 - Remocao, renomeacao, mudanca de tipo ou alteracao semantica de campos existentes: incrementar `schemaVersion`.
 - Ao incrementar `schemaVersion`, atualizar este documento e os testes de contrato em `scripts/skill-validator.test.mjs`.
 
+## Breaking Change Checklist
+- Confirmar se houve remocao/renomeacao de campo existente no payload.
+- Confirmar se houve mudanca de tipo (ex.: `string` para `array`) em qualquer campo existente.
+- Confirmar se houve alteracao semantica de `summary`, `byClass`, `filteredByClass` ou `issues`.
+- Se qualquer item acima for verdadeiro, incrementar `schemaVersion` e atualizar testes de contrato.
+- Gerar e revisar o artifact `skill-validator-schema-change.md` no workflow de CI.
+
 ## Comandos Uteis
 - JSON identado:
   - `node scripts/skill-validator.mjs --strict --json`

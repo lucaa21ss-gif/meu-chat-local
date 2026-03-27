@@ -69,6 +69,9 @@ jobs:
       - name: Run skill validator tests
         run: npm run test:skills:validator
 
+      - name: Run schema note tests
+        run: npm run test:skills:schema-note
+
       - name: Validate skills (strict)
         run: node scripts/skill-validator.mjs --strict | tee skill-validator-report.txt
 
@@ -80,6 +83,22 @@ jobs:
         if: always()
         run: node scripts/skill-validator.mjs --strict --json --pretty false > skill-validator-report.compact.json
 
+      - name: Generate schema change note
+        if: always()
+        run: |
+          BASE_REF="${{ github.event.pull_request.base.sha }}"
+          if [ -z "$BASE_REF" ] || [ "$BASE_REF" = "null" ]; then
+            BASE_REF="${{ github.event.before }}"
+          fi
+          if [ -z "$BASE_REF" ] || [ "$BASE_REF" = "null" ] || [ "$BASE_REF" = "0000000000000000000000000000000000000000" ]; then
+            BASE_REF="HEAD~1"
+          fi
+
+          node scripts/skill-validator-schema-note.mjs \
+            --base-ref "$BASE_REF" \
+            --head-ref "${{ github.sha }}" \
+            --output skill-validator-schema-change.md
+
       - name: Upload skill validator report
         if: always()
         uses: actions/upload-artifact@v4
@@ -89,6 +108,7 @@ jobs:
             skill-validator-report.txt
             skill-validator-report.json
             skill-validator-report.compact.json
+            skill-validator-schema-change.md
 
   secret-scan:
     name: Secret Scan
