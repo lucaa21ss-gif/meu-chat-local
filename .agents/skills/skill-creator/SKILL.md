@@ -1,7 +1,7 @@
 ---
 name: skill-creator
-version: 2.0.0
-description: Meta-skill profissional para criar, atualizar, revisar, melhorar e migrar skills do workspace com padrao unico, SemVer e validacao.
+version: 2.1.0
+description: Meta-skill profissional para criar, atualizar, revisar, melhorar e migrar skills do workspace com padrao unico, SemVer, validacao e incorporacao de fontes oficiais.
 lastReviewed: 2026-03-27
 ---
 
@@ -16,6 +16,7 @@ Esta meta-skill governa o ciclo de vida completo de skills no repositorio: creat
 - Inclui revisao de qualidade estrutural e semantica de skills.
 - Inclui melhoria incremental com controle por SemVer.
 - Inclui migracao faseada de skills legadas para o padrao profissional.
+- Inclui incorporacao de fontes oficiais de referencia em skills tecnicas.
 - Exclui mudancas de runtime de aplicacao que nao sejam sobre customizacao de agentes.
 
 ## Instrucoes
@@ -29,19 +30,24 @@ Esta meta-skill governa o ciclo de vida completo de skills no repositorio: creat
    - Preserve intencao original e contratos da skill.
    - Reestruture para o padrao profissional sem remover utilidade existente.
    - Atualize `lastReviewed` e aplique bump de versao conforme SemVer.
-5. Ao revisar skill:
+5. Em skills tecnicas (ex.: Docker, segurança, framework, linguagem):
+   - Consulte documentacao oficial do dominio antes de finalizar a resposta.
+   - Incorpore no `SKILL.md` uma secao de fontes oficiais com links canônicos.
+   - Priorize sempre documentacao oficial sobre blog posts ou fontes nao verificadas.
+6. Ao revisar skill:
    - Verifique se possui secoes obrigatorias: Proposito, Escopo, Instrucoes, Melhores Praticas.
    - Verifique se o frontmatter esta valido e consistente com o nome da pasta.
-6. Ao melhorar skill:
+7. Ao melhorar skill:
    - Aplique melhorias incrementais guiadas por lacunas observadas.
    - Registre claramente o que mudou e por que melhorou.
-7. Ao migrar skills legadas:
+8. Ao migrar skills legadas:
    - Migre em lotes pequenos (2-3 skills por ciclo).
    - Priorize skills mais usadas pelo projeto.
-8. Sempre executar guardrails antes de concluir:
+9. Sempre executar guardrails antes de concluir:
    - Nao editar arquivos fora de customizacoes sem solicitacao explicita.
    - Nao usar nomes fora de kebab-case.
    - Nao publicar skill sem frontmatter obrigatorio.
+   - Nao citar fonte oficial sem verificar link e relevancia para o dominio da skill.
 
 ## Politica SemVer
 - `patch`: ajustes textuais, clarificacao de instrucoes, correcoes sem mudar comportamento principal.
@@ -54,6 +60,7 @@ Esta meta-skill governa o ciclo de vida completo de skills no repositorio: creat
 - Evitar escopo amplo demais; declarar o que a skill faz e o que nao faz.
 - Manter consistencia entre nome da pasta e campo `name` no frontmatter.
 - Em mudancas arquiteturais de contexto, alinhar tambem `CONTEXT.md`, `README.md` e `GEMINI.md`.
+- Em skills tecnicas, manter uma secao dedicada de `Fontes Oficiais Incorporadas`.
 
 ## Validacao
 - Checklist minimo:
@@ -61,6 +68,7 @@ Esta meta-skill governa o ciclo de vida completo de skills no repositorio: creat
   - Secoes obrigatorias presentes e coerentes.
   - Nome da skill em kebab-case.
   - Sem contradicoes entre escopo e instrucoes.
+   - Para skills tecnicas, secao de fontes oficiais presente com links validos.
 
 ## Recursos
 - Template canonico: `.agents/skills/.template/SKILL.md`

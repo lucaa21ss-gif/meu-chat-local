@@ -31,6 +31,11 @@ Explique em linguagem direta qual problema esta skill resolve.
 - Frontmatter contem `name`, `version`, `description`, `lastReviewed`.
 - Secoes obrigatorias existem e estao coerentes.
 - Instrucoes sao executaveis e nao contradizem o escopo.
+- Para skills tecnicas, incluir secao de fontes oficiais incorporadas com links canonicos.
+
+## Fontes Oficiais Incorporadas
+- Inclua links oficiais do dominio desta skill (documentacao principal, referencia e guias).
+- Evite fontes nao verificadas quando houver documentacao oficial disponivel.
 
 ## Recursos
 - Liste arquivos, scripts ou referencias que suportam a execucao da skill.

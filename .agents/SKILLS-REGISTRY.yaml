@@ -45,6 +45,13 @@ skills:
     tags: [local-first, offline, privacy]
     requires: []
 
+  - name: docker-especialista
+    version: 1.0.0
+    status: migrated
+    path: .agents/skills/docker-especialista/SKILL.md
+    tags: [docker, container, compose, operations]
+    requires: [apps/api/Dockerfile, ops/docker/docker-compose.yml]
+
 templates:
   - name: default-skill-template
     path: .agents/skills/.template/SKILL.md
