@@ -20,6 +20,7 @@
  * @property {() => Function}      getRetryAction
  */
 
+async function streamChatResponse({
   apiBase,
   activeChatId,
   text,
