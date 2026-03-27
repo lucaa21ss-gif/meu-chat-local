@@ -123,7 +123,18 @@ function buildExecutionContext() {
   };
 }
 
-function buildStatusSummary({ success, dryRun, ioCheck, results, confidenceProfile }) {
+function calculateStepFailureConfidence({ profile, results, selectedStepCount }) {
+  const base = profile.blockedStep;
+  const totalSelected = Math.max(selectedStepCount || 0, 1);
+  const succeededBeforeFailure = results.filter((step) => step.success === true && step.dryRun !== true).length;
+  const progressRatio = Math.min(1, succeededBeforeFailure / totalSelected);
+  const progressBonus = Math.round(progressRatio * 25);
+  const maxForBlocked = Math.max(base, profile.readyReal - 5);
+
+  return Math.min(maxForBlocked, base + progressBonus);
+}
+
+function buildStatusSummary({ success, dryRun, ioCheck, results, confidenceProfile, selectedStepCount }) {
   const profile = CONFIDENCE_PROFILES[confidenceProfile];
 
   if (success) {
@@ -150,11 +161,17 @@ function buildStatusSummary({ success, dryRun, ioCheck, results, confidenceProfi
 
   const failedStep = results.find((step) => step.success === false);
   if (failedStep) {
+    const blockedStepConfidence = calculateStepFailureConfidence({
+      profile,
+      results,
+      selectedStepCount,
+    });
+
     return {
       status: "BLOCKED",
       reason: `Etapa falhou: ${failedStep.name}.`,
       nextAction: `Execute manualmente: npm run ${failedStep.npmScript}`,
-      confidence: profile.blockedStep,
+      confidence: blockedStepConfidence,
     };
   }
 
@@ -338,6 +355,7 @@ function main() {
     ioCheck,
     results,
     confidenceProfile,
+    selectedStepCount: steps.length,
   });
 
   const content = jsonMode ? toJsonReport(payload) : toMarkdownReport(payload);

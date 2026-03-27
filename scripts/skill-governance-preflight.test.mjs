@@ -300,6 +300,33 @@ test("preflight report marks BLOCKED when a step fails", () => {
   assert.match(payload.statusSummary.nextAction, /npm run/);
 });
 
+test("preflight increases BLOCKED confidence when failure happens after earlier successes", () => {
+  const root = makeTempWorkspace();
+  const pkg = {
+    name: "tmp-preflight",
+    version: "1.0.0",
+    private: true,
+    scripts: {
+      "test:skills:validator": 'node -e "process.exit(0)"',
+      "test:skills:schema-note": 'node -e "process.exit(0)"',
+      "test:skills:enforcement-status": 'node -e "process.exit(1)"',
+      "skill:validate:strict": 'node -e "process.exit(0)"',
+    },
+  };
+  fs.writeFileSync(path.join(root, "package.json"), JSON.stringify(pkg, null, 2), "utf8");
+
+  const result = spawnSync(process.execPath, [scriptPath, "--json"], {
+    cwd: root,
+    encoding: "utf8",
+  });
+
+  assert.equal(result.status, 1, `stdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
+  const payload = JSON.parse(result.stdout);
+  assert.equal(payload.statusSummary.status, "BLOCKED");
+  assert.equal(payload.statusSummary.reason, "Etapa falhou: enforcement-status-tests.");
+  assert.equal(payload.statusSummary.confidence, 48);
+});
+
 test("preflight markdown report includes BLOCKED tag when a step fails", () => {
   const root = makeTempWorkspace();
   const output = "artifacts/preflight-failed.md";
