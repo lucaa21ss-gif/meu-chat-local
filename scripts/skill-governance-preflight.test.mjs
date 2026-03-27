@@ -131,3 +131,28 @@ test("preflight strict-io fails when artifacts-dir points to file", () => {
   assert.equal(result.status, 1, `stdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
   assert.match(result.stderr, /Falha no preflight de I\/O/);
 });
+
+test("preflight includes execution context metadata from CI environment", () => {
+  const root = makeTempWorkspace();
+  const result = spawnSync(process.execPath, [scriptPath, "--dry-run", "--json"], {
+    cwd: root,
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      CI: "true",
+      GITHUB_SHA: "abc123",
+      GITHUB_REF: "refs/heads/main",
+      GITHUB_EVENT_NAME: "push",
+      GITHUB_RUN_ID: "999",
+    },
+  });
+
+  assert.equal(result.status, 0, `stdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
+  const payload = JSON.parse(result.stdout);
+  assert.equal(payload.executionContext.ci, true);
+  assert.equal(payload.executionContext.provider, "github");
+  assert.equal(payload.executionContext.github.sha, "abc123");
+  assert.equal(payload.executionContext.github.ref, "refs/heads/main");
+  assert.equal(payload.executionContext.github.eventName, "push");
+  assert.equal(payload.executionContext.github.runId, "999");
+});

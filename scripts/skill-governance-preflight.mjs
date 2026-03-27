@@ -78,6 +78,22 @@ function toJsonReport(payload) {
   return `${JSON.stringify(payload, null, 2)}\n`;
 }
 
+function buildExecutionContext() {
+  const isCi = Boolean(process.env.CI);
+  const github = {
+    sha: process.env.GITHUB_SHA || null,
+    ref: process.env.GITHUB_REF || null,
+    eventName: process.env.GITHUB_EVENT_NAME || null,
+    runId: process.env.GITHUB_RUN_ID || null,
+  };
+
+  return {
+    ci: isCi,
+    provider: github.sha || github.ref || github.eventName || github.runId ? "github" : null,
+    github,
+  };
+}
+
 function toMarkdownReport(payload) {
   const lines = [];
   lines.push("# Skill Governance Preflight");
@@ -88,6 +104,18 @@ function toMarkdownReport(payload) {
   lines.push(`- artifactsDir: ${payload.artifactsDir}`);
   lines.push(`- success: ${payload.success ? "yes" : "no"}`);
   lines.push("");
+
+  if (payload.executionContext?.ci) {
+    lines.push("## Execution context");
+    lines.push("");
+    lines.push(`- ci: yes`);
+    lines.push(`- provider: ${payload.executionContext.provider || "unknown"}`);
+    lines.push(`- github.sha: ${payload.executionContext.github?.sha || "(unset)"}`);
+    lines.push(`- github.ref: ${payload.executionContext.github?.ref || "(unset)"}`);
+    lines.push(`- github.eventName: ${payload.executionContext.github?.eventName || "(unset)"}`);
+    lines.push(`- github.runId: ${payload.executionContext.github?.runId || "(unset)"}`);
+    lines.push("");
+  }
 
   if (payload.ioCheck?.enabled) {
     lines.push("## I/O precheck");
@@ -210,6 +238,7 @@ function main() {
     dryRun,
     strictIo,
     artifactsDir: path.resolve(process.cwd(), artifactsDirArg),
+    executionContext: buildExecutionContext(),
     ioCheck,
     success,
     selectedStepNames: steps.map((step) => step.name),

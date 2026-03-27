@@ -40,6 +40,7 @@ Para cenarios de Gemini, priorize a skill `gemini-context-profissional` e valide
 - Para governanca de contrato, consulte tambem o artifact `skill-validator-schema-change` (arquivo `skill-validator-schema-change.md`).
 - Para diagnosticar o estado do gate opcional, consulte o artifact `skill-schema-enforcement-status` (`.md` e `.json`).
 - Para diagnostico rapido de preflight/IO no CI, consulte o artifact `skill-governance-preflight-inspect` (`.json`).
+  O JSON inclui metadados de execucao (CI, `GITHUB_SHA`, `GITHUB_REF`, `GITHUB_EVENT_NAME`, `GITHUB_RUN_ID`) para facilitar triagem.
 - Para transformar drift de contrato em erro de pipeline, configure a variavel de repositorio `SKILL_SCHEMA_CONTRACT_ENFORCE=true`.
 - Validacao local recomendada antes de abrir PR:
   - `npm run skill:governance:preflight:strict-io`
