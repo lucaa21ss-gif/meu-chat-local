@@ -595,6 +595,40 @@ templates:
   assert.match(result.stderr, /A flag --output requer --json/);
 });
 
+test("validator fails when output path is a directory", () => {
+  const root = makeTempWorkspace();
+  const outputDir = path.join(root, "artifacts", "skill-report-dir");
+  fs.mkdirSync(outputDir, { recursive: true });
+
+  writeFile(root, ".agents/skills/demo-skill/SKILL.md", validSkillMd("demo-skill"));
+  writeFile(root, ".agents/skills/.template/SKILL.md", validSkillMd("template-skill"));
+  writeFile(
+    root,
+    ".agents/SKILLS-REGISTRY.yaml",
+    `schemaVersion: 1
+updatedAt: 2026-03-27
+owner: test
+
+skills:
+  - name: demo-skill
+    version: 1.0.0
+    status: migrated
+    path: .agents/skills/demo-skill/SKILL.md
+    tags: [test]
+    requires: []
+
+templates:
+  - name: default
+    path: .agents/skills/.template/SKILL.md
+`,
+  );
+
+  const result = runValidator(root, ["--strict", "--json", "--output", "artifacts/skill-report-dir"]);
+
+  assert.equal(result.status, 1, `stdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
+  assert.match(result.stderr, /Falha ao escrever output/);
+});
+
 test("documented schemaVersion matches emitted payload schemaVersion", () => {
   const root = makeTempWorkspace();
 

@@ -68,6 +68,7 @@ Se o artifact `skill-validator-schema-change.md` mostrar `driftDetected: yes`:
 5. Use `npm run skill:schema-enforcement:status` para confirmar se o gate esta ativo (`enabled: yes`) ou apenas em modo report.
 6. Ao usar overrides no schema-note (`--previous-version`, `--current-version`, `--contract-updated`), use apenas inteiros nao negativos e `true|false` para evitar falha de validacao de argumentos.
 7. Se houver erro `Falha ao escrever output`, valide se o caminho passado em `--output` aponta para arquivo (e nao para diretorio) e se o processo tem permissao de escrita.
+  Esse padrao vale para `skill-validator`, `skill-validator-schema-note`, `skill-schema-enforcement-status` e `skill-governance-preflight`.
 
 - Aplicacao local completa com API Node.js/Express nativa (ESM), Web e persistencia SQLite
 - Servidor baseado em ESM nativo (Node.js), com grafo de dependencias estatico via `import`/`export`, fronteiras claras entre entrypoint/bootstrap/http/modulos e menor acoplamento entre camadas arquiteturais

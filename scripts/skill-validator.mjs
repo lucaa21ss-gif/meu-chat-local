@@ -146,6 +146,11 @@ function error(message) {
   }
 }
 
+function fail(message) {
+  process.stderr.write(`${message}\n`);
+  process.exit(1);
+}
+
 function readFileSafe(filePath) {
   try {
     return fs.readFileSync(filePath, "utf8");
@@ -243,6 +248,15 @@ function getSkillFiles() {
 
 function normalizeRelPath(filePath) {
   return path.relative(rootDir, filePath).replaceAll("\\", "/");
+}
+
+function writeOutputFile(filePath, content) {
+  try {
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    fs.writeFileSync(filePath, content, "utf8");
+  } catch (err) {
+    fail(`Falha ao escrever output em ${filePath}: ${err.message}`);
+  }
 }
 
 function validateRegistryFile(skillFiles) {
@@ -422,8 +436,7 @@ function main() {
     const payloadText = `${JSON.stringify(payload, null, prettyJson ? 2 : 0)}\n`;
 
     if (outputPath) {
-      fs.mkdirSync(path.dirname(outputPath), { recursive: true });
-      fs.writeFileSync(outputPath, payloadText, "utf8");
+      writeOutputFile(outputPath, payloadText);
     }
 
     if (!outputPath) {
