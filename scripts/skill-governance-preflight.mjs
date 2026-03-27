@@ -126,10 +126,12 @@ function buildExecutionContext() {
 function buildStepProgress({ results, selectedStepCount }) {
   const selectedSteps = Math.max(selectedStepCount || 0, results.length);
   const succeededSteps = results.filter((step) => step.success === true && step.dryRun !== true).length;
+  const progressRatio = Number((succeededSteps / Math.max(selectedSteps, 1)).toFixed(3));
 
   return {
     succeededSteps,
     selectedSteps,
+    progressRatio,
   };
 }
 
@@ -162,6 +164,7 @@ function buildStatusSummary({ success, dryRun, ioCheck, results, confidenceProfi
         : "Nenhuma acao corretiva imediata necessaria.",
       confidence: dryRun ? profile.readyDryRun : profile.readyReal,
       progress,
+      failedStep: null,
     };
   }
 
@@ -172,6 +175,7 @@ function buildStatusSummary({ success, dryRun, ioCheck, results, confidenceProfi
       nextAction: "Verifique permissao de escrita e validade do artifactsDir configurado.",
       confidence: profile.blockedIo,
       progress,
+      failedStep: null,
     };
   }
 
@@ -189,6 +193,7 @@ function buildStatusSummary({ success, dryRun, ioCheck, results, confidenceProfi
       nextAction: `Execute manualmente: npm run ${failedStep.npmScript}`,
       confidence: blockedStepConfidence,
       progress,
+      failedStep: failedStep.name,
     };
   }
 
@@ -198,6 +203,7 @@ function buildStatusSummary({ success, dryRun, ioCheck, results, confidenceProfi
     nextAction: "Revise logs completos do preflight para identificar a causa raiz.",
     confidence: profile.blockedUnknown,
     progress,
+    failedStep: null,
   };
 }
 
@@ -223,6 +229,10 @@ function toMarkdownReport(payload) {
       lines.push(
         `- progress: ${payload.statusSummary.progress.succeededSteps}/${payload.statusSummary.progress.selectedSteps}`,
       );
+      lines.push(`- progressRatio: ${payload.statusSummary.progress.progressRatio}`);
+    }
+    if (payload.statusSummary.failedStep) {
+      lines.push(`- failedStep: ${payload.statusSummary.failedStep}`);
     }
     lines.push(`- reason: ${payload.statusSummary.reason}`);
     lines.push(`- nextAction: ${payload.statusSummary.nextAction}`);

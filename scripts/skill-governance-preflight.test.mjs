@@ -35,7 +35,9 @@ test("preflight dry-run returns planned default steps in json", () => {
   assert.deepEqual(payload.statusSummary.progress, {
     succeededSteps: 0,
     selectedSteps: 4,
+    progressRatio: 0,
   });
+  assert.equal(payload.statusSummary.failedStep, null);
 });
 
 test("preflight dry-run supports --only filter", () => {
@@ -281,6 +283,7 @@ test("preflight markdown report includes READY summary in dry-run", () => {
   assert.match(content, /status: \[READY\] READY/);
   assert.match(content, /confidence: 80/);
   assert.match(content, /progress: 0\/4/);
+  assert.match(content, /progressRatio: 0/);
   assert.match(content, /nextAction: Execute sem --dry-run/);
 });
 
@@ -304,7 +307,9 @@ test("preflight report marks BLOCKED when a step fails", () => {
   assert.deepEqual(payload.statusSummary.progress, {
     succeededSteps: 0,
     selectedSteps: 4,
+    progressRatio: 0,
   });
+  assert.equal(payload.statusSummary.failedStep, "validator-tests");
   assert.match(payload.statusSummary.reason, /Etapa falhou/);
   assert.match(payload.statusSummary.nextAction, /npm run/);
 });
@@ -337,7 +342,9 @@ test("preflight increases BLOCKED confidence when failure happens after earlier 
   assert.deepEqual(payload.statusSummary.progress, {
     succeededSteps: 2,
     selectedSteps: 4,
+    progressRatio: 0.5,
   });
+  assert.equal(payload.statusSummary.failedStep, "enforcement-status-tests");
 });
 
 test("preflight markdown report includes BLOCKED tag when a step fails", () => {
@@ -357,5 +364,7 @@ test("preflight markdown report includes BLOCKED tag when a step fails", () => {
   assert.match(content, /status: \[BLOCKED\] BLOCKED/);
   assert.match(content, /confidence: 35/);
   assert.match(content, /progress: 0\/4/);
+  assert.match(content, /progressRatio: 0/);
+  assert.match(content, /failedStep: validator-tests/);
   assert.match(content, /nextAction: Execute manualmente: npm run/);
 });
