@@ -23,6 +23,7 @@ test("preflight dry-run returns planned default steps in json", () => {
 
   assert.equal(payload.dryRun, true);
   assert.equal(payload.success, true);
+  assert.equal(payload.confidenceProfile, "local");
   assert.deepEqual(payload.selectedStepNames, [
     "validator-tests",
     "schema-note-tests",
@@ -62,6 +63,38 @@ test("preflight fails on invalid --only entry", () => {
 
   assert.equal(result.status, 1, `stdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
   assert.match(result.stderr, /Etapas invalidas em --only/);
+});
+
+test("preflight fails on invalid --confidence-profile value", () => {
+  const root = makeTempWorkspace();
+  const result = spawnSync(
+    process.execPath,
+    [scriptPath, "--dry-run", "--confidence-profile", "staging"],
+    {
+      cwd: root,
+      encoding: "utf8",
+    },
+  );
+
+  assert.equal(result.status, 1, `stdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
+  assert.match(result.stderr, /Perfil invalido em --confidence-profile/);
+});
+
+test("preflight supports ci confidence profile in dry-run", () => {
+  const root = makeTempWorkspace();
+  const result = spawnSync(
+    process.execPath,
+    [scriptPath, "--dry-run", "--json", "--confidence-profile", "ci"],
+    {
+      cwd: root,
+      encoding: "utf8",
+    },
+  );
+
+  assert.equal(result.status, 0, `stdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
+  const payload = JSON.parse(result.stdout);
+  assert.equal(payload.confidenceProfile, "ci");
+  assert.equal(payload.statusSummary.confidence, 70);
 });
 
 test("preflight writes markdown report to file", () => {

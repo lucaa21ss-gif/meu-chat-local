@@ -43,6 +43,7 @@
     "skill:governance:preflight:strict-io": "node scripts/skill-governance-preflight.mjs --strict-io --artifacts-dir artifacts",
     "skill:governance:preflight:inspect": "node scripts/skill-governance-preflight.mjs --dry-run --json --strict-io --artifacts-dir artifacts",
     "skill:governance:preflight:inspect:summary": "node scripts/skill-governance-preflight.mjs --dry-run --strict-io --artifacts-dir artifacts",
+    "skill:governance:preflight:inspect:ci": "node scripts/skill-governance-preflight.mjs --dry-run --json --strict-io --artifacts-dir artifacts --confidence-profile ci",
     "admin:dev": "npm run dev --workspace apps/web-admin",
     "admin:build": "npm run build --workspace apps/web-admin",
     "admin:preview": "npm run preview --workspace apps/web-admin"

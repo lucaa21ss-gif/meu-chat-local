@@ -10,6 +10,23 @@ const STEP_DEFINITIONS = [
   { name: "strict-validator", npmScript: "skill:validate:strict" },
 ];
 
+const CONFIDENCE_PROFILES = {
+  local: {
+    readyDryRun: 80,
+    readyReal: 100,
+    blockedIo: 20,
+    blockedStep: 35,
+    blockedUnknown: 10,
+  },
+  ci: {
+    readyDryRun: 70,
+    readyReal: 95,
+    blockedIo: 15,
+    blockedStep: 30,
+    blockedUnknown: 5,
+  },
+};
+
 function getArgValue(flag) {
   const idx = process.argv.indexOf(flag);
   if (idx === -1) return null;
@@ -39,6 +56,17 @@ function selectSteps(onlyFilter) {
   }
 
   return STEP_DEFINITIONS.filter((step) => onlyFilter.includes(step.name));
+}
+
+function parseConfidenceProfile() {
+  const profile = getArgValue("--confidence-profile") || "local";
+  if (!Object.hasOwn(CONFIDENCE_PROFILES, profile)) {
+    throw new Error(
+      `Perfil invalido em --confidence-profile: ${profile}. Valores aceitos: ${Object.keys(CONFIDENCE_PROFILES).join(", ")}`,
+    );
+  }
+
+  return profile;
 }
 
 function npmExecutable() {
@@ -94,7 +122,9 @@ function buildExecutionContext() {
   };
 }
 
-function buildStatusSummary({ success, dryRun, ioCheck, results }) {
+function buildStatusSummary({ success, dryRun, ioCheck, results, confidenceProfile }) {
+  const profile = CONFIDENCE_PROFILES[confidenceProfile];
+
   if (success) {
     return {
       status: "READY",
@@ -104,7 +134,7 @@ function buildStatusSummary({ success, dryRun, ioCheck, results }) {
       nextAction: dryRun
         ? "Execute sem --dry-run para validar a bateria completa no ambiente atual."
         : "Nenhuma acao corretiva imediata necessaria.",
-      confidence: dryRun ? 80 : 100,
+      confidence: dryRun ? profile.readyDryRun : profile.readyReal,
     };
   }
 
@@ -113,7 +143,7 @@ function buildStatusSummary({ success, dryRun, ioCheck, results }) {
       status: "BLOCKED",
       reason: `Falha no precheck de I/O em ${ioCheck.artifactsDir}.`,
       nextAction: "Verifique permissao de escrita e validade do artifactsDir configurado.",
-      confidence: 20,
+      confidence: profile.blockedIo,
     };
   }
 
@@ -123,7 +153,7 @@ function buildStatusSummary({ success, dryRun, ioCheck, results }) {
       status: "BLOCKED",
       reason: `Etapa falhou: ${failedStep.name}.`,
       nextAction: `Execute manualmente: npm run ${failedStep.npmScript}`,
-      confidence: 35,
+      confidence: profile.blockedStep,
     };
   }
 
@@ -131,7 +161,7 @@ function buildStatusSummary({ success, dryRun, ioCheck, results }) {
     status: "BLOCKED",
     reason: "Falha detectada sem etapa identificada.",
     nextAction: "Revise logs completos do preflight para identificar a causa raiz.",
-    confidence: 10,
+    confidence: profile.blockedUnknown,
   };
 }
 
@@ -143,6 +173,7 @@ function toMarkdownReport(payload) {
   lines.push(`- dryRun: ${payload.dryRun ? "yes" : "no"}`);
   lines.push(`- strictIo: ${payload.strictIo ? "yes" : "no"}`);
   lines.push(`- artifactsDir: ${payload.artifactsDir}`);
+  lines.push(`- confidenceProfile: ${payload.confidenceProfile}`);
   lines.push(`- success: ${payload.success ? "yes" : "no"}`);
   lines.push("");
 
@@ -242,8 +273,10 @@ function main() {
   const artifactsDirArg = getArgValue("--artifacts-dir") || "artifacts";
 
   let steps;
+  let confidenceProfile;
   try {
     steps = selectSteps(parseOnlyFilter());
+    confidenceProfile = parseConfidenceProfile();
   } catch (err) {
     process.stderr.write(`${err.message}\n`);
     process.exit(1);
@@ -290,6 +323,7 @@ function main() {
     dryRun,
     strictIo,
     artifactsDir: path.resolve(process.cwd(), artifactsDirArg),
+    confidenceProfile,
     executionContext: buildExecutionContext(),
     ioCheck,
     success,
@@ -302,6 +336,7 @@ function main() {
     dryRun,
     ioCheck,
     results,
+    confidenceProfile,
   });
 
   const content = jsonMode ? toJsonReport(payload) : toMarkdownReport(payload);

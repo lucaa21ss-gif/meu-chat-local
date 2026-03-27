@@ -42,6 +42,7 @@ Para cenarios de Gemini, priorize a skill `gemini-context-profissional` e valide
 - Para diagnostico rapido de preflight/IO no CI, consulte o artifact `skill-governance-preflight-inspect` (`.json` e `.md`).
   O JSON inclui metadados de execucao (CI, `GITHUB_SHA`, `GITHUB_REF`, `GITHUB_EVENT_NAME`, `GITHUB_RUN_ID`) para facilitar triagem.
   O markdown inclui um resumo sintetizado com `status: READY|BLOCKED`, `confidence` (0-100), `reason` e `nextAction`.
+  O preflight aceita `--confidence-profile local|ci` para calibrar o score por contexto operacional (default: `local`).
   Para scan visual rapido, o summary markdown usa tags ASCII: `[READY]` e `[BLOCKED]`.
 - Para transformar drift de contrato em erro de pipeline, configure a variavel de repositorio `SKILL_SCHEMA_CONTRACT_ENFORCE=true`.
 - Validacao local recomendada antes de abrir PR:
@@ -61,6 +62,7 @@ Para cenarios de Gemini, priorize a skill `gemini-context-profissional` e valide
   - `npm run skill:governance:preflight:strict-io`
   - `npm run skill:governance:preflight:inspect`
   - `npm run skill:governance:preflight:inspect:summary`
+  - `npm run skill:governance:preflight:inspect:ci`
 - O payload JSON inclui `schemaVersion` para versionamento do contrato de integracao.
 - Contrato oficial do payload: `docs/architecture/skill-validator-json-contract.md`.
 

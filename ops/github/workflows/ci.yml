@@ -89,8 +89,8 @@ jobs:
       - name: Generate governance preflight inspect report
         if: always()
         run: |
-          npm run skill:governance:preflight:inspect -- --output skill-governance-preflight-inspect.json
-          npm run skill:governance:preflight:inspect:summary -- --output skill-governance-preflight-inspect.md
+          npm run skill:governance:preflight:inspect -- --confidence-profile ci --output skill-governance-preflight-inspect.json
+          npm run skill:governance:preflight:inspect:summary -- --confidence-profile ci --output skill-governance-preflight-inspect.md
 
       - name: Generate enforcement status reports
         if: always()
