@@ -35,7 +35,9 @@
     "skill:validate:strict:json:compact": "node scripts/skill-validator.mjs --strict --json --pretty false",
     "test:skills:validator": "node --test scripts/skill-validator.test.mjs",
     "test:skills:schema-note": "node --test scripts/skill-validator-schema-note.test.mjs",
+    "test:skills:enforcement-status": "node --test scripts/skill-schema-enforcement-status.test.mjs",
     "skill:schema-note": "node scripts/skill-validator-schema-note.mjs",
+    "skill:schema-enforcement:status": "node scripts/skill-schema-enforcement-status.mjs",
     "admin:dev": "npm run dev --workspace apps/web-admin",
     "admin:build": "npm run build --workspace apps/web-admin",
     "admin:preview": "npm run preview --workspace apps/web-admin"

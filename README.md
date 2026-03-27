@@ -38,9 +38,11 @@ Para cenarios de Gemini, priorize a skill `gemini-context-profissional` e valide
 - O job `Skill Governance` roda no workflow de CI e valida o catalogo de skills em modo strict.
 - Em caso de falha, consulte o artifact `skill-validator-report` no workflow `CI` para diagnostico rapido.
 - Para governanca de contrato, consulte tambem o artifact `skill-validator-schema-change` (arquivo `skill-validator-schema-change.md`).
+- Para diagnosticar o estado do gate opcional, consulte o artifact `skill-schema-enforcement-status` (`.md` e `.json`).
 - Para transformar drift de contrato em erro de pipeline, configure a variavel de repositorio `SKILL_SCHEMA_CONTRACT_ENFORCE=true`.
 - Validacao local recomendada antes de abrir PR:
   - `npm run test:skills:validator`
+  - `npm run test:skills:enforcement-status`
   - `npm run skill:validate:strict`
 - Exemplo de leitura do relatorio JSON com filtro de classes:
   - `npm run skill:validate:strict:json > skill-report.json`
@@ -48,8 +50,19 @@ Para cenarios de Gemini, priorize a skill `gemini-context-profissional` e valide
   - `node -e "const fs=require('fs');const r=JSON.parse(fs.readFileSync('skill-report.json','utf8'));console.log(r.summary);"`
   - `node scripts/skill-validator.mjs --strict --json --class consistency,naming`
   - `node scripts/skill-validator.mjs --strict --json --class consistency,naming --output artifacts/skill-report.json`
+  - `npm run skill:schema-enforcement:status`
 - O payload JSON inclui `schemaVersion` para versionamento do contrato de integracao.
 - Contrato oficial do payload: `docs/architecture/skill-validator-json-contract.md`.
+
+### Troubleshooting rapido de drift
+
+Se o artifact `skill-validator-schema-change.md` mostrar `driftDetected: yes`:
+
+1. Rode localmente `npm run skill:validate:strict:json` e confirme o `schemaVersion` atual do payload.
+2. Compare com `docs/architecture/skill-validator-json-contract.md` e atualize o documento se houver mudanca real de contrato.
+3. Atualize os testes em `scripts/skill-validator.test.mjs` e, se aplicavel, em `scripts/skill-validator-schema-note.test.mjs`.
+4. Rode `npm run test:skills:validator` e `npm run test:skills:schema-note`.
+5. Use `npm run skill:schema-enforcement:status` para confirmar se o gate esta ativo (`enabled: yes`) ou apenas em modo report.
 
 - Aplicacao local completa com API Node.js/Express nativa (ESM), Web e persistencia SQLite
 - Servidor baseado em ESM nativo (Node.js), com grafo de dependencias estatico via `import`/`export`, fronteiras claras entre entrypoint/bootstrap/http/modulos e menor acoplamento entre camadas arquiteturais

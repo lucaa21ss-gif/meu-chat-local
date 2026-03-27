@@ -69,3 +69,15 @@ Lista de objetos com:
   - `node scripts/skill-validator.mjs --strict --json --pretty false`
 - JSON em arquivo:
   - `node scripts/skill-validator.mjs --strict --json --output artifacts/skill-report.json`
+- Status do enforcement opcional:
+  - `node scripts/skill-schema-enforcement-status.mjs`
+
+## Troubleshooting de Drift
+
+Quando o artifact `skill-validator-schema-change.md` indicar `driftDetected: yes`:
+
+1. Verifique se `currentSchemaVersion` do validator mudou em relacao ao contrato documentado.
+2. Se houve mudanca de contrato, atualize este documento e os testes de `scripts/skill-validator.test.mjs` no mesmo PR.
+3. Se nao houve mudanca de contrato, ajuste o payload emitido para voltar a ser compativel com este documento.
+4. Consulte o status do gate com `node scripts/skill-schema-enforcement-status.mjs`.
+5. Se o gate estiver ativo (`SKILL_SCHEMA_CONTRACT_ENFORCE=true`), o CI deve falhar ate o drift ser resolvido.

@@ -72,6 +72,9 @@ jobs:
       - name: Run schema note tests
         run: npm run test:skills:schema-note
 
+      - name: Run enforcement status tests
+        run: npm run test:skills:enforcement-status
+
       - name: Validate skills (strict)
         run: node scripts/skill-validator.mjs --strict | tee skill-validator-report.txt
 
@@ -82,6 +85,12 @@ jobs:
       - name: Generate compact skill validator JSON report
         if: always()
         run: node scripts/skill-validator.mjs --strict --json --pretty false > skill-validator-report.compact.json
+
+      - name: Generate enforcement status reports
+        if: always()
+        run: |
+          node scripts/skill-schema-enforcement-status.mjs --output skill-schema-enforcement-status.md
+          node scripts/skill-schema-enforcement-status.mjs --json --output skill-schema-enforcement-status.json
 
       - name: Generate schema change note
         if: always()
@@ -110,6 +119,15 @@ jobs:
             skill-validator-report.json
             skill-validator-report.compact.json
             skill-validator-schema-change.md
+
+      - name: Upload enforcement status report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: skill-schema-enforcement-status
+          path: |
+            skill-schema-enforcement-status.md
+            skill-schema-enforcement-status.json
 
   secret-scan:
     name: Secret Scan
