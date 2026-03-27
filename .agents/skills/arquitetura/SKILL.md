@@ -1,8 +1,19 @@
 ---
 name: arquitetura
 description: Skill especializada para analisar, documentar e guiar a arquitetura do projeto meu-chat-local.
+version: 1.1.0
+lastReviewed: 2026-03-27
 ---
 # Arquitetura (Architecture)
+
+## Proposito
+Analisar estrutura tecnica, mapear responsabilidades e guiar implementacoes alinhadas ao desenho arquitetural do projeto.
+
+## Escopo
+- Inclui mapeamento de diretorios e camadas.
+- Inclui analise de fluxo de dados entre frontend, backend e persistencia.
+- Inclui orientacao de onde editar/criar arquivos para manter consistencia.
+- Exclui implementacao de features sem relacao arquitetural.
 
 ## Instruções
 Esta skill deve ser usada para entender a organização técnica do projeto, identificar padrões e garantir que novas implementações sigam a arquitetura estabelecida.
@@ -18,6 +29,11 @@ Esta skill deve ser usada para entender a organização técnica do projeto, ide
 - **Siga os Padrões Existentes**: Antes de propor uma nova pasta ou biblioteca, verifique se já existe um padrão similar no projeto.
 - **Documente Decisões**: SEMPRE explique o "porquê" de uma decisão arquitetural, não apenas o "o quê".
 - **Use Nomes Semânticos**: Mantenha a nomenclatura de arquivos e pastas consistente com o resto do sistema.
+
+## Validacao
+- Frontmatter contem `name`, `version`, `description`, `lastReviewed`.
+- Resposta inclui pelo menos: componentes principais, papeis e fluxo de dados.
+- Recomendacoes de alteracao apontam arquivos/pastas concretos do repositorio.
 
 ## Recursos
 - `web/`: Frontend React/Vite.

@@ -1,9 +1,20 @@
 ---
 name: gemini-context-profissional
 description: Skill para orientar agentes na leitura do CONTEXT.md e na explicacao arquitetural profissional do monorepo meu-chat-local para Google AI Studio (Gemini).
+version: 1.1.0
+lastReviewed: 2026-03-27
 ---
 
 # Gemini Contexto Profissional
+
+## Proposito
+Garantir respostas arquiteturais consistentes para Google AI Studio (Gemini) a partir de CONTEXT.md e da topologia real do monorepo.
+
+## Escopo
+- Inclui onboarding arquitetural e mapeamento de pastas.
+- Inclui explicacoes sobre relacao entre apps, modulos e plataforma.
+- Inclui recomendacoes de mudanca com separacao de responsabilidades.
+- Exclui alteracoes de codigo sem relacao com entendimento arquitetural.
 
 ## Instruções
 Esta skill deve ser usada sempre que o usuario pedir analise de arquitetura, onboarding tecnico, mapeamento de pastas, ou explicacoes para Google AI Studio (Gemini).
@@ -35,6 +46,11 @@ Esta skill deve ser usada sempre que o usuario pedir analise de arquitetura, onb
 - Em mudancas arquiteturais relevantes, recomendar atualizacao conjunta de `CONTEXT.md`, `README.md` e `GEMINI.md`.
 - Quando a tarefa envolver operacao local, lembrar checks minimos: `release:local`, `verify:health` e `verify:routes`.
 - Evitar alteracoes de estilo global fora do escopo da solicitacao.
+
+## Validacao
+- Frontmatter contem `name`, `version`, `description`, `lastReviewed`.
+- Referencias a apps refletem baseline atual: api 4000, web usuario, web-admin em `/admin`.
+- Nao ha contradicao com `CONTEXT.md`.
 
 ## Recursos
 - Contexto principal: `CONTEXT.md`
