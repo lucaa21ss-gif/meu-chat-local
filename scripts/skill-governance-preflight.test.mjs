@@ -99,3 +99,35 @@ test("preflight fails when output path is a directory", () => {
   assert.equal(result.status, 1, `stdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
   assert.match(result.stderr, /Falha ao escrever output/);
 });
+
+test("preflight dry-run strict-io reports successful ioCheck in json", () => {
+  const root = makeTempWorkspace();
+  const result = spawnSync(process.execPath, [scriptPath, "--dry-run", "--strict-io", "--json"], {
+    cwd: root,
+    encoding: "utf8",
+  });
+
+  assert.equal(result.status, 0, `stdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
+  const payload = JSON.parse(result.stdout);
+  assert.equal(payload.strictIo, true);
+  assert.equal(payload.ioCheck.enabled, true);
+  assert.equal(payload.ioCheck.ok, true);
+});
+
+test("preflight strict-io fails when artifacts-dir points to file", () => {
+  const root = makeTempWorkspace();
+  const artifactsFile = path.join(root, "artifacts-file");
+  fs.writeFileSync(artifactsFile, "x", "utf8");
+
+  const result = spawnSync(
+    process.execPath,
+    [scriptPath, "--dry-run", "--strict-io", "--artifacts-dir", "artifacts-file"],
+    {
+      cwd: root,
+      encoding: "utf8",
+    },
+  );
+
+  assert.equal(result.status, 1, `stdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
+  assert.match(result.stderr, /Falha no preflight de I\/O/);
+});

@@ -84,8 +84,22 @@ function toMarkdownReport(payload) {
   lines.push("");
   lines.push(`- generatedAt: ${payload.generatedAt}`);
   lines.push(`- dryRun: ${payload.dryRun ? "yes" : "no"}`);
+  lines.push(`- strictIo: ${payload.strictIo ? "yes" : "no"}`);
+  lines.push(`- artifactsDir: ${payload.artifactsDir}`);
   lines.push(`- success: ${payload.success ? "yes" : "no"}`);
   lines.push("");
+
+  if (payload.ioCheck?.enabled) {
+    lines.push("## I/O precheck");
+    lines.push("");
+    lines.push(`- status: ${payload.ioCheck.ok ? "ok" : "failed"}`);
+    lines.push(`- artifactsDir: ${payload.ioCheck.artifactsDir}`);
+    if (!payload.ioCheck.ok && payload.ioCheck.error) {
+      lines.push(`- error: ${payload.ioCheck.error}`);
+    }
+    lines.push("");
+  }
+
   lines.push("## Steps");
   lines.push("");
 
@@ -114,10 +128,38 @@ function outputReport(content, outputArg) {
   }
 }
 
+function runIoPrecheck(artifactsDirArg) {
+  const artifactsDir = path.resolve(process.cwd(), artifactsDirArg || "artifacts");
+  const probeFileName = `.skill-governance-preflight-${process.pid}-${Date.now()}.tmp`;
+  const probeFilePath = path.join(artifactsDir, probeFileName);
+
+  try {
+    fs.mkdirSync(artifactsDir, { recursive: true });
+    fs.writeFileSync(probeFilePath, "ok", "utf8");
+    fs.rmSync(probeFilePath, { force: true });
+
+    return {
+      enabled: true,
+      ok: true,
+      artifactsDir,
+      error: null,
+    };
+  } catch (err) {
+    return {
+      enabled: true,
+      ok: false,
+      artifactsDir,
+      error: err.message,
+    };
+  }
+}
+
 function main() {
   const jsonMode = process.argv.includes("--json");
   const dryRun = process.argv.includes("--dry-run");
+  const strictIo = process.argv.includes("--strict-io");
   const outputArg = getArgValue("--output");
+  const artifactsDirArg = getArgValue("--artifacts-dir") || "artifacts";
 
   let steps;
   try {
@@ -129,6 +171,19 @@ function main() {
 
   const results = [];
   let success = true;
+  let ioCheck = {
+    enabled: false,
+    ok: null,
+    artifactsDir: path.resolve(process.cwd(), artifactsDirArg),
+    error: null,
+  };
+
+  if (strictIo) {
+    ioCheck = runIoPrecheck(artifactsDirArg);
+    if (!ioCheck.ok) {
+      fail(`Falha no preflight de I/O para ${ioCheck.artifactsDir}: ${ioCheck.error}`);
+    }
+  }
 
   for (const step of steps) {
     if (dryRun) {
@@ -153,6 +208,9 @@ function main() {
   const payload = {
     generatedAt: new Date().toISOString(),
     dryRun,
+    strictIo,
+    artifactsDir: path.resolve(process.cwd(), artifactsDirArg),
+    ioCheck,
     success,
     selectedStepNames: steps.map((step) => step.name),
     results,
