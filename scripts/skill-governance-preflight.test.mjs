@@ -203,7 +203,7 @@ test("preflight markdown report includes READY summary in dry-run", () => {
   assert.equal(result.status, 0, `stdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
   const content = fs.readFileSync(path.join(root, output), "utf8");
   assert.match(content, /## Summary/);
-  assert.match(content, /status: READY/);
+  assert.match(content, /status: \[READY\] READY/);
 });
 
 test("preflight report marks BLOCKED when a step fails", () => {
@@ -223,4 +223,21 @@ test("preflight report marks BLOCKED when a step fails", () => {
   assert.equal(payload.success, false);
   assert.equal(payload.statusSummary.status, "BLOCKED");
   assert.match(payload.statusSummary.reason, /Etapa falhou/);
+});
+
+test("preflight markdown report includes BLOCKED tag when a step fails", () => {
+  const root = makeTempWorkspace();
+  const output = "artifacts/preflight-failed.md";
+  const result = spawnSync(
+    process.execPath,
+    [scriptPath, "--output", output],
+    {
+      cwd: root,
+      encoding: "utf8",
+    },
+  );
+
+  assert.equal(result.status, 1, `stdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
+  const content = fs.readFileSync(path.join(root, output), "utf8");
+  assert.match(content, /status: \[BLOCKED\] BLOCKED/);
 });

@@ -139,7 +139,8 @@ function toMarkdownReport(payload) {
   if (payload.statusSummary) {
     lines.push("## Summary");
     lines.push("");
-    lines.push(`- status: ${payload.statusSummary.status}`);
+    const statusTag = payload.statusSummary.status === "READY" ? "[READY]" : "[BLOCKED]";
+    lines.push(`- status: ${statusTag} ${payload.statusSummary.status}`);
     lines.push(`- reason: ${payload.statusSummary.reason}`);
     lines.push("");
   }
