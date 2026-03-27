@@ -106,7 +106,7 @@ templates:
 
   const result = runValidator(root, ["--strict"]);
 
-  assert.equal(result.status, 1, `stdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
+  assert.notEqual(result.status, 0, `stdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
   assert.match(result.stderr, /Skill sem referencia no registry: .agents\/skills\/demo-skill\/SKILL.md/);
 });
 
@@ -136,7 +136,7 @@ templates:
 
   const result = runValidator(root, ["--strict"]);
 
-  assert.equal(result.status, 1, `stdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
+  assert.notEqual(result.status, 0, `stdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
   assert.match(result.stderr, /Registry skill sem tags: demo-skill/);
   assert.match(result.stderr, /Registry skill sem requires: demo-skill/);
 });
@@ -169,7 +169,7 @@ templates:
 
   const result = runValidator(root, ["--strict"]);
 
-  assert.equal(result.status, 1, `stdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
+  assert.notEqual(result.status, 0, `stdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
   assert.match(result.stderr, /Registry referencia caminho inexistente: .agents\/skills\/does-not-exist\/SKILL.md/);
   assert.match(result.stderr, /Skill sem referencia no registry: .agents\/skills\/demo-skill\/SKILL.md/);
 });
@@ -228,6 +228,46 @@ templates:
 
   const result = runValidator(root, ["--strict"]);
 
-  assert.equal(result.status, 1, `stdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
+  assert.notEqual(result.status, 0, `stdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
   assert.match(result.stderr, /frontmatter malformado \(delimitador final ausente\)/);
+});
+
+test("validator strict fails when registry has duplicate skill names", () => {
+  const root = makeTempWorkspace();
+
+  writeFile(root, ".agents/skills/demo-skill/SKILL.md", validSkillMd("demo-skill"));
+  writeFile(root, ".agents/skills/another-skill/SKILL.md", validSkillMd("another-skill"));
+  writeFile(root, ".agents/skills/.template/SKILL.md", validSkillMd("template-skill"));
+  writeFile(
+    root,
+    ".agents/SKILLS-REGISTRY.yaml",
+    `schemaVersion: 1
+updatedAt: 2026-03-27
+owner: test
+
+skills:
+  - name: demo-skill
+    version: 1.0.0
+    status: migrated
+    path: .agents/skills/demo-skill/SKILL.md
+    tags: [test]
+    requires: []
+
+  - name: demo-skill
+    version: 1.1.0
+    status: migrated
+    path: .agents/skills/another-skill/SKILL.md
+    tags: [test]
+    requires: []
+
+templates:
+  - name: default
+    path: .agents/skills/.template/SKILL.md
+`,
+  );
+
+  const result = runValidator(root, ["--strict"]);
+
+  assert.notEqual(result.status, 0, `stdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
+  assert.match(result.stderr, /Registry skill com name duplicado: demo-skill \(2 entradas\)/);
 });

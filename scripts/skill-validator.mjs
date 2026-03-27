@@ -5,6 +5,10 @@ import path from "node:path";
 const rootDir = process.cwd();
 const strictMode = process.argv.includes("--strict");
 
+const EXIT_OK = 0;
+const EXIT_ERRORS = 2;
+const EXIT_STRICT_WARNINGS = 3;
+
 const skillsDir = path.join(rootDir, ".agents", "skills");
 const registryPath = path.join(rootDir, ".agents", "SKILLS-REGISTRY.yaml");
 
@@ -220,6 +224,18 @@ function validateRegistryFile(skillFiles) {
     if (!entry.hasTags) warn(`Registry skill sem tags: ${entry.name}`);
     if (!entry.hasRequires) warn(`Registry skill sem requires: ${entry.name}`);
   }
+
+  const nameCount = new Map();
+  for (const entry of skillEntries) {
+    if (!entry.name) continue;
+    nameCount.set(entry.name, (nameCount.get(entry.name) || 0) + 1);
+  }
+
+  for (const [name, count] of nameCount.entries()) {
+    if (count > 1) {
+      warn(`Registry skill com name duplicado: ${name} (${count} entradas)`);
+    }
+  }
 }
 
 function main() {
@@ -241,13 +257,16 @@ function main() {
   console.log(`- avisos: ${warningCount}`);
 
   if (strictMode && totalIssues > 0) {
-    process.exitCode = 1;
+    process.exitCode = errorCount > 0 ? EXIT_ERRORS : EXIT_STRICT_WARNINGS;
     return;
   }
 
   if (errorCount > 0) {
-    process.exitCode = 1;
+    process.exitCode = EXIT_ERRORS;
+    return;
   }
+
+  process.exitCode = EXIT_OK;
 }
 
 main();
