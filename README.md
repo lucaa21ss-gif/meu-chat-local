@@ -1232,7 +1232,17 @@ Validacao operacional automatizada:
 
 ```bash
 npm run verify:health
+npm run verify:routes
+npm run release:local
 ```
+
+O comando `verify:routes` valida as paginas `/, /app, /admin`.
+
+O comando `release:local` executa, em sequencia:
+
+1. build do painel admin (`admin:build`)
+2. smoke estrutural + health operacional (`smoke:full`)
+3. validacao das rotas web principais (`verify:routes`)
 
 Pipeline:
 

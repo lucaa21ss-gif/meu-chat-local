@@ -10,6 +10,7 @@ export function createAppRuntimeConfig({
   buildCorsOriginValidator,
 }) {
   const webDir = deps.webDir || path.resolve(serverDir, "../web");
+  const adminWebDir = deps.adminWebDir || path.resolve(serverDir, "../web-admin/dist");
   const corsOrigin = buildCorsOriginValidator(
     deps.allowedOrigin ?? process.env.FRONTEND_ORIGIN,
     parseOriginList,
@@ -42,6 +43,7 @@ export function createAppRuntimeConfig({
 
   return {
     webDir,
+    adminWebDir,
     corsOrigin,
     requestWindowMs,
     ollamaTimeoutMs,

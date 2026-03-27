@@ -5,7 +5,8 @@
   "type": "module",
   "workspaces": [
     "apps/api",
-    "apps/web"
+    "apps/web",
+    "apps/web-admin"
   ],
   "scripts": {
     "lint": "eslint \"apps/api/src/**/*.js\" \"modules/**/*.js\" \"platform/**/*.js\" \"shared/**/*.js\" \"apps/web/script.js\"",
@@ -16,6 +17,8 @@
     "smoke:test": "node ops/scripts/local/smoke-test.mjs",
     "smoke:full": "npm run smoke:test && npm run verify:health",
     "verify:health": "bash ops/scripts/local/verify-health.sh",
+    "verify:routes": "bash ops/scripts/local/verify-routes.sh",
+    "release:local": "npm run admin:build && npm run smoke:full && npm run verify:routes",
     "incident:runbook": "bash ops/scripts/local/runbook-incident.sh",
     "dr:test": "bash ops/scripts/local/disaster-recovery-test.sh",
     "release:canary": "node ops/scripts/local/release-canary.mjs",
@@ -24,7 +27,10 @@
     "dist:install": "bash ops/scripts/local/install.sh",
     "dist:start": "bash ops/scripts/local/start.sh",
     "dist:stop": "bash ops/scripts/local/stop.sh",
-    "dist:uninstall": "bash ops/scripts/local/uninstall.sh"
+    "dist:uninstall": "bash ops/scripts/local/uninstall.sh",
+    "admin:dev": "npm run dev --workspace apps/web-admin",
+    "admin:build": "npm run build --workspace apps/web-admin",
+    "admin:preview": "npm run preview --workspace apps/web-admin"
   },
   "devDependencies": {
     "@eslint/js": "^9.22.0",

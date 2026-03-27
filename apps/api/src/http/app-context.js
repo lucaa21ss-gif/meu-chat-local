@@ -119,6 +119,7 @@ export function createAppContext({
   const routeDeps = createRouteDepsForApp({
     core: {
       webDir: runtimeConfig.webDir,
+      adminWebDir: runtimeConfig.adminWebDir,
       logger,
       HttpError,
       asyncHandler,

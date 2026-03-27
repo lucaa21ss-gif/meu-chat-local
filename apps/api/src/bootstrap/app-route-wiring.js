@@ -11,6 +11,7 @@ export function createRouteDepsForApp({ core, registrars, guards, runtime, servi
   return {
     ...registrars,
     webDir: core.webDir,
+    adminWebDir: core.adminWebDir,
     HttpError: core.HttpError,
     healthRoutes: { ...commonDeps },
     chatRoutes: { ...commonDeps },
