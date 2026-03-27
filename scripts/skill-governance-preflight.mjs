@@ -49,6 +49,11 @@ function ensureDirFor(filePath) {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
 }
 
+function fail(message) {
+  process.stderr.write(`${message}\n`);
+  process.exit(1);
+}
+
 function runStep(step) {
   const startedAt = new Date().toISOString();
   const result = spawnSync(npmExecutable(), ["run", step.npmScript], {
@@ -101,8 +106,12 @@ function outputReport(content, outputArg) {
   }
 
   const outputPath = path.resolve(process.cwd(), outputArg);
-  ensureDirFor(outputPath);
-  fs.writeFileSync(outputPath, content, "utf8");
+  try {
+    ensureDirFor(outputPath);
+    fs.writeFileSync(outputPath, content, "utf8");
+  } catch (err) {
+    fail(`Falha ao escrever output em ${outputPath}: ${err.message}`);
+  }
 }
 
 function main() {

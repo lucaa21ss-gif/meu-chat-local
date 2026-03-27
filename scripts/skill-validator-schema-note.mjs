@@ -63,6 +63,15 @@ function parseContractUpdatedArg(value) {
   fail(`Valor invalido para --contract-updated: ${value}. Use true ou false.`);
 }
 
+function writeOutputFile(outputPath, content) {
+  try {
+    ensureDirFor(outputPath);
+    fs.writeFileSync(outputPath, content, "utf8");
+  } catch (err) {
+    fail(`Falha ao escrever output em ${outputPath}: ${err.message}`);
+  }
+}
+
 function main() {
   const baseRef = getArgValue("--base-ref") || "HEAD~1";
   const headRef = getArgValue("--head-ref") || "HEAD";
@@ -168,8 +177,7 @@ function main() {
     body += "Foi detectado drift entre contrato documentado e payload emitido, ou mudanca sem atualizacao de contrato.\n";
   }
 
-  ensureDirFor(outputPath);
-  fs.writeFileSync(outputPath, body, "utf8");
+  writeOutputFile(outputPath, body);
 
   if (failOnDrift && hasDrift) {
     process.exitCode = 1;

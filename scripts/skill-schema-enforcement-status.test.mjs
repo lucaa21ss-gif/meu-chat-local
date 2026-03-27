@@ -65,3 +65,17 @@ test("status script writes markdown report to output file", () => {
   assert.match(content, /enabled: yes/);
   assert.match(content, /Skill Schema Contract Enforcement Status/);
 });
+
+test("status script fails when output path is a directory", () => {
+  const root = makeTempWorkspace();
+  const outputDir = path.join(root, "artifacts", "status-dir");
+  fs.mkdirSync(outputDir, { recursive: true });
+
+  const result = spawnSync(process.execPath, [scriptPath, "--output", "artifacts/status-dir"], {
+    cwd: root,
+    encoding: "utf8",
+  });
+
+  assert.equal(result.status, 1, `stdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
+  assert.match(result.stderr, /Falha ao escrever output/);
+});

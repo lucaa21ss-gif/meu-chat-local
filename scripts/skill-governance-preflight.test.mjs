@@ -81,3 +81,21 @@ test("preflight writes markdown report to file", () => {
   assert.match(content, /Skill Governance Preflight/);
   assert.match(content, /dryRun: yes/);
 });
+
+test("preflight fails when output path is a directory", () => {
+  const root = makeTempWorkspace();
+  const outputDir = path.join(root, "artifacts", "preflight-dir");
+  fs.mkdirSync(outputDir, { recursive: true });
+
+  const result = spawnSync(
+    process.execPath,
+    [scriptPath, "--dry-run", "--output", "artifacts/preflight-dir"],
+    {
+      cwd: root,
+      encoding: "utf8",
+    },
+  );
+
+  assert.equal(result.status, 1, `stdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
+  assert.match(result.stderr, /Falha ao escrever output/);
+});

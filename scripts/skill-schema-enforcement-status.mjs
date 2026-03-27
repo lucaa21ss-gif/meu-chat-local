@@ -14,6 +14,20 @@ function ensureDirFor(filePath) {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
 }
 
+function fail(message) {
+  process.stderr.write(`${message}\n`);
+  process.exit(1);
+}
+
+function writeOutputFile(outputPath, content) {
+  try {
+    ensureDirFor(outputPath);
+    fs.writeFileSync(outputPath, content, "utf8");
+  } catch (err) {
+    fail(`Falha ao escrever output em ${outputPath}: ${err.message}`);
+  }
+}
+
 function isEnabled(rawValue) {
   if (!rawValue) return false;
   return /^(1|true|yes|on)$/i.test(rawValue.trim());
@@ -68,8 +82,7 @@ function main() {
   }
 
   const outputPath = path.resolve(process.cwd(), outputArg);
-  ensureDirFor(outputPath);
-  fs.writeFileSync(outputPath, content, "utf8");
+  writeOutputFile(outputPath, content);
 }
 
 main();

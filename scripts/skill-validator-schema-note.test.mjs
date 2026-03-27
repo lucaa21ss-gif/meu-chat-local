@@ -189,3 +189,26 @@ test("schema note fails for invalid --contract-updated value", () => {
   assert.equal(result.status, 1, `stdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
   assert.match(result.stderr, /Valor invalido para --contract-updated/);
 });
+
+test("schema note fails when output path is a directory", () => {
+  const root = makeTempWorkspace();
+  const outputDir = path.join(root, "artifacts", "schema-dir");
+  fs.mkdirSync(outputDir, { recursive: true });
+
+  const result = spawnSync(
+    process.execPath,
+    [
+      scriptPath,
+      "--output",
+      "artifacts/schema-dir",
+      "--previous-version",
+      "1",
+      "--current-version",
+      "2",
+    ],
+    { cwd: root, encoding: "utf8" },
+  );
+
+  assert.equal(result.status, 1, `stdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
+  assert.match(result.stderr, /Falha ao escrever output/);
+});
