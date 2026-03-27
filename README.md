@@ -47,6 +47,7 @@ Para cenarios de Gemini, priorize a skill `gemini-context-profissional` e valide
   - `node scripts/skill-validator.mjs --strict --json --class consistency,naming`
   - `node scripts/skill-validator.mjs --strict --json --class consistency,naming --output artifacts/skill-report.json`
 - O payload JSON inclui `schemaVersion` para versionamento do contrato de integracao.
+- Contrato oficial do payload: `docs/architecture/skill-validator-json-contract.md`.
 
 - Aplicacao local completa com API Node.js/Express nativa (ESM), Web e persistencia SQLite
 - Servidor baseado em ESM nativo (Node.js), com grafo de dependencias estatico via `import`/`export`, fronteiras claras entre entrypoint/bootstrap/http/modulos e menor acoplamento entre camadas arquiteturais

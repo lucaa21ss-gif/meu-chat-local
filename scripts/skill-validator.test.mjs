@@ -6,6 +6,7 @@ import path from "node:path";
 import test from "node:test";
 
 const validatorPath = path.resolve("scripts/skill-validator.mjs");
+const contractDocPath = path.resolve("docs/architecture/skill-validator-json-contract.md");
 
 function makeTempWorkspace() {
   return fs.mkdtempSync(path.join(os.tmpdir(), "skill-validator-"));
@@ -592,4 +593,42 @@ templates:
 
   assert.equal(result.status, 2, `stdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
   assert.match(result.stderr, /A flag --output requer --json/);
+});
+
+test("documented schemaVersion matches emitted payload schemaVersion", () => {
+  const root = makeTempWorkspace();
+
+  writeFile(root, ".agents/skills/demo-skill/SKILL.md", validSkillMd("demo-skill"));
+  writeFile(root, ".agents/skills/.template/SKILL.md", validSkillMd("template-skill"));
+  writeFile(
+    root,
+    ".agents/SKILLS-REGISTRY.yaml",
+    `schemaVersion: 1
+updatedAt: 2026-03-27
+owner: test
+
+skills:
+  - name: demo-skill
+    version: 1.0.0
+    status: migrated
+    path: .agents/skills/demo-skill/SKILL.md
+    tags: [test]
+    requires: []
+
+templates:
+  - name: default
+    path: .agents/skills/.template/SKILL.md
+`,
+  );
+
+  const result = runValidator(root, ["--strict", "--json"]);
+  assert.equal(result.status, 0, `stdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
+
+  const payload = JSON.parse(result.stdout);
+  const contractDoc = fs.readFileSync(contractDocPath, "utf8");
+  const match = contractDoc.match(/- `schemaVersion`: `([0-9]+)`/);
+
+  assert.ok(match, "Nao foi possivel encontrar schemaVersion documentado no contrato");
+  const documentedVersion = Number(match[1]);
+  assert.equal(payload.schemaVersion, documentedVersion);
 });
