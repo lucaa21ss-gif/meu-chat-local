@@ -37,6 +37,7 @@ test("preflight dry-run returns planned default steps in json", () => {
     selectedSteps: 4,
     progressRatio: 0,
   });
+  assert.equal(payload.statusSummary.failureType, null);
   assert.equal(payload.statusSummary.failedStep, null);
 });
 
@@ -284,6 +285,7 @@ test("preflight markdown report includes READY summary in dry-run", () => {
   assert.match(content, /confidence: 80/);
   assert.match(content, /progress: 0\/4/);
   assert.match(content, /progressRatio: 0/);
+  assert.doesNotMatch(content, /failureType:/);
   assert.match(content, /nextAction: Execute sem --dry-run/);
 });
 
@@ -303,6 +305,7 @@ test("preflight report marks BLOCKED when a step fails", () => {
   const payload = JSON.parse(fs.readFileSync(path.join(root, output), "utf8"));
   assert.equal(payload.success, false);
   assert.equal(payload.statusSummary.status, "BLOCKED");
+  assert.equal(payload.statusSummary.failureType, "step-failure");
   assert.equal(payload.statusSummary.confidence, 35);
   assert.deepEqual(payload.statusSummary.progress, {
     succeededSteps: 0,
@@ -337,6 +340,7 @@ test("preflight increases BLOCKED confidence when failure happens after earlier 
   assert.equal(result.status, 1, `stdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
   const payload = JSON.parse(result.stdout);
   assert.equal(payload.statusSummary.status, "BLOCKED");
+  assert.equal(payload.statusSummary.failureType, "step-failure");
   assert.equal(payload.statusSummary.reason, "Etapa falhou: enforcement-status-tests.");
   assert.equal(payload.statusSummary.confidence, 48);
   assert.deepEqual(payload.statusSummary.progress, {
@@ -362,6 +366,7 @@ test("preflight markdown report includes BLOCKED tag when a step fails", () => {
   assert.equal(result.status, 1, `stdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
   const content = fs.readFileSync(path.join(root, output), "utf8");
   assert.match(content, /status: \[BLOCKED\] BLOCKED/);
+  assert.match(content, /failureType: step-failure/);
   assert.match(content, /confidence: 35/);
   assert.match(content, /progress: 0\/4/);
   assert.match(content, /progressRatio: 0/);

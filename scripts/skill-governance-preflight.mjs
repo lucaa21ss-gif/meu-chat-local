@@ -156,6 +156,7 @@ function buildStatusSummary({ success, dryRun, ioCheck, results, confidenceProfi
   if (success) {
     return {
       status: "READY",
+      failureType: null,
       reason: dryRun
         ? "Dry-run concluido: etapas planejadas sem execucao real."
         : "Todas as etapas selecionadas finalizaram com sucesso.",
@@ -171,6 +172,7 @@ function buildStatusSummary({ success, dryRun, ioCheck, results, confidenceProfi
   if (ioCheck?.enabled && ioCheck.ok === false) {
     return {
       status: "BLOCKED",
+      failureType: "io-precheck",
       reason: `Falha no precheck de I/O em ${ioCheck.artifactsDir}.`,
       nextAction: "Verifique permissao de escrita e validade do artifactsDir configurado.",
       confidence: profile.blockedIo,
@@ -189,6 +191,7 @@ function buildStatusSummary({ success, dryRun, ioCheck, results, confidenceProfi
 
     return {
       status: "BLOCKED",
+      failureType: "step-failure",
       reason: `Etapa falhou: ${failedStep.name}.`,
       nextAction: `Execute manualmente: npm run ${failedStep.npmScript}`,
       confidence: blockedStepConfidence,
@@ -199,6 +202,7 @@ function buildStatusSummary({ success, dryRun, ioCheck, results, confidenceProfi
 
   return {
     status: "BLOCKED",
+    failureType: "unknown",
     reason: "Falha detectada sem etapa identificada.",
     nextAction: "Revise logs completos do preflight para identificar a causa raiz.",
     confidence: profile.blockedUnknown,
@@ -224,6 +228,9 @@ function toMarkdownReport(payload) {
     lines.push("");
     const statusTag = payload.statusSummary.status === "READY" ? "[READY]" : "[BLOCKED]";
     lines.push(`- status: ${statusTag} ${payload.statusSummary.status}`);
+    if (payload.statusSummary.failureType) {
+      lines.push(`- failureType: ${payload.statusSummary.failureType}`);
+    }
     lines.push(`- confidence: ${payload.statusSummary.confidence}`);
     if (payload.statusSummary.progress) {
       lines.push(
