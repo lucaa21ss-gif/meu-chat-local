@@ -20,6 +20,19 @@ Esse arquivo resume rapidamente a topologia das aplicacoes:
 
 Recomendacao: sempre carregar `CONTEXT.md` antes de pedir analise arquitetural ou navegacao entre modulos.
 
+### Skills de agentes (catalogo rapido)
+
+Este projeto mantem skills em `.agents/skills/` para padronizar como assistentes tecnicos analisam e modificam o repositorio.
+
+- `arquitetura`: mapeamento estrutural e diretrizes arquiteturais do projeto.
+- `code-reviewer`: revisao tecnica de qualidade, risco e seguranca.
+- `local-first`: praticas para operacao local sem dependencia de cloud.
+- `portuguese_assistant`: padrao de respostas em pt-BR com termos tecnicos.
+- `skill-creator`: meta-skill para criacao de novas skills.
+- `gemini-context-profissional`: skill oficial para onboarding arquitetural com base em `CONTEXT.md`, especialmente para Google AI Studio (Gemini).
+
+Para cenarios de Gemini, priorize a skill `gemini-context-profissional` e valide se `CONTEXT.md` esta atualizado.
+
 - Aplicacao local completa com API Node.js/Express nativa (ESM), Web e persistencia SQLite
 - Servidor baseado em ESM nativo (Node.js), com grafo de dependencias estatico via `import`/`export`, fronteiras claras entre entrypoint/bootstrap/http/modulos e menor acoplamento entre camadas arquiteturais
 - Integracao com Ollama para chat sincrono e streaming token a token
