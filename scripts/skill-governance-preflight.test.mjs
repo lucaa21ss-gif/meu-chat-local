@@ -156,3 +156,34 @@ test("preflight includes execution context metadata from CI environment", () => 
   assert.equal(payload.executionContext.github.eventName, "push");
   assert.equal(payload.executionContext.github.runId, "999");
 });
+
+test("preflight markdown report includes execution context section in CI", () => {
+  const root = makeTempWorkspace();
+  const output = "artifacts/preflight-inspect.md";
+  const result = spawnSync(
+    process.execPath,
+    [scriptPath, "--dry-run", "--strict-io", "--output", output],
+    {
+      cwd: root,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        CI: "true",
+        GITHUB_SHA: "def456",
+        GITHUB_REF: "refs/pull/10/merge",
+        GITHUB_EVENT_NAME: "pull_request",
+        GITHUB_RUN_ID: "12345",
+      },
+    },
+  );
+
+  assert.equal(result.status, 0, `stdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
+  const outputPath = path.join(root, output);
+  const content = fs.readFileSync(outputPath, "utf8");
+
+  assert.match(content, /## Execution context/);
+  assert.match(content, /github.sha: def456/);
+  assert.match(content, /github.ref: refs\/pull\/10\/merge/);
+  assert.match(content, /github.eventName: pull_request/);
+  assert.match(content, /github.runId: 12345/);
+});
