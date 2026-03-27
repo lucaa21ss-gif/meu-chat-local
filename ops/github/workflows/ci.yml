@@ -86,6 +86,10 @@ jobs:
         if: always()
         run: node scripts/skill-validator.mjs --strict --json --pretty false > skill-validator-report.compact.json
 
+      - name: Generate governance preflight inspect report
+        if: always()
+        run: npm run skill:governance:preflight:inspect -- --output skill-governance-preflight-inspect.json
+
       - name: Generate enforcement status reports
         if: always()
         run: |
@@ -128,6 +132,13 @@ jobs:
           path: |
             skill-schema-enforcement-status.md
             skill-schema-enforcement-status.json
+
+      - name: Upload governance preflight inspect report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: skill-governance-preflight-inspect
+          path: skill-governance-preflight-inspect.json
 
   secret-scan:
     name: Secret Scan
