@@ -8,7 +8,13 @@ O repositorio segue um modelo de monorepo com tres aplicacoes principais em `app
 
 - `apps/api`: core backend em Node.js/Express, responsavel por API HTTP, roteamento, servico de arquivos estaticos e integracao com os modulos de dominio. Porta padrao: 4000.
 - `apps/web`: frontend do usuario final. O build estatico e servido pela API principal.
-- `apps/web-admin`: painel operacional/administrativo. Em producao local e deploy integrado, e servido pela API na rota `/admin`.
+- `apps/web-admin`: painel operacional/administrativo. Em producao local e deploy integrado, e servido pela API principal na rota `/admin`.
+
+### Modo Servico de Rede Domestica
+
+- O servidor `apps/api` e o host central para acesso via LAN/Wi-Fi e, quando configurado, acesso remoto seguro.
+- O runtime deve escutar em `0.0.0.0` para aceitar conexoes de outros dispositivos da rede.
+- O frontend principal e o painel admin devem consumir API por mesma origem (paths relativos), evitando dependencia de `localhost` no cliente.
 
 ## Mapa de Apps
 
@@ -20,7 +26,7 @@ O repositorio segue um modelo de monorepo com tres aplicacoes principais em `app
 - Responsabilidades:
   - Expor endpoints da API.
   - Publicar frontend principal em `/` e `/app`.
-  - Publicar painel operacional em `/admin`.
+  - Publicar painel operacional em `/admin` (rota centralizada no mesmo servidor).
   - Integrar modulos de negocio em `modules/`.
 
 ### 2) apps/web
@@ -33,7 +39,7 @@ O repositorio segue um modelo de monorepo com tres aplicacoes principais em `app
 
 - Papel: interface operacional para manutencao e observabilidade.
 - Desenvolvimento local: executado via Vite em modo dev.
-- Integracao de runtime: build publicado sob `/admin` pelo backend (`apps/api`).
+- Integracao de runtime: build publicado sob `/admin` pelo backend (`apps/api`), no mesmo host do frontend principal.
 
 ## Estrutura Relacionada
 
@@ -45,14 +51,14 @@ O repositorio segue um modelo de monorepo com tres aplicacoes principais em `app
 
 ## Fluxo de Execucao (resumo)
 
-1. Usuario acessa frontend principal (`apps/web`) ou painel admin (`apps/web-admin`).
+1. Usuario acessa frontend principal (`apps/web`) ou painel admin (`/admin`) no mesmo servidor central.
 2. API em `apps/api` recebe requisicoes e encaminha para modulos em `modules/`.
 3. Camada `platform/` provê persistencia, telemetria e integracoes locais.
 4. Respostas retornam para os frontends via HTTP.
 
 ## Observacoes para Gemini
 
-- Considere este repositorio como um sistema unico com tres apps especializadas.
+- Considere este repositorio como um sistema unico com tres apps especializadas e runtime unificado no servidor principal.
 - Ao responder sobre UI principal, priorize `apps/web`.
-- Ao responder sobre operacao/administracao, priorize `apps/web-admin` e rota `/admin`.
+- Ao responder sobre operacao/administracao, priorize `apps/web-admin` como origem de codigo e rota runtime `/admin`.
 - Ao responder sobre backend e integracao, priorize `apps/api` na porta 4000.

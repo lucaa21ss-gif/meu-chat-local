@@ -26,6 +26,7 @@ function resolveStartupDeps(startupDeps = {}) {
 
 export async function startConfiguredServer({
   port = 4000,
+  host = process.env.HOST || "0.0.0.0",
   startupDeps,
 }) {
   const {
@@ -53,7 +54,7 @@ export async function startConfiguredServer({
 
   // 5. Subir o Servidor HTTP e registrar no Lifecycle
   const httpServer = runStartHttpServer(
-    createStartServerDeps({ app, port, logger: startupLogger }),
+    createStartServerDeps({ app, port, host, logger: startupLogger }),
   );
   lifecycle.registerHttpServer(httpServer);
 

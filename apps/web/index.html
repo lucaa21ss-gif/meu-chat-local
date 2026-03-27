@@ -19,13 +19,23 @@
       })();
     </script>
     <link rel="icon" type="image/svg+xml" href="assets/logo-chat-local.svg" />
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="theme-color" content="#030712" />
     <link rel="stylesheet" href="output.css" />
   </head>
   <body class="min-h-screen">
     <!-- BACKGROUND NEURAL ANIMADO -->
     <div class="ai-bg-neural"></div>
+    <div id="sidebarBackdrop" class="ai-sidebar-backdrop" hidden></div>
     <div class="mx-auto flex min-h-screen w-full max-w-7xl gap-4 px-4 py-5 sm:px-6 lg:px-8">
-      <aside class="ai-panel hidden w-72 shrink-0 rounded-3xl p-4 md:flex md:flex-col" aria-label="Area lateral de identidade, ferramentas e fluxo">
+      <aside id="sidebarDrawer" class="ai-panel ai-sidebar-drawer hidden w-72 shrink-0 rounded-3xl p-4 md:flex md:flex-col" aria-label="Area lateral de identidade, ferramentas e fluxo" aria-hidden="true">
+        <button
+          id="closeSidebarBtn"
+          type="button"
+          class="ai-btn-secondary mb-3 w-full px-4 py-2 text-sm lg:hidden"
+        >
+          Fechar menu
+        </button>
         <section id="identityArea" class="ai-area-shell" aria-label="Area de Login e Identidade" tabindex="-1">
           <p class="ai-area-title">Area 1 · Identidade</p>
         <div class="flex items-start justify-between gap-3">
@@ -433,6 +443,14 @@
               </div>
             </div>
             <div class="flex items-center gap-2">
+              <button
+                id="toggleSidebarBtn"
+                type="button"
+                class="ai-btn-secondary px-3 py-1 text-xs lg:hidden"
+                title="Abrir menu lateral"
+              >
+                Menu
+              </button>
               <span
                 id="activeAreaPill"
                 class="ai-active-area-pill"

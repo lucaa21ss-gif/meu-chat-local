@@ -87,8 +87,50 @@ const {
   docUploadBtnEl, ragStatusEl, newUserBtnEl, renameUserBtnEl, deleteUserBtnEl,
   onboardingBtnEl, onboardingModelSelectEl, onboardingHealthStatusEl,
   onboardingSmokeStatusEl, onboardingRunChecksBtnEl, onboardingSkipBtnEl,
-  onboardingCompleteBtnEl,
+  onboardingCompleteBtnEl, sidebarBackdropEl, sidebarDrawerEl, toggleSidebarBtnEl,
+  closeSidebarBtnEl,
 } = elements;
+
+function isSidebarDrawerViewport() {
+  return window.matchMedia("(max-width: 1023px)").matches;
+}
+
+function openSidebarDrawer() {
+  if (!isSidebarDrawerViewport()) return;
+  document.body.classList.add("ai-sidebar-open");
+  sidebarDrawerEl?.setAttribute("aria-hidden", "false");
+  sidebarBackdropEl?.removeAttribute("hidden");
+}
+
+function closeSidebarDrawer() {
+  document.body.classList.remove("ai-sidebar-open");
+  sidebarDrawerEl?.setAttribute("aria-hidden", "true");
+  sidebarBackdropEl?.setAttribute("hidden", "");
+}
+
+function bindSidebarDrawer() {
+  if (!isSidebarDrawerViewport()) {
+    sidebarDrawerEl?.setAttribute("aria-hidden", "false");
+    sidebarBackdropEl?.setAttribute("hidden", "");
+  }
+
+  toggleSidebarBtnEl?.addEventListener("click", openSidebarDrawer);
+  closeSidebarBtnEl?.addEventListener("click", closeSidebarDrawer);
+  sidebarBackdropEl?.addEventListener("click", closeSidebarDrawer);
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      closeSidebarDrawer();
+    }
+  });
+
+  window.addEventListener("resize", () => {
+    if (!isSidebarDrawerViewport()) {
+      closeSidebarDrawer();
+      sidebarDrawerEl?.setAttribute("aria-hidden", "false");
+    }
+  });
+}
 
 const statusPresenter = createStatusPresenter(buildStatusPresenterDeps({
   statusBarEl,
@@ -725,6 +767,7 @@ window.resetar = async () => {
 };
 
 (async function bootstrap() {
+  bindSidebarDrawer();
   await appRuntimeController.bootstrap();
   restoreToolsDetailsState();
   bindToolsDetailsPersistence();

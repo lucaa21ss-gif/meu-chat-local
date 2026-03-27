@@ -59,7 +59,7 @@ export const DOM_ELEMENT_IDS = [
   "docUploadBtn", "ragStatus", "newUserBtn", "renameUserBtn", "deleteUserBtn",
   "onboardingBtn", "onboardingModelSelect", "onboardingHealthStatus",
   "onboardingSmokeStatus", "onboardingRunChecksBtn", "onboardingSkipBtn",
-  "onboardingCompleteBtn",
+  "onboardingCompleteBtn", "sidebarBackdrop", "sidebarDrawer", "toggleSidebarBtn", "closeSidebarBtn",
 ];
 
 /* ─── 2. State (domain + ui) ──────────────────────────────── */
