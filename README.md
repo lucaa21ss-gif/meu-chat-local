@@ -41,7 +41,7 @@ Para cenarios de Gemini, priorize a skill `gemini-context-profissional` e valide
 - Para diagnosticar o estado do gate opcional, consulte o artifact `skill-schema-enforcement-status` (`.md` e `.json`).
 - Para transformar drift de contrato em erro de pipeline, configure a variavel de repositorio `SKILL_SCHEMA_CONTRACT_ENFORCE=true`.
 - Validacao local recomendada antes de abrir PR:
-  - `npm run skill:governance:preflight`
+  - `npm run skill:governance:preflight:strict-io`
   - `npm run test:skills:validator`
   - `npm run test:skills:enforcement-status`
   - `npm run skill:validate:strict`
@@ -54,6 +54,7 @@ Para cenarios de Gemini, priorize a skill `gemini-context-profissional` e valide
   - `npm run skill:schema-enforcement:status`
   - `npm run skill:governance:preflight -- --dry-run --json`
   - `npm run skill:governance:preflight -- --strict-io --artifacts-dir artifacts`
+  - `npm run skill:governance:preflight:strict-io`
 - O payload JSON inclui `schemaVersion` para versionamento do contrato de integracao.
 - Contrato oficial do payload: `docs/architecture/skill-validator-json-contract.md`.
 

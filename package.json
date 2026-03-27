@@ -40,6 +40,7 @@
     "skill:schema-note": "node scripts/skill-validator-schema-note.mjs",
     "skill:schema-enforcement:status": "node scripts/skill-schema-enforcement-status.mjs",
     "skill:governance:preflight": "node scripts/skill-governance-preflight.mjs",
+    "skill:governance:preflight:strict-io": "node scripts/skill-governance-preflight.mjs --strict-io --artifacts-dir artifacts",
     "admin:dev": "npm run dev --workspace apps/web-admin",
     "admin:build": "npm run build --workspace apps/web-admin",
     "admin:preview": "npm run preview --workspace apps/web-admin"
