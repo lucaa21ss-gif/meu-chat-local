@@ -8,6 +8,18 @@ Projeto de chat local com Web moderna, streaming em tempo real, persistencia de 
 
 ## Visao geral
 
+### Contexto global para assistentes (Gemini)
+
+Para melhorar respostas de ferramentas como Google AI Studio (Gemini), este repositorio inclui um contexto global em `CONTEXT.md`.
+
+Esse arquivo resume rapidamente a topologia das aplicacoes:
+
+- `apps/api`: core backend Node.js/Express (porta 4000)
+- `apps/web`: frontend do usuario servido pela API
+- `apps/web-admin`: painel operacional servido na rota `/admin`
+
+Recomendacao: sempre carregar `CONTEXT.md` antes de pedir analise arquitetural ou navegacao entre modulos.
+
 - Aplicacao local completa com API Node.js/Express nativa (ESM), Web e persistencia SQLite
 - Servidor baseado em ESM nativo (Node.js), com grafo de dependencias estatico via `import`/`export`, fronteiras claras entre entrypoint/bootstrap/http/modulos e menor acoplamento entre camadas arquiteturais
 - Integracao com Ollama para chat sincrono e streaming token a token
