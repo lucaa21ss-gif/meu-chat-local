@@ -11,6 +11,9 @@ yarn.lock
 server/chat.db
 server/chat.db-shm
 server/chat.db-wal
+apps/api/chat.db
+apps/api/chat.db-shm
+apps/api/chat.db-wal
 
 # Logs
 npm-debug.log*
@@ -31,6 +34,7 @@ Thumbs.db
 
 # Build
 web/output.css
+apps/web/output.css
 dist/
 build/
 
@@ -38,6 +42,11 @@ build/
 coverage/
 .nyc_output/
 server/artifacts/
+apps/api/artifacts/
+artifacts/
 .integrity-manifest.sha256
 .integrity-manifest.sig
 .integrity-manifest.pub
+
+# Local diagnostics/log dumps
+*.log

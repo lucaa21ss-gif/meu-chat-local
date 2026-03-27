@@ -1,0 +1,75 @@
+name: Docker Publish
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+      - "meu-chat-local-v*.*.*"
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Tag de release para publicar (ex.: meu-chat-local-v0.2.0 ou v0.2.0)"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    name: Publish Docker Image
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Resolve semantic version from tag
+        id: version
+        run: |
+          set -e
+          TAG="${{ github.event.inputs.release_tag || github.ref_name }}"
+
+          if [[ "$TAG" == meu-chat-local-v* ]]; then
+            VERSION="${TAG#meu-chat-local-v}"
+          elif [[ "$TAG" == v* ]]; then
+            VERSION="${TAG#v}"
+          else
+            echo "Tag nao suportada: $TAG"
+            exit 1
+          fi
+
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Versao semantica invalida: $VERSION"
+            exit 1
+          fi
+
+          MAJOR="${VERSION%%.*}"
+          MAJOR_MINOR="${VERSION%.*}"
+
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "major=$MAJOR" >> "$GITHUB_OUTPUT"
+          echo "major_minor=$MAJOR_MINOR" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/api/Dockerfile
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/meu-chat-local-api:${{ steps.version.outputs.version }}
+            ghcr.io/${{ github.repository_owner }}/meu-chat-local-api:${{ steps.version.outputs.major_minor }}
+            ghcr.io/${{ github.repository_owner }}/meu-chat-local-api:${{ steps.version.outputs.major }}
+            ghcr.io/${{ github.repository_owner }}/meu-chat-local-api:latest

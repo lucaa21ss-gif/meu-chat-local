@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meu Chat Local - Guia Rápido</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        header {
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 2rem;
+            text-align: center;
+        }
+        header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+        }
+        header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+        nav {
+            background: rgba(0, 0, 0, 0.6);
+            padding: 1rem;
+            text-align: center;
+        }
+        nav a {
+            color: white;
+            text-decoration: none;
+            margin: 0 1rem;
+            transition: opacity 0.3s;
+        }
+        nav a:hover {
+            opacity: 0.7;
+        }
+        main {
+            max-width: 1200px;
+            margin: 2rem auto;
+            padding: 2rem;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
+        h2 {
+            color: #667eea;
+            margin-top: 2rem;
+            margin-bottom: 1rem;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+        }
+        h2:first-child {
+            margin-top: 0;
+        }
+        h2 span {
+            display: inline-block;
+            width: 30px;
+            height: 30px;
+            background: #667eea;
+            color: white;
+            border-radius: 50%;
+            text-align: center;
+            line-height: 30px;
+            margin-right: 0.5rem;
+            font-size: 1.2rem;
+        }
+        .step {
+            margin: 1.5rem 0;
+            padding: 1rem;
+            background: #f5f5f5;
+            border-left: 4px solid #667eea;
+            border-radius: 4px;
+        }
+        .step h3 {
+            color: #667eea;
+            margin-bottom: 0.5rem;
+        }
+        .step code {
+            background: white;
+            padding: 0.2rem 0.5rem;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            color: #e83e8c;
+        }
+        .step pre {
+            background: #2d2d2d;
+            color: #f8f8f2;
+            padding: 1rem;
+            border-radius: 4px;
+            overflow-x: auto;
+            margin-top: 0.5rem;
+        }
+        .tip {
+            background: #e3f2fd;
+            border-left: 4px solid #2196f3;
+            padding: 1rem;
+            margin: 1rem 0;
+            border-radius: 4px;
+        }
+        .tip strong {
+            color: #1976d2;
+        }
+        .shortcut {
+            display: inline-block;
+            background: #f0f0f0;
+            padding: 0.3rem 0.6rem;
+            border-radius: 3px;
+            font-weight: bold;
+            font-size: 0.9rem;
+            border: 1px solid #ddd;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+        }
+        table thead {
+            background: #f5f5f5;
+        }
+        table th, table td {
+            padding: 0.75rem;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        table th {
+            background: #667eea;
+            color: white;
+            font-weight: bold;
+        }
+        footer {
+            text-align: center;
+            padding: 2rem;
+            color: white;
+            background: rgba(0, 0, 0, 0.8);
+        }
+        .cta {
+            text-align: center;
+            margin-top: 2rem;
+            padding: 2rem;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 8px;
+            color: white;
+        }
+        .cta a {
+            display: inline-block;
+            margin-top: 1rem;
+            padding: 1rem 2rem;
+            background: white;
+            color: #667eea;
+            text-decoration: none;
+            border-radius: 4px;
+            font-weight: bold;
+            transition: transform 0.3s;
+        }
+        .cta a:hover {
+            transform: scale(1.05);
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Guia rapido</h1>
+        <p>Comece a usar o Meu Chat Local em 5 minutos</p>
+    </header>
+
+    <nav>
+        <a href="/app">Acessar App</a>
+        <a href="/produto">Produto</a>
+        <a href="/guia">Guia Rápido</a>
+    </nav>
+
+    <main>
+        <section>
+            <h2><span>1</span>Instalação</h2>
+            <div class="step">
+                <h3>Pré-requisitos</h3>
+                <p>Certifique-se de ter Node.js 20+ e Ollama instalados:</p>
+                <pre>node --version  # Deve retornar v20+
+ollama --version  # Deve estar instalado</pre>
+            </div>
+
+            <div class="step">
+                <h3>Clone e instale</h3>
+                <pre>git clone https://github.com/seu-usuario/meu-chat-local.git
+cd meu-chat-local
+npm install</pre>
+            </div>
+
+            <div class="step">
+                <h3>Configure as variáveis de ambiente</h3>
+                <p>Crie um arquivo <code>.env</code> na raiz do projeto (opcional):</p>
+                <pre>OLLAMA_BASE_URL=http://localhost:11434
+NODE_ENV=development
+PORT=3000</pre>
+            </div>
+        </section>
+
+        <section>
+            <h2><span>2</span>Iniciando o Servidor</h2>
+            <div class="step">
+                <h3>Inicie o servidor de API</h3>
+                <pre>cd apps/api
+npm run dev</pre>
+                <p>O servidor estará disponível em <code>http://localhost:3000</code></p>
+            </div>
+
+            <div class="tip">
+                <strong>💡 Dica:</strong> Certifique-se de que o Ollama está rodando antes de iniciar o servidor.
+                <pre style="margin-top: 0.5rem;">ollama serve</pre>
+            </div>
+        </section>
+
+        <section>
+            <h2><span>3</span>Acessando o Aplicativo</h2>
+            <div class="step">
+                <p>Abra seu navegador e acesse:</p>
+                <pre>http://localhost:3000/app</pre>
+                <p>A interface do chat estará pronta para usar.</p>
+            </div>
+        </section>
+
+        <section>
+            <h2><span>4</span>Operações Comuns</h2>
+
+            <div class="step">
+                <h3>Criar uma nova conversa</h3>
+                <p>Clique no botão <strong>+</strong> ou use o atalho <span class="shortcut">Ctrl+N</span></p>
+            </div>
+
+            <div class="step">
+                <h3>Exportar conversa</h3>
+                <p>Menu → Exportar → Escolher formato (JSON ou Markdown)</p>
+            </div>
+
+            <div class="step">
+                <h3>Importar conversa</h3>
+                <p>Vá para "Importar" e selecione um arquivo JSON previously exported</p>
+            </div>
+
+            <div class="step">
+                <h3>Adicionar documentos (RAG)</h3>
+                <p>Na conversa, clique em "Adicionar Documentos" e faça upload de arquivos</p>
+            </div>
+
+            <div class="step">
+                <h3>Mudar modelo de IA</h3>
+                <p>Menu de configurações → Selecione um modelo do Ollama disponível</p>
+            </div>
+
+            <div class="step">
+                <h3>Gerenciar perfis de usuário</h3>
+                <p>Admin Panel → Usuários → Criar/Editar/Deletar perfis</p>
+            </div>
+        </section>
+
+        <section>
+            <h2><span>5</span>Atalhos de Teclado</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Atalho</th>
+                        <th>Ação</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><span class="shortcut">Ctrl+N</span></td>
+                        <td>Nova conversa</td>
+                    </tr>
+                    <tr>
+                        <td><span class="shortcut">Ctrl+E</span></td>
+                        <td>Exportar conversa atual</td>
+                    </tr>
+                    <tr>
+                        <td><span class="shortcut">Ctrl+/</span></td>
+                        <td>Mostrar ajuda</td>
+                    </tr>
+                    <tr>
+                        <td><span class="shortcut">Enter</span></td>
+                        <td>Enviar mensagem</td>
+                    </tr>
+                    <tr>
+                        <td><span class="shortcut">Shift+Enter</span></td>
+                        <td>Quebra de linha na mensagem</td>
+                    </tr>
+                </tbody>
+            </table>
+        </section>
+
+        <section>
+            <h2><span>6</span>Solução de Problemas</h2>
+
+            <div class="step">
+                <h3>❌ Erro: "Ollama não disponível"</h3>
+                <p>Certifique-se de que Ollama está rodando:</p>
+                <pre>ollama serve</pre>
+                <p>E recarregue a página.</p>
+            </div>
+
+            <div class="step">
+                <h3>❌ Erro: "Modelo não encontrado"</h3>
+                <p>Puxe um modelo do Ollama:</p>
+                <pre>ollama pull llama2
+ollama pull neural-chat
+ollama pull mistral</pre>
+            </div>
+
+            <div class="step">
+                <h3>❌ Histórico não está sendo salvo</h3>
+                <p>Verifique as permissões do diretório de banco de dados. O servidor precisa de acesso de escrita.</p>
+            </div>
+
+            <div class="step">
+                <h3>❌ Backup falha ao restaurar</h3>
+                <p>Se o backup está criptografado, certifique-se de que está usando a passphrase correta.</p>
+            </div>
+        </section>
+
+        <section>
+            <h2><span>7</span>Recursos Avançados</h2>
+
+            <div class="step">
+                <h3>Modo Admin</h3>
+                <p>Acesse o painel de admin em <code>/api/docs</code> para gerenciar:</p>
+                <ul style="margin-left: 1.5rem;">
+                    <li>Usuários e suas permissões</li>
+                    <li>Backups e recuperação</li>
+                    <li>Saúde do sistema e métricas</li>
+                    <li>Auditoria de eventos</li>
+                </ul>
+            </div>
+
+            <div class="step">
+                <h3>Backup Regular</h3>
+                <p>Configure backups automáticos em Configurações → Backup:</p>
+                <pre># Exportar manualmente:
+GET /api/backup/export?passphrase=sua_senha</pre>
+            </div>
+
+            <div class="step">
+                <h3>Integração com Documentos</h3>
+                <p>Use RAG (Retrieval-Augmented Generation) para adicionar contexto local a suas perguntas.</p>
+            </div>
+        </section>
+
+        <section class="cta">
+            <h2>Pronto para começar?</h2>
+            <p>Acesse o aplicativo e comece a conversar agora mesmo!</p>
+            <a href="/app">Abrir Chat Local</a>
+        </section>
+
+        <section>
+            <h2>Precisa de Ajuda?</h2>
+            <p>
+                Consulte <a href="/produto" style="color: #667eea;">a página de produto</a> para mais informações
+                ou visite a documentação completa no repositório.
+            </p>
+        </section>
+    </main>
+
+    <footer>
+        <p>&copy; 2024 Meu Chat Local. Sua privacidade é nossa prioridade.</p>
+    </footer>
+</body>
+</html>

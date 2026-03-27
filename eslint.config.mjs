@@ -5,7 +5,7 @@ export default [
   {
     ignores: [
       "**/node_modules/**",
-      "web/output.css",
+      "apps/web/output.css",
       "**/package-lock.json",
       "coverage/**",
       ".github/**",
@@ -13,7 +13,7 @@ export default [
   },
   js.configs.recommended,
   {
-    files: ["server/**/*.js"],
+    files: ["apps/api/**/*.js", "modules/**/*.js", "platform/**/*.js", "shared/**/*.js"],
     languageOptions: {
       ecmaVersion: "latest",
       sourceType: "module",
@@ -26,10 +26,10 @@ export default [
     },
   },
   {
-    files: ["web/**/*.js"],
+    files: ["apps/web/**/*.js"],
     languageOptions: {
       ecmaVersion: "latest",
-      sourceType: "script",
+      sourceType: "module",
       globals: {
         ...globals.browser,
         ...globals.es2021,
@@ -37,6 +37,7 @@ export default [
     },
     rules: {
       "no-console": "off",
+      "no-unused-vars": ["warn", { vars: "all", args: "none", ignoreRestSiblings: true }],
     },
   },
   {

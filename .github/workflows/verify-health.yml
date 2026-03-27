@@ -1,0 +1,48 @@
+name: Verify Health
+
+on:
+  pull_request:
+    branches: [main, master]
+    paths:
+      - apps/api/**
+      - modules/health/**
+      - platform/**
+      - shared/**
+      - ops/scripts/local/verify-health.sh
+      - package.json
+      - package-lock.json
+      - .github/workflows/verify-health.yml
+  push:
+    branches: [main, master]
+    paths:
+      - apps/api/**
+      - modules/health/**
+      - platform/**
+      - shared/**
+      - ops/scripts/local/verify-health.sh
+      - package.json
+      - package-lock.json
+      - .github/workflows/verify-health.yml
+
+jobs:
+  verify-health:
+    name: Verify Health (API)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies (root workspaces)
+        run: npm ci
+
+      - name: Run operational health verification
+        run: npm run verify:health

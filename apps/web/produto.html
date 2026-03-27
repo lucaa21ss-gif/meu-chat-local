@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meu Chat Local - Produto</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        header {
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 2rem;
+            text-align: center;
+        }
+        header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+        }
+        header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+        nav {
+            background: rgba(0, 0, 0, 0.6);
+            padding: 1rem;
+            text-align: center;
+        }
+        nav a {
+            color: white;
+            text-decoration: none;
+            margin: 0 1rem;
+            transition: opacity 0.3s;
+        }
+        nav a:hover {
+            opacity: 0.7;
+        }
+        main {
+            max-width: 1200px;
+            margin: 2rem auto;
+            padding: 2rem;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
+        h2 {
+            color: #667eea;
+            margin-top: 2rem;
+            margin-bottom: 1rem;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 0.5rem;
+        }
+        h2:first-child {
+            margin-top: 0;
+        }
+        .feature {
+            margin: 1rem 0;
+            padding: 1rem;
+            background: #f5f5f5;
+            border-left: 4px solid #667eea;
+            border-radius: 4px;
+        }
+        .feature strong {
+            color: #667eea;
+        }
+        .cta {
+            text-align: center;
+            margin-top: 2rem;
+            padding: 2rem;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 8px;
+            color: white;
+        }
+        .cta a {
+            display: inline-block;
+            margin-top: 1rem;
+            padding: 1rem 2rem;
+            background: white;
+            color: #667eea;
+            text-decoration: none;
+            border-radius: 4px;
+            font-weight: bold;
+            transition: transform 0.3s;
+        }
+        .cta a:hover {
+            transform: scale(1.05);
+        }
+        footer {
+            text-align: center;
+            padding: 2rem;
+            color: white;
+            background: rgba(0, 0, 0, 0.8);
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Meu Chat Local</h1>
+        <p>Assistente de IA Privado para Sua Máquina</p>
+    </header>
+
+    <nav>
+        <a href="/app">Acessar App</a>
+        <a href="/produto">Produto</a>
+        <a href="/guia">Guia Rápido</a>
+    </nav>
+
+    <main>
+        <section>
+            <h2>Sobre o Meu Chat Local</h2>
+            <p>
+                Meu Chat Local é um aplicativo de inteligência artificial que roda completamente na sua máquina,
+                oferecendo privacidade total, segurança local e independência de serviços em nuvem.
+            </p>
+        </section>
+
+        <section>
+            <h2>Principais Características</h2>
+
+            <div class="feature">
+                <strong>Privacidade local</strong>
+                <p>Todos os seus dados permanecem na sua máquina. Nenhuma informação é enviada para a nuvem.</p>
+            </div>
+
+            <div class="feature">
+                <strong>Modo Offline</strong>
+                <p>Use o assistente sem conexão com a internet. Funciona perfeitamente em ambientes isolados.</p>
+            </div>
+
+            <div class="feature">
+                <strong>Histórico Persistente</strong>
+                <p>Suas conversas são salvas localmente e sincronizadas entre abas. Acesse seu histórico quando precisar.</p>
+            </div>
+
+            <div class="feature">
+                <strong>Modelo Customizável</strong>
+                <p>Integração com Ollama para selecionar e executar diferentes modelos de linguagem localmente.</p>
+            </div>
+
+            <div class="feature">
+                <strong>Importação e Exportação</strong>
+                <p>Exporte suas conversas em JSON ou Markdown. Importe conversas anteriores com facilidade.</p>
+            </div>
+
+            <div class="feature">
+                <strong>Backup e Recuperação</strong>
+                <p>Crie backups criptografados de seus dados e restaure quando necessário.</p>
+            </div>
+
+            <div class="feature">
+                <strong>Suporte a Documentos</strong>
+                <p>Adicione documentos locais para enhancing as respostas do assistente (RAG).</p>
+            </div>
+
+            <div class="feature">
+                <strong>Controle de Usuários</strong>
+                <p>Múltiplos perfis de usuário com diferentes níveis de acesso e permissões.</p>
+            </div>
+
+            <div class="feature">
+                <strong>Monitoramento de Saúde</strong>
+                <p>Sistema integrado de saúde que monitora performance e disponibilidade.</p>
+            </div>
+
+            <div class="feature">
+                <strong>Auditoria Completa</strong>
+                <p>Todos os eventos críticos são registrados para rastreabilidade e conformidade.</p>
+            </div>
+        </section>
+
+        <section>
+            <h2>Casos de Uso</h2>
+            <ul style="margin-left: 1.5rem; line-height: 2;">
+                <li>Desenvolvimento e prototipagem de projetos</li>
+                <li>Análise de dados e documentos confidenciais</li>
+                <li>Ambientes regulados sem acesso à nuvem</li>
+                <li>Educação e orientação personalizada</li>
+                <li>Criação de conteúdo sem rastreamento online</li>
+                <li>Suporte em ambientes de trabalho desconectados</li>
+            </ul>
+        </section>
+
+        <section>
+            <h2>Requisitos Técnicos</h2>
+            <ul style="margin-left: 1.5rem; line-height: 2;">
+                <li>Node.js 20+</li>
+                <li>Ollama instalado (para execução de modelos de IA)</li>
+                <li>Navegador moderno (Chrome, Firefox, Safari ou Edge)</li>
+                <li>4GB+ de RAM recomendado</li>
+                <li>Espaço em disco para modelos de IA</li>
+            </ul>
+        </section>
+
+        <section class="cta">
+            <h2>Pronto para Experimentar?</h2>
+            <p>Comece a usar o Meu Chat Local agora.</p>
+            <a href="/app">Acessar Aplicativo</a>
+        </section>
+    </main>
+
+    <footer>
+        <p>&copy; 2024 Meu Chat Local. Construído com privacidade em primeiro lugar.</p>
+    </footer>
+</body>
+</html>

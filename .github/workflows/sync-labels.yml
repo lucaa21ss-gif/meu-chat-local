@@ -1,0 +1,93 @@
+name: Sync Labels
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/labels.yml
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Executar em modo dry-run (apenas listar diferencas sem aplicar)"
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "true"
+          - "false"
+
+jobs:
+  sync-labels:
+    name: Sincronizar labels com .github/labels.yml
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Sincronizar labels via github-script
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const yaml = require('js-yaml');
+
+            const dryRun = '${{ github.event.inputs.dry_run }}' === 'true';
+            const raw = fs.readFileSync('.github/labels.yml', 'utf8');
+            const desired = yaml.load(raw);
+
+            const { data: existing } = await github.rest.issues.listLabelsForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              per_page: 100,
+            });
+
+            const existingMap = Object.fromEntries(existing.map(l => [l.name, l]));
+            const desiredMap  = Object.fromEntries(desired.map(l => [l.name, l]));
+
+            // Criar ou atualizar labels
+            for (const label of desired) {
+              const current = existingMap[label.name];
+              const color = label.color.replace('#', '');
+
+              if (!current) {
+                core.info(`[CREATE] ${label.name}`);
+                if (!dryRun) {
+                  await github.rest.issues.createLabel({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    name: label.name,
+                    color,
+                    description: label.description || '',
+                  });
+                }
+              } else if (current.color !== color || current.description !== (label.description || '')) {
+                core.info(`[UPDATE] ${label.name}`);
+                if (!dryRun) {
+                  await github.rest.issues.updateLabel({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    name: label.name,
+                    color,
+                    description: label.description || '',
+                  });
+                }
+              } else {
+                core.info(`[OK]     ${label.name}`);
+              }
+            }
+
+            // Listar labels existentes nao definidas no arquivo (sem deletar automaticamente)
+            for (const name of Object.keys(existingMap)) {
+              if (!desiredMap[name]) {
+                core.warning(
+                  `Label "${name}" existe no repositorio mas nao esta definida em .github/labels.yml. ` +
+                  `Remova manualmente se nao for mais necessaria.`
+                );
+              }
+            }
+
+            if (dryRun) core.info('Modo dry-run: nenhuma alteracao foi aplicada.');

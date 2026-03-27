@@ -1,0 +1,92 @@
+# Definicao canonica de labels do repositorio meu-chat-local
+# Sincronizado automaticamente pelo workflow .github/workflows/sync-labels.yml
+# Categorias: area | risk | governance | sla | state
+
+# ── area/* ────────────────────────────────────────────────────────────────────
+- name: area/backend
+  color: "0075ca"
+  description: "Mudancas em modules/* ou apps/api (rotas, servicos, dominio)"
+
+- name: area/platform
+  color: "0075ca"
+  description: "Mudancas em platform/* (persistencia, fila, LLM, observabilidade)"
+
+- name: area/frontend
+  color: "0075ca"
+  description: "Mudancas em apps/web ou apps/web-admin"
+
+- name: area/docs
+  color: "0075ca"
+  description: "Atualizacoes de README, ADRs, runbooks ou docs/architecture"
+
+- name: area/infra
+  color: "0075ca"
+  description: "Mudancas em ops/docker, ops/scripts ou ops/github/workflows"
+
+- name: area/shared
+  color: "0075ca"
+  description: "Mudancas em shared/kernel ou shared/config (contratos transversais)"
+
+# ── risk/* ────────────────────────────────────────────────────────────────────
+- name: risk/low
+  color: "0e8a16"
+  description: "Mudanca sem impacto operacional ou de compliance"
+
+- name: risk/medium
+  color: "e4e669"
+  description: "Mudanca com impacto potencial em integridade de dados ou disponibilidade"
+
+- name: risk/high
+  color: "d93f0b"
+  description: "Mudanca critica: requer rollback detalhado obrigatorio antes do merge"
+
+# ── governance/* ──────────────────────────────────────────────────────────────
+- name: governance/adr-update
+  color: "6f42c1"
+  description: "PR cria ou altera um Mini-ADR inline do README"
+
+- name: governance/compliance-gap
+  color: "6f42c1"
+  description: "PR afeta ou resolve um gap de compliance documentado"
+
+- name: governance/breaking-change
+  color: "6f42c1"
+  description: "Mudanca incompativel com versao anterior (contrato de API ou schema)"
+
+# ── sla/* ─────────────────────────────────────────────────────────────────────
+- name: sla/hotfix
+  color: "b60205"
+  description: "Review e merge em ate 4 horas (incidente em producao)"
+
+- name: sla/1d
+  color: "e4e669"
+  description: "Review esperado em 1 dia util"
+
+- name: sla/2d
+  color: "c2e0c6"
+  description: "Review esperado em 2 dias uteis"
+
+- name: sla/3d
+  color: "c2e0c6"
+  description: "Review esperado em 3 dias uteis"
+
+- name: sla/escalated
+  color: "b60205"
+  description: "SLA original estourado — notificacao de escalonamento necessaria"
+
+# ── state/* ───────────────────────────────────────────────────────────────────
+- name: state/needs-review
+  color: "fbca04"
+  description: "PR aguardando revisao de pelo menos um owner"
+
+- name: state/changes-requested
+  color: "e4e669"
+  description: "Revisores solicitaram alteracoes antes do merge"
+
+- name: state/ready-to-merge
+  color: "0e8a16"
+  description: "Todas as validacoes passaram e aprovacoes foram concedidas"
+
+- name: state/blocked
+  color: "d93f0b"
+  description: "PR bloqueado por dependencia externa ou decisao pendente"

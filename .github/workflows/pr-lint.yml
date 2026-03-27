@@ -1,0 +1,116 @@
+name: PR Lint — Labels e Template
+
+on:
+  pull_request:
+    types: [opened, edited, labeled, unlabeled, synchronize]
+
+jobs:
+  validate-pr-labels:
+    name: Validar labels obrigatorias
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+
+    steps:
+      - name: Verificar label area/*
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: labels } = await github.rest.issues.listLabelsOnIssue({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const names = labels.map(l => l.name);
+
+            const hasArea = names.some(n => n.startsWith('area/'));
+            const hasRisk = names.some(n => n.startsWith('risk/'));
+            const hasSla  = names.some(n => n.startsWith('sla/'));
+
+            const missing = [];
+            if (!hasArea) missing.push('area/* (area/backend | area/platform | area/frontend | area/docs)');
+            if (!hasRisk) missing.push('risk/* (risk/low | risk/medium | risk/high)');
+            if (!hasSla)  missing.push('sla/* (sla/hotfix | sla/1d | sla/2d | sla/3d | sla/escalated)');
+
+            if (missing.length > 0) {
+              core.setFailed(
+                `PR esta faltando labels obrigatorias:\n  - ${missing.join('\n  - ')}\n\n` +
+                `Consulte a politica de labels em README.md — secao "Labels padrao de PR".`
+              );
+            } else {
+              core.info('Labels obrigatorias OK: area/*, risk/*, sla/*');
+            }
+
+  validate-pr-body:
+    name: Validar secoes do template de PR
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+
+    steps:
+      - name: Verificar secoes obrigatorias no corpo do PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const body = context.payload.pull_request.body || '';
+
+            const required = [
+              '## Resumo',
+              '## Classificacao',
+              '## Impacto arquitetural',
+              '## Validacao',
+              '## Rollback',
+            ];
+
+            const missing = required.filter(section => !body.includes(section));
+
+            if (missing.length > 0) {
+              core.setFailed(
+                `Secoes obrigatorias ausentes no corpo do PR:\n  - ${missing.join('\n  - ')}\n\n` +
+                `Use o template em .github/PULL_REQUEST_TEMPLATE.md como base.`
+              );
+            } else {
+              core.info('Corpo do PR possui todas as secoes obrigatorias.');
+            }
+
+  validate-risk-high-rollback:
+    name: Validar rollback detalhado para risk/high
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+
+    steps:
+      - name: Exigir rollback detalhado quando risk/high
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: labels } = await github.rest.issues.listLabelsOnIssue({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const names = labels.map(l => l.name);
+            const isHighRisk = names.includes('risk/high');
+
+            if (!isHighRisk) {
+              core.info('Nao e risk/high — checagem de rollback ignorada.');
+              return;
+            }
+
+            const body = context.payload.pull_request.body || '';
+            const rollbackSection = body.split('## Rollback')[1] || '';
+
+            // Exige pelo menos 20 caracteres apos o cabecalho de rollback
+            const rollbackContent = rollbackSection
+              .replace(/- Estrategia de rollback:\s*/, '')
+              .replace(/- Sinais para abortar deploy:\s*/, '')
+              .trim();
+
+            if (rollbackContent.length < 20) {
+              core.setFailed(
+                'PR marcado como risk/high mas a secao ## Rollback esta vazia ou incompleta.\n' +
+                'Detalhe a estrategia de rollback e os sinais para abortar o deploy antes de solicitar merge.'
+              );
+            } else {
+              core.info('Rollback detalhado OK para risk/high.');
+            }

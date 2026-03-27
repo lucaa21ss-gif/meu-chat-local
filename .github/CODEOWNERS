@@ -1,0 +1,69 @@
+# CODEOWNERS — meu-chat-local
+#
+# Derivado da Matriz RACI documentada no README.md (secao "Governanca de PR").
+# Legenda de times:
+#   @meu-chat-local/backend     — Responsible por logica de negocio e rotas HTTP
+#   @meu-chat-local/platform    — Accountable por infra local-first (db, queue, llm, fs)
+#   @meu-chat-local/frontend    — Responsible por UX, SPA e consumo de API
+#   @meu-chat-local/governance  — Accountable por compliance, RBAC, auditoria e aprovacoes
+#
+# Regra de precedencia: a ultima linha que der match em um caminho vence.
+# Referencia: https://docs.github.com/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# ── Fallback global ──────────────────────────────────────────────────────────
+# Qualquer arquivo nao coberto por uma regra especifica exige revisao de backend + platform
+*                                           @meu-chat-local/backend @meu-chat-local/platform
+
+# ── Logica de negocio (modules) ──────────────────────────────────────────────
+# RACI: Backend R/A | Platform C | Frontend C | Governance I
+modules/                                    @meu-chat-local/backend
+
+# Modulos sensiveis a compliance requerem revisao adicional de governance
+modules/approvals/                          @meu-chat-local/backend @meu-chat-local/governance
+modules/audit/                              @meu-chat-local/backend @meu-chat-local/governance
+modules/users/                              @meu-chat-local/backend @meu-chat-local/governance
+
+# ── Infraestrutura local-first (platform) ───────────────────────────────────
+# RACI: Platform R/A | Backend C | Governance C
+platform/                                   @meu-chat-local/platform
+platform/persistence/                       @meu-chat-local/platform @meu-chat-local/backend
+platform/security/                          @meu-chat-local/platform @meu-chat-local/governance
+
+# ── Bootstrap e wiring de runtime (apps/api) ────────────────────────────────
+# RACI: Backend R | Platform A
+apps/api/src/bootstrap/                     @meu-chat-local/backend @meu-chat-local/platform
+apps/api/src/entrypoints/                   @meu-chat-local/backend @meu-chat-local/platform
+apps/api/src/http/                          @meu-chat-local/backend
+
+# Dockerfile da API: mudanca de runtime afeta platform tambem
+apps/api/Dockerfile                         @meu-chat-local/platform @meu-chat-local/backend
+
+# ── Contratos transversais (shared) ─────────────────────────────────────────
+# RACI: Backend R | Platform A | Frontend C
+# Mudancas aqui tem impacto em todos os modulos — revisao cruzada obrigatoria
+shared/                                     @meu-chat-local/backend @meu-chat-local/platform
+shared/security/                            @meu-chat-local/backend @meu-chat-local/governance
+
+# ── Frontend (apps/web e apps/web-admin) ────────────────────────────────────
+# RACI: Frontend R/A | Backend C
+apps/web/                                   @meu-chat-local/frontend
+apps/web-admin/                             @meu-chat-local/frontend @meu-chat-local/backend
+
+# ── Infraestrutura de ops e CI/CD ───────────────────────────────────────────
+# Mudancas em docker-compose, scripts e workflows afetam todos — platform e governance
+ops/                                        @meu-chat-local/platform
+ops/docker/                                 @meu-chat-local/platform @meu-chat-local/backend
+ops/github/workflows/                       @meu-chat-local/platform @meu-chat-local/governance
+
+# ── Governanca do repositorio (.github) ─────────────────────────────────────
+# Qualquer mudanca nos arquivos de governanca exige aprovacao de governance + platform
+.github/                                    @meu-chat-local/governance @meu-chat-local/platform
+.github/CODEOWNERS                          @meu-chat-local/governance @meu-chat-local/platform @meu-chat-local/backend
+.github/labels.yml                          @meu-chat-local/governance
+.github/workflows/                          @meu-chat-local/platform @meu-chat-local/governance
+
+# ── Documentacao arquitetural ───────────────────────────────────────────────
+# RACI: qualquer camada pode propor; governance aprova impacto estrutural
+README.md                                   @meu-chat-local/backend @meu-chat-local/governance
+docs/                                       @meu-chat-local/backend @meu-chat-local/governance
+CHANGELOG.md                                @meu-chat-local/governance

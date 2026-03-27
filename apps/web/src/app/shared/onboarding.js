@@ -1,0 +1,196 @@
+import { createLocalStorage } from "../../infra/local-storage.js";
+
+/**
+ * OnboardingController — wizard de primeiro acesso (health check, smoke test, modelo).
+ *
+ * @param {Object} deps
+ * @param {import("../../bootstrap.js").AppState} deps.state
+ * @param {string}   deps.apiBase
+ * @param {HTMLElement|null}       deps.onboardingModalEl
+ * @param {HTMLSelectElement|null} deps.onboardingModelSelectEl
+ * @param {HTMLElement|null}       deps.onboardingHealthStatusEl
+ * @param {HTMLElement|null}       deps.onboardingSmokeStatusEl
+ * @param {() => HTMLSelectElement} deps.getMainModelSelect
+ * @param {() => string}          deps.getFallbackModel
+ * @param {(model: string) => void} deps.savePreferredModel
+ * @param {(msg: string, opts?: object) => void} deps.showStatus
+ * @param {typeof fetch}  [deps.fetchImpl=fetch]
+ * @returns {{ resetStatus, syncModels, closeModal, openModal, isOpen, runChecks, complete, handleBackdropClick }}
+ */
+export function createOnboardingController({
+  state,
+  apiBase,
+  onboardingModalEl,
+  onboardingModelSelectEl,
+  onboardingHealthStatusEl,
+  onboardingSmokeStatusEl,
+  getMainModelSelect,
+  getFallbackModel,
+  savePreferredModel,
+  showStatus,
+  fetchImpl = fetch,
+}) {
+  const storage = createLocalStorage();
+  function setStatusText(element, text) {
+    if (element) {
+      element.textContent = text;
+    }
+  }
+
+  function openModalElement(element) {
+    if (!element) return;
+    element.classList.remove("hidden");
+    element.classList.add("flex");
+  }
+
+  function closeModalElement(element) {
+    if (!element) return;
+    element.classList.add("hidden");
+    element.classList.remove("flex");
+  }
+
+  function resetStatus() {
+    state.onboardingChecksOk = false;
+    setStatusText(onboardingHealthStatusEl, "API: pendente");
+    setStatusText(onboardingSmokeStatusEl, "Teste de chat: pendente");
+  }
+
+  function syncModels() {
+    const mainModelSelect = getMainModelSelect();
+    if (!mainModelSelect || !onboardingModelSelectEl) {
+      return;
+    }
+
+    onboardingModelSelectEl.innerHTML = "";
+    Array.from(mainModelSelect.options).forEach((option) => {
+      const cloned = document.createElement("option");
+      cloned.value = option.value;
+      cloned.textContent = option.textContent;
+      onboardingModelSelectEl.appendChild(cloned);
+    });
+
+    onboardingModelSelectEl.value = mainModelSelect.value;
+  }
+
+  function closeModal() {
+    closeModalElement(onboardingModalEl);
+  }
+
+  function openModal() {
+    if (!onboardingModalEl) {
+      return;
+    }
+    syncModels();
+    resetStatus();
+    openModalElement(onboardingModalEl);
+  }
+
+  function isOpen() {
+    return !!onboardingModalEl && !onboardingModalEl.classList.contains("hidden");
+  }
+
+  async function runChecks() {
+    const selectedModel = onboardingModelSelectEl?.value || getFallbackModel();
+    const mainModelSelect = getMainModelSelect();
+    if (mainModelSelect && selectedModel) {
+      mainModelSelect.value = selectedModel;
+      savePreferredModel(selectedModel);
+    }
+
+    state.onboardingChecksOk = false;
+    setStatusText(onboardingHealthStatusEl, "API: verificando...");
+    setStatusText(onboardingSmokeStatusEl, "Teste de chat: aguardando...");
+
+    try {
+      const healthResponse = await fetchImpl(`${apiBase}/healthz`);
+      if (!healthResponse.ok) {
+        throw new Error("API indisponivel");
+      }
+      setStatusText(onboardingHealthStatusEl, "API: conectada");
+    } catch (error) {
+      setStatusText(onboardingHealthStatusEl, `API: falha (${error.message})`);
+      setStatusText(onboardingSmokeStatusEl, "Teste de chat: cancelado");
+      showStatus(`Falha no onboarding: ${error.message}`, { type: "error" });
+      return;
+    }
+
+    const tempChatId = `onboarding-${Date.now()}`;
+    try {
+      const smokeResponse = await fetchImpl(`${apiBase}/api/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          chatId: tempChatId,
+          model: selectedModel,
+          message: "Responda apenas OK para validar onboarding.",
+          temperature: 0,
+          context: 512,
+        }),
+      });
+
+      if (!smokeResponse.ok) {
+        throw new Error(`HTTP ${smokeResponse.status}`);
+      }
+
+      const payload = await smokeResponse.json();
+      const reply = String(payload.reply || "").trim();
+      if (!reply) {
+        throw new Error("resposta vazia");
+      }
+
+      setStatusText(onboardingSmokeStatusEl, `Teste de chat: ok (${reply.slice(0, 24)})`);
+      state.onboardingChecksOk = true;
+      showStatus("Onboarding validado com sucesso.", { type: "success" });
+    } catch (error) {
+      setStatusText(onboardingSmokeStatusEl, `Teste de chat: falha (${error.message})`);
+      showStatus(`Falha no teste rapido: ${error.message}`, { type: "error" });
+    } finally {
+      try {
+        await fetchImpl(`${apiBase}/api/chats/${encodeURIComponent(tempChatId)}`, {
+          method: "DELETE",
+        });
+      } catch {
+        // Ignora falha de limpeza do chat temporario.
+      }
+    }
+  }
+
+  function complete() {
+    const selectedModel = onboardingModelSelectEl?.value || "";
+    const mainModelSelect = getMainModelSelect();
+    if (mainModelSelect && selectedModel) {
+      mainModelSelect.value = selectedModel;
+      savePreferredModel(selectedModel);
+    }
+
+    storage.setRaw("onboardingDone", "true");
+    closeModal();
+
+    if (state.onboardingChecksOk) {
+      showStatus("Assistente inicial concluido.", { type: "success" });
+      return;
+    }
+
+    showStatus("Preferencias salvas. Rode a verificacao quando quiser.", {
+      type: "info",
+      autoHideMs: 3500,
+    });
+  }
+
+  function handleBackdropClick(event) {
+    if (event.target === onboardingModalEl) {
+      closeModal();
+    }
+  }
+
+  return {
+    resetStatus,
+    syncModels,
+    closeModal,
+    openModal,
+    isOpen,
+    runChecks,
+    complete,
+    handleBackdropClick,
+  };
+}
