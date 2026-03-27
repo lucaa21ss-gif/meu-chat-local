@@ -97,7 +97,8 @@ jobs:
           node scripts/skill-validator-schema-note.mjs \
             --base-ref "$BASE_REF" \
             --head-ref "${{ github.sha }}" \
-            --output skill-validator-schema-change.md
+            --output skill-validator-schema-change.md \
+            $(if [ "${{ vars.SKILL_SCHEMA_CONTRACT_ENFORCE }}" = "true" ]; then echo "--fail-on-drift"; fi)
 
       - name: Upload skill validator report
         if: always()

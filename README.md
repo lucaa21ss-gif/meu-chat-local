@@ -38,6 +38,7 @@ Para cenarios de Gemini, priorize a skill `gemini-context-profissional` e valide
 - O job `Skill Governance` roda no workflow de CI e valida o catalogo de skills em modo strict.
 - Em caso de falha, consulte o artifact `skill-validator-report` no workflow `CI` para diagnostico rapido.
 - Para governanca de contrato, consulte tambem o artifact `skill-validator-schema-change` (arquivo `skill-validator-schema-change.md`).
+- Para transformar drift de contrato em erro de pipeline, configure a variavel de repositorio `SKILL_SCHEMA_CONTRACT_ENFORCE=true`.
 - Validacao local recomendada antes de abrir PR:
   - `npm run test:skills:validator`
   - `npm run skill:validate:strict`

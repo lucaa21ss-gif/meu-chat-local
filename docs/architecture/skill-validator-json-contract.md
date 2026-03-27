@@ -60,6 +60,7 @@ Lista de objetos com:
 - Confirmar se houve alteracao semantica de `summary`, `byClass`, `filteredByClass` ou `issues`.
 - Se qualquer item acima for verdadeiro, incrementar `schemaVersion` e atualizar testes de contrato.
 - Gerar e revisar o artifact `skill-validator-schema-change.md` no workflow de CI.
+- Opcional: habilitar gate de drift via variavel `SKILL_SCHEMA_CONTRACT_ENFORCE=true` no CI para falhar quando houver descompasso entre contrato e payload.
 
 ## Comandos Uteis
 - JSON identado:

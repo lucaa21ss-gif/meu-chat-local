@@ -48,16 +48,26 @@ function main() {
   const headRef = getArgValue("--head-ref") || "HEAD";
   const outputArg = getArgValue("--output") || "artifacts/skill-validator-schema-change.md";
   const outputPath = path.resolve(rootDir, outputArg);
+  const failOnDrift = process.argv.includes("--fail-on-drift");
 
   const previousVersionArg = getArgValue("--previous-version");
   const currentVersionArg = getArgValue("--current-version");
+  const documentedPreviousArg = getArgValue("--documented-previous-version");
+  const documentedCurrentArg = getArgValue("--documented-current-version");
+  const contractUpdatedArg = getArgValue("--contract-updated");
 
   const validatorPath = "scripts/skill-validator.mjs";
+  const contractPath = "docs/architecture/skill-validator-json-contract.md";
 
   const currentContent = currentVersionArg
     ? null
     : readFileSafe(path.resolve(rootDir, validatorPath));
   const previousContent = previousVersionArg ? null : readFileFromRef(baseRef, validatorPath);
+
+  const currentContractContent = documentedCurrentArg
+    ? null
+    : readFileSafe(path.resolve(rootDir, contractPath));
+  const previousContractContent = documentedPreviousArg ? null : readFileFromRef(baseRef, contractPath);
 
   const currentVersion = currentVersionArg
     ? Number(currentVersionArg)
@@ -66,10 +76,35 @@ function main() {
     ? Number(previousVersionArg)
     : extractSchemaVersion(previousContent);
 
+  const documentedCurrentVersion = documentedCurrentArg
+    ? Number(documentedCurrentArg)
+    : extractSchemaVersion(currentContractContent);
+  const documentedPreviousVersion = documentedPreviousArg
+    ? Number(documentedPreviousArg)
+    : extractSchemaVersion(previousContractContent);
+
   const hasVersionChange =
     Number.isFinite(currentVersion) &&
     Number.isFinite(previousVersion) &&
     currentVersion !== previousVersion;
+
+  const contractUpdated =
+    contractUpdatedArg === "true"
+      ? true
+      : contractUpdatedArg === "false"
+      ? false
+      : currentContractContent !== null && previousContractContent !== null
+      ? currentContractContent !== previousContractContent
+      : null;
+
+  const documentMatchesCurrent =
+    Number.isFinite(currentVersion) &&
+    Number.isFinite(documentedCurrentVersion) &&
+    currentVersion === documentedCurrentVersion;
+
+  const hasDrift =
+    !documentMatchesCurrent ||
+    (hasVersionChange && contractUpdated === false);
 
   const generatedAt = new Date().toISOString();
 
@@ -80,6 +115,11 @@ function main() {
   body += `- headRef: ${headRef}\n`;
   body += `- previousSchemaVersion: ${previousVersion ?? "unknown"}\n`;
   body += `- currentSchemaVersion: ${currentVersion ?? "unknown"}\n`;
+  body += `- documentedPreviousSchemaVersion: ${documentedPreviousVersion ?? "unknown"}\n`;
+  body += `- documentedCurrentSchemaVersion: ${documentedCurrentVersion ?? "unknown"}\n`;
+  body += `- contractUpdated: ${contractUpdated ?? "unknown"}\n`;
+  body += `- documentMatchesCurrent: ${documentMatchesCurrent ? "yes" : "no"}\n`;
+  body += `- driftDetected: ${hasDrift ? "yes" : "no"}\n`;
   body += `- changed: ${hasVersionChange ? "yes" : "no"}\n\n`;
 
   if (hasVersionChange) {
@@ -93,8 +133,17 @@ function main() {
     body += "Nenhuma mudanca de `schemaVersion` detectada neste intervalo.\n";
   }
 
+  if (hasDrift) {
+    body += "\n## Drift\n\n";
+    body += "Foi detectado drift entre contrato documentado e payload emitido, ou mudanca sem atualizacao de contrato.\n";
+  }
+
   ensureDirFor(outputPath);
   fs.writeFileSync(outputPath, body, "utf8");
+
+  if (failOnDrift && hasDrift) {
+    process.exitCode = 1;
+  }
 }
 
 main();

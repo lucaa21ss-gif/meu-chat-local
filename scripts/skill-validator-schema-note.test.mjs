@@ -73,3 +73,77 @@ test("schema note marks no change when versions are equal", () => {
   assert.match(content, /changed: no/);
   assert.match(content, /Nenhuma mudanca de `schemaVersion` detectada/);
 });
+
+test("schema note detects drift when documented version mismatches current", () => {
+  const root = makeTempWorkspace();
+  const output = "artifacts/schema-note.md";
+
+  const result = spawnSync(
+    process.execPath,
+    [
+      scriptPath,
+      "--output",
+      output,
+      "--previous-version",
+      "1",
+      "--current-version",
+      "2",
+      "--documented-previous-version",
+      "1",
+      "--documented-current-version",
+      "1",
+      "--contract-updated",
+      "false",
+      "--base-ref",
+      "a",
+      "--head-ref",
+      "b",
+    ],
+    { cwd: root, encoding: "utf8" },
+  );
+
+  assert.equal(result.status, 0, `stdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
+
+  const outPath = path.join(root, output);
+  const content = fs.readFileSync(outPath, "utf8");
+
+  assert.match(content, /driftDetected: yes/);
+  assert.match(content, /documentMatchesCurrent: no/);
+  assert.match(content, /## Drift/);
+});
+
+test("schema note fails when --fail-on-drift is enabled and drift exists", () => {
+  const root = makeTempWorkspace();
+  const output = "artifacts/schema-note.md";
+
+  const result = spawnSync(
+    process.execPath,
+    [
+      scriptPath,
+      "--fail-on-drift",
+      "--output",
+      output,
+      "--previous-version",
+      "1",
+      "--current-version",
+      "2",
+      "--documented-previous-version",
+      "1",
+      "--documented-current-version",
+      "1",
+      "--contract-updated",
+      "false",
+      "--base-ref",
+      "a",
+      "--head-ref",
+      "b",
+    ],
+    { cwd: root, encoding: "utf8" },
+  );
+
+  assert.equal(result.status, 1, `stdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
+
+  const outPath = path.join(root, output);
+  const content = fs.readFileSync(outPath, "utf8");
+  assert.match(content, /driftDetected: yes/);
+});
