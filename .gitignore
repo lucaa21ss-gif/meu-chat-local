@@ -9,6 +9,8 @@ yarn.lock
 
 # Database
 *.db
+*.db-shm
+*.db-wal
 server/chat.db
 server/chat.db-shm
 server/chat.db-wal
