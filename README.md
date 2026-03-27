@@ -33,6 +33,14 @@ Este projeto mantem skills em `.agents/skills/` para padronizar como assistentes
 
 Para cenarios de Gemini, priorize a skill `gemini-context-profissional` e valide se `CONTEXT.md` esta atualizado.
 
+### Governanca de skills (CI)
+
+- O job `Skill Governance` roda no workflow de CI e valida o catalogo de skills em modo strict.
+- Em caso de falha, consulte o artifact `skill-validator-report` no workflow `CI` para diagnostico rapido.
+- Validacao local recomendada antes de abrir PR:
+  - `npm run test:skills:validator`
+  - `npm run skill:validate:strict`
+
 - Aplicacao local completa com API Node.js/Express nativa (ESM), Web e persistencia SQLite
 - Servidor baseado em ESM nativo (Node.js), com grafo de dependencias estatico via `import`/`export`, fronteiras claras entre entrypoint/bootstrap/http/modulos e menor acoplamento entre camadas arquiteturais
 - Integracao com Ollama para chat sincrono e streaming token a token

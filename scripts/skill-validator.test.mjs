@@ -140,3 +140,94 @@ templates:
   assert.match(result.stderr, /Registry skill sem tags: demo-skill/);
   assert.match(result.stderr, /Registry skill sem requires: demo-skill/);
 });
+
+test("validator strict fails when registry references a non-existent skill path", () => {
+  const root = makeTempWorkspace();
+
+  writeFile(root, ".agents/skills/demo-skill/SKILL.md", validSkillMd("demo-skill"));
+  writeFile(root, ".agents/skills/.template/SKILL.md", validSkillMd("template-skill"));
+  writeFile(
+    root,
+    ".agents/SKILLS-REGISTRY.yaml",
+    `schemaVersion: 1
+updatedAt: 2026-03-27
+owner: test
+
+skills:
+  - name: demo-skill
+    version: 1.0.0
+    status: migrated
+    path: .agents/skills/does-not-exist/SKILL.md
+    tags: [test]
+    requires: []
+
+templates:
+  - name: default
+    path: .agents/skills/.template/SKILL.md
+`,
+  );
+
+  const result = runValidator(root, ["--strict"]);
+
+  assert.equal(result.status, 1, `stdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
+  assert.match(result.stderr, /Registry referencia caminho inexistente: .agents\/skills\/does-not-exist\/SKILL.md/);
+  assert.match(result.stderr, /Skill sem referencia no registry: .agents\/skills\/demo-skill\/SKILL.md/);
+});
+
+test("validator strict fails when skill frontmatter is malformed", () => {
+  const root = makeTempWorkspace();
+
+  writeFile(
+    root,
+    ".agents/skills/demo-skill/SKILL.md",
+    `---
+name: demo-skill
+version: 1.0.0
+description: skill de teste
+lastReviewed: 2026-03-27
+
+# Skill de Teste
+
+## Proposito
+Texto.
+
+## Escopo
+Texto.
+
+## Instrucoes
+1. Passo.
+
+## Melhores Praticas
+Texto.
+
+## Validacao
+Texto.
+`,
+  );
+  writeFile(root, ".agents/skills/.template/SKILL.md", validSkillMd("template-skill"));
+  writeFile(
+    root,
+    ".agents/SKILLS-REGISTRY.yaml",
+    `schemaVersion: 1
+updatedAt: 2026-03-27
+owner: test
+
+skills:
+  - name: demo-skill
+    version: 1.0.0
+    status: migrated
+    path: .agents/skills/demo-skill/SKILL.md
+    tags: [test]
+    requires: []
+
+templates:
+  - name: default
+    path: .agents/skills/.template/SKILL.md
+`,
+  );
+
+  const result = runValidator(root, ["--strict"]);
+
+  assert.equal(result.status, 1, `stdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
+  assert.match(result.stderr, /frontmatter malformado \(delimitador final ausente\)/);
+});
