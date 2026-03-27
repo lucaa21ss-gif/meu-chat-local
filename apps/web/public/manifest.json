@@ -1,15 +1,15 @@
 {
   "name": "Meu Chat Local",
   "short_name": "ChatLocal",
-  "description": "Chat local com streaming, foco em privacidade e uso em rede domestica.",
+  "description": "Frontend unico responsivo em React para uso local e rede domestica.",
   "start_url": "/app",
   "scope": "/",
   "display": "standalone",
-  "background_color": "#030712",
-  "theme_color": "#030712",
+  "background_color": "#0b1220",
+  "theme_color": "#0b1220",
   "icons": [
     {
-      "src": "/assets/logo-chat-local.svg",
+      "src": "/icons/chat-local.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any"

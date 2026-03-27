@@ -1,10 +1,8 @@
 import path from "node:path";
-import express from "express";
 
 export function registerAppRoutes(app, deps) {
   const {
     webDir,
-    adminWebDir,
     HttpError,
     registerHealthRoutes,
     registerChatRoutes,
@@ -56,8 +54,10 @@ export function registerAppRoutes(app, deps) {
 
   const staticPages = [
     ["/app", "index.html"],
-    ["/produto", "produto.html"],
-    ["/guia", "guia.html"],
+    ["/admin", "index.html"],
+    ["/admin/*", "index.html"],
+    ["/produto", "index.html"],
+    ["/guia", "index.html"],
     ["/", "index.html"],
   ];
 
@@ -65,25 +65,6 @@ export function registerAppRoutes(app, deps) {
     app.get(routePath, (_req, res) => {
       res.sendFile(path.join(webDir, fileName));
     });
-  });
-
-  app.use(
-    "/admin",
-    express.static(adminWebDir, {
-      maxAge: "1d",
-      etag: false,
-      dotfiles: "ignore",
-      redirect: false,
-      index: false,
-    }),
-  );
-
-  app.get("/admin", (_req, res) => {
-    res.sendFile(path.join(adminWebDir, "index.html"));
-  });
-
-  app.get("/admin/*", (_req, res) => {
-    res.sendFile(path.join(adminWebDir, "index.html"));
   });
 
   app.use((err, req, res, next) => {

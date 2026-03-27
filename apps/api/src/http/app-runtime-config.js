@@ -1,4 +1,5 @@
 import path from "node:path";
+import fs from "node:fs";
 
 export function createAppRuntimeConfig({
   deps,
@@ -9,7 +10,11 @@ export function createAppRuntimeConfig({
   DEFAULT_RETRY_DELAYS_MS,
   buildCorsOriginValidator,
 }) {
-  const webDir = deps.webDir || path.resolve(serverDir, "../web");
+  const defaultWebDistDir = path.resolve(serverDir, "../web/dist");
+  const defaultLegacyWebDir = path.resolve(serverDir, "../web");
+  const webDir =
+    deps.webDir ||
+    (fs.existsSync(defaultWebDistDir) ? defaultWebDistDir : defaultLegacyWebDir);
   const adminWebDir = deps.adminWebDir || path.resolve(serverDir, "../web-admin/dist");
   const corsOrigin = buildCorsOriginValidator(
     deps.allowedOrigin ?? process.env.FRONTEND_ORIGIN,

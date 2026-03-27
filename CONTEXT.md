@@ -7,8 +7,8 @@ Este arquivo fornece contexto global do projeto para ferramentas de assistencia,
 O repositorio segue um modelo de monorepo com tres aplicacoes principais em `apps/`:
 
 - `apps/api`: core backend em Node.js/Express, responsavel por API HTTP, roteamento, servico de arquivos estaticos e integracao com os modulos de dominio. Porta padrao: 4000.
-- `apps/web`: frontend do usuario final. O build estatico e servido pela API principal.
-- `apps/web-admin`: painel operacional/administrativo. Em producao local e deploy integrado, e servido pela API principal na rota `/admin`.
+- `apps/web`: frontend unico em React (Vite), com UI principal e rota administrativa `/admin` no mesmo app.
+- `apps/web-admin`: app legado separado, mantido para compatibilidade durante migracao.
 
 ### Modo Servico de Rede Domestica
 
@@ -32,14 +32,15 @@ O repositorio segue um modelo de monorepo com tres aplicacoes principais em `app
 ### 2) apps/web
 
 - Papel: interface do usuario final.
-- Distribuicao: frontend estatico servido pela API.
+- Distribuicao: build estatico React servido pela API (`apps/web/dist`).
 - Integracao: consome endpoints do backend para recursos de chat, dados e operacoes de usuario.
+- Rotas de runtime: `/`, `/app`, `/admin`, `/produto`, `/guia`.
 
 ### 3) apps/web-admin
 
 - Papel: interface operacional para manutencao e observabilidade.
-- Desenvolvimento local: executado via Vite em modo dev.
-- Integracao de runtime: build publicado sob `/admin` pelo backend (`apps/api`), no mesmo host do frontend principal.
+- Status: legado para migracao incremental.
+- Runtime principal atual: interface admin consolidada em `apps/web` na rota `/admin`.
 
 ## Estrutura Relacionada
 
@@ -60,5 +61,5 @@ O repositorio segue um modelo de monorepo com tres aplicacoes principais em `app
 
 - Considere este repositorio como um sistema unico com tres apps especializadas e runtime unificado no servidor principal.
 - Ao responder sobre UI principal, priorize `apps/web`.
-- Ao responder sobre operacao/administracao, priorize `apps/web-admin` como origem de codigo e rota runtime `/admin`.
+- Ao responder sobre operacao/administracao, priorize `apps/web` na rota `/admin`.
 - Ao responder sobre backend e integracao, priorize `apps/api` na porta 4000.
