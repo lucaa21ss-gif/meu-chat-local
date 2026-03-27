@@ -300,8 +300,75 @@ templates:
 
   assert.equal(result.status, 3, `stdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
   const output = JSON.parse(result.stdout);
+  assert.ok(output.meta.generatedAt);
   assert.equal(output.summary.exitCode, 3);
   assert.ok(output.summary.warnings > 0);
   assert.ok(output.byClass.consistency.warnings > 0);
   assert.ok(Array.isArray(output.issues));
+});
+
+test("validator JSON supports --class filter", () => {
+  const root = makeTempWorkspace();
+
+  writeFile(root, ".agents/skills/demo-skill/SKILL.md", validSkillMd("demo-skill"));
+  writeFile(root, ".agents/skills/.template/SKILL.md", validSkillMd("template-skill"));
+  writeFile(
+    root,
+    ".agents/SKILLS-REGISTRY.yaml",
+    `schemaVersion: 1
+updatedAt: 2026-03-27
+owner: test
+
+skills:
+  - name: demo-skill
+    version: 1.0.0
+    status: migrated
+    path: .agents/skills/demo-skill/SKILL.md
+
+templates:
+  - name: default
+    path: .agents/skills/.template/SKILL.md
+`,
+  );
+
+  const result = runValidator(root, ["--strict", "--json", "--class", "consistency"]);
+
+  assert.equal(result.status, 3, `stdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
+  const output = JSON.parse(result.stdout);
+  assert.equal(output.summary.classFilter, "consistency");
+  assert.ok(output.summary.filteredWarnings > 0);
+  assert.equal(output.filteredByClass.consistency.warnings, output.summary.filteredWarnings);
+  assert.ok(output.issues.every((issue) => issue.class === "consistency"));
+});
+
+test("validator strict fails with invalid --class value", () => {
+  const root = makeTempWorkspace();
+
+  writeFile(root, ".agents/skills/demo-skill/SKILL.md", validSkillMd("demo-skill"));
+  writeFile(root, ".agents/skills/.template/SKILL.md", validSkillMd("template-skill"));
+  writeFile(
+    root,
+    ".agents/SKILLS-REGISTRY.yaml",
+    `schemaVersion: 1
+updatedAt: 2026-03-27
+owner: test
+
+skills:
+  - name: demo-skill
+    version: 1.0.0
+    status: migrated
+    path: .agents/skills/demo-skill/SKILL.md
+    tags: [test]
+    requires: []
+
+templates:
+  - name: default
+    path: .agents/skills/.template/SKILL.md
+`,
+  );
+
+  const result = runValidator(root, ["--strict", "--class", "invalid-class"]);
+
+  assert.equal(result.status, 2, `stdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
+  assert.match(result.stderr, /Classe invalida para --class: invalid-class/);
 });

@@ -1,10 +1,12 @@
 #!/usr/bin/env node
+import { execSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 
 const rootDir = process.cwd();
 const strictMode = process.argv.includes("--strict");
 const jsonMode = process.argv.includes("--json");
+const classFilter = getArgValue("--class");
 
 const EXIT_OK = 0;
 const EXIT_ERRORS = 2;
@@ -61,6 +63,44 @@ function classifyIssue(message) {
   }
 
   return "other";
+}
+
+function getArgValue(flag) {
+  const idx = process.argv.indexOf(flag);
+  if (idx === -1) return null;
+
+  const value = process.argv[idx + 1];
+  if (!value || value.startsWith("--")) return null;
+  return value;
+}
+
+function getGitCommit() {
+  try {
+    return execSync("git rev-parse --short HEAD", {
+      cwd: rootDir,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    }).trim();
+  } catch {
+    return null;
+  }
+}
+
+function aggregateByClass(issueList) {
+  const aggregated = {
+    structure: { errors: 0, warnings: 0 },
+    consistency: { errors: 0, warnings: 0 },
+    naming: { errors: 0, warnings: 0 },
+    other: { errors: 0, warnings: 0 },
+  };
+
+  for (const issue of issueList) {
+    if (!aggregated[issue.class]) continue;
+    if (issue.level === "error") aggregated[issue.class].errors += 1;
+    if (issue.level === "warn") aggregated[issue.class].warnings += 1;
+  }
+
+  return aggregated;
 }
 
 function recordIssue(level, message) {
@@ -294,6 +334,10 @@ function validateRegistryFile(skillFiles) {
 }
 
 function main() {
+  if (classFilter && !knownClasses.includes(classFilter)) {
+    error(`Classe invalida para --class: ${classFilter}. Use: ${knownClasses.join(", ")}`);
+  }
+
   const files = getSkillFiles();
   if (files.length === 0) {
     error("Nenhum SKILL.md encontrado em .agents/skills");
@@ -304,6 +348,12 @@ function main() {
   }
 
   validateRegistryFile(files);
+
+  const filteredIssues = classFilter ? issues.filter((issue) => issue.class === classFilter) : issues;
+
+  const filteredErrorCount = filteredIssues.filter((issue) => issue.level === "error").length;
+  const filteredWarningCount = filteredIssues.filter((issue) => issue.level === "warn").length;
+  const filteredByClass = aggregateByClass(filteredIssues);
 
   const totalIssues = errorCount + warningCount;
   let exitCode = EXIT_OK;
@@ -316,16 +366,24 @@ function main() {
 
   if (jsonMode) {
     const payload = {
+      meta: {
+        generatedAt: new Date().toISOString(),
+        gitCommit: getGitCommit(),
+      },
       summary: {
         skillsEvaluated: files.length,
         errors: errorCount,
         warnings: warningCount,
+        filteredErrors: filteredErrorCount,
+        filteredWarnings: filteredWarningCount,
         strictMode,
         jsonMode,
+        classFilter,
         exitCode,
       },
       byClass,
-      issues,
+      filteredByClass,
+      issues: filteredIssues,
     };
 
     process.stdout.write(`${JSON.stringify(payload, null, 2)}\n`);
@@ -337,6 +395,11 @@ function main() {
   console.log(`- skills avaliadas: ${files.length}`);
   console.log(`- erros: ${errorCount}`);
   console.log(`- avisos: ${warningCount}`);
+  if (classFilter) {
+    console.log(`- filtro de classe: ${classFilter}`);
+    console.log(`- erros (filtrados): ${filteredErrorCount}`);
+    console.log(`- avisos (filtrados): ${filteredWarningCount}`);
+  }
 
   const classSummary = Object.entries(byClass).filter(([, counts]) => counts.errors + counts.warnings > 0);
   if (classSummary.length > 0) {
