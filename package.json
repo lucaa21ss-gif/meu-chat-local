@@ -36,8 +36,10 @@
     "test:skills:validator": "node --test scripts/skill-validator.test.mjs",
     "test:skills:schema-note": "node --test scripts/skill-validator-schema-note.test.mjs",
     "test:skills:enforcement-status": "node --test scripts/skill-schema-enforcement-status.test.mjs",
+    "test:skills:governance-preflight": "node --test scripts/skill-governance-preflight.test.mjs",
     "skill:schema-note": "node scripts/skill-validator-schema-note.mjs",
     "skill:schema-enforcement:status": "node scripts/skill-schema-enforcement-status.mjs",
+    "skill:governance:preflight": "node scripts/skill-governance-preflight.mjs",
     "admin:dev": "npm run dev --workspace apps/web-admin",
     "admin:build": "npm run build --workspace apps/web-admin",
     "admin:preview": "npm run preview --workspace apps/web-admin"
