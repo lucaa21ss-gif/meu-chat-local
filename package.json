@@ -28,6 +28,8 @@
     "dist:start": "bash ops/scripts/local/start.sh",
     "dist:stop": "bash ops/scripts/local/stop.sh",
     "dist:uninstall": "bash ops/scripts/local/uninstall.sh",
+    "skill:validate": "node scripts/skill-validator.mjs",
+    "skill:validate:strict": "node scripts/skill-validator.mjs --strict",
     "admin:dev": "npm run dev --workspace apps/web-admin",
     "admin:build": "npm run build --workspace apps/web-admin",
     "admin:preview": "npm run preview --workspace apps/web-admin"

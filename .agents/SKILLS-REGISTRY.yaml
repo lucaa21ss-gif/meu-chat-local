@@ -1,0 +1,50 @@
+schemaVersion: 1
+updatedAt: 2026-03-27
+owner: meu-chat-local
+
+skills:
+  - name: skill-creator
+    version: 2.0.0
+    status: migrated
+    path: .agents/skills/skill-creator/SKILL.md
+    tags: [meta, governance, lifecycle]
+    requires: [.agents/skills/.template/SKILL.md]
+
+  - name: gemini-context-profissional
+    version: 1.1.0
+    status: migrated
+    path: .agents/skills/gemini-context-profissional/SKILL.md
+    tags: [gemini, architecture, onboarding]
+    requires: [CONTEXT.md, GEMINI.md]
+
+  - name: arquitetura
+    version: 1.1.0
+    status: migrated
+    path: .agents/skills/arquitetura/SKILL.md
+    tags: [architecture, design, mapping]
+    requires: [README.md]
+
+  - name: portuguese_assistant
+    version: 1.0.0
+    status: legacy
+    path: .agents/skills/portuguese_assistant/SKILL.md
+    tags: [language, communication]
+    requires: []
+
+  - name: code-reviewer
+    version: 1.0.0
+    status: legacy
+    path: .agents/skills/code-reviewer/SKILL.md
+    tags: [review, quality, security]
+    requires: []
+
+  - name: local-first
+    version: 1.0.0
+    status: legacy
+    path: .agents/skills/local-first/SKILL.md
+    tags: [local-first, offline, privacy]
+    requires: []
+
+templates:
+  - name: default-skill-template
+    path: .agents/skills/.template/SKILL.md
