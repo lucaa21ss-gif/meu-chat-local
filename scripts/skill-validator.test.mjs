@@ -307,10 +307,10 @@ templates:
   assert.ok(Array.isArray(output.issues));
 });
 
-test("validator JSON supports --class filter", () => {
+test("validator JSON supports multi-class --class filter", () => {
   const root = makeTempWorkspace();
 
-  writeFile(root, ".agents/skills/demo-skill/SKILL.md", validSkillMd("demo-skill"));
+  writeFile(root, ".agents/skills/demo-skill/SKILL.md", validSkillMd("wrong-name"));
   writeFile(root, ".agents/skills/.template/SKILL.md", validSkillMd("template-skill"));
   writeFile(
     root,
@@ -331,14 +331,16 @@ templates:
 `,
   );
 
-  const result = runValidator(root, ["--strict", "--json", "--class", "consistency"]);
+  const result = runValidator(root, ["--strict", "--json", "--class", "consistency,naming"]);
 
   assert.equal(result.status, 3, `stdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
   const output = JSON.parse(result.stdout);
-  assert.equal(output.summary.classFilter, "consistency");
+  assert.equal(output.summary.classFilter, "consistency,naming");
+  assert.deepEqual(output.summary.classFilters, ["consistency", "naming"]);
   assert.ok(output.summary.filteredWarnings > 0);
-  assert.equal(output.filteredByClass.consistency.warnings, output.summary.filteredWarnings);
-  assert.ok(output.issues.every((issue) => issue.class === "consistency"));
+  assert.ok(output.filteredByClass.consistency.warnings > 0);
+  assert.ok(output.filteredByClass.naming.warnings > 0);
+  assert.ok(output.issues.every((issue) => ["consistency", "naming"].includes(issue.class)));
 });
 
 test("validator strict fails with invalid --class value", () => {
@@ -367,8 +369,8 @@ templates:
 `,
   );
 
-  const result = runValidator(root, ["--strict", "--class", "invalid-class"]);
+  const result = runValidator(root, ["--strict", "--class", "invalid-class,consistency"]);
 
   assert.equal(result.status, 2, `stdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
-  assert.match(result.stderr, /Classe invalida para --class: invalid-class/);
+  assert.match(result.stderr, /Classes invalidas para --class: invalid-class/);
 });

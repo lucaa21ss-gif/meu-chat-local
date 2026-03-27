@@ -6,7 +6,13 @@ import path from "node:path";
 const rootDir = process.cwd();
 const strictMode = process.argv.includes("--strict");
 const jsonMode = process.argv.includes("--json");
-const classFilter = getArgValue("--class");
+const classFilterArg = getArgValue("--class");
+const classFilters = classFilterArg
+  ? classFilterArg
+      .split(",")
+      .map((item) => item.trim())
+      .filter(Boolean)
+  : [];
 
 const EXIT_OK = 0;
 const EXIT_ERRORS = 2;
@@ -334,8 +340,13 @@ function validateRegistryFile(skillFiles) {
 }
 
 function main() {
-  if (classFilter && !knownClasses.includes(classFilter)) {
-    error(`Classe invalida para --class: ${classFilter}. Use: ${knownClasses.join(", ")}`);
+  const invalidClasses = classFilters.filter((item) => !knownClasses.includes(item));
+  if (invalidClasses.length > 0) {
+    error(
+      `Classes invalidas para --class: ${invalidClasses.join(", ")}. Use: ${knownClasses.join(
+        ", ",
+      )}`,
+    );
   }
 
   const files = getSkillFiles();
@@ -349,7 +360,8 @@ function main() {
 
   validateRegistryFile(files);
 
-  const filteredIssues = classFilter ? issues.filter((issue) => issue.class === classFilter) : issues;
+  const filteredIssues =
+    classFilters.length > 0 ? issues.filter((issue) => classFilters.includes(issue.class)) : issues;
 
   const filteredErrorCount = filteredIssues.filter((issue) => issue.level === "error").length;
   const filteredWarningCount = filteredIssues.filter((issue) => issue.level === "warn").length;
@@ -378,7 +390,8 @@ function main() {
         filteredWarnings: filteredWarningCount,
         strictMode,
         jsonMode,
-        classFilter,
+        classFilter: classFilterArg,
+        classFilters: classFilters.length > 0 ? classFilters : null,
         exitCode,
       },
       byClass,
@@ -395,8 +408,8 @@ function main() {
   console.log(`- skills avaliadas: ${files.length}`);
   console.log(`- erros: ${errorCount}`);
   console.log(`- avisos: ${warningCount}`);
-  if (classFilter) {
-    console.log(`- filtro de classe: ${classFilter}`);
+  if (classFilters.length > 0) {
+    console.log(`- filtro de classe: ${classFilters.join(", ")}`);
     console.log(`- erros (filtrados): ${filteredErrorCount}`);
     console.log(`- avisos (filtrados): ${filteredWarningCount}`);
   }
