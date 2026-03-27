@@ -187,3 +187,40 @@ test("preflight markdown report includes execution context section in CI", () =>
   assert.match(content, /github.eventName: pull_request/);
   assert.match(content, /github.runId: 12345/);
 });
+
+test("preflight markdown report includes READY summary in dry-run", () => {
+  const root = makeTempWorkspace();
+  const output = "artifacts/preflight-summary.md";
+  const result = spawnSync(
+    process.execPath,
+    [scriptPath, "--dry-run", "--strict-io", "--output", output],
+    {
+      cwd: root,
+      encoding: "utf8",
+    },
+  );
+
+  assert.equal(result.status, 0, `stdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
+  const content = fs.readFileSync(path.join(root, output), "utf8");
+  assert.match(content, /## Summary/);
+  assert.match(content, /status: READY/);
+});
+
+test("preflight report marks BLOCKED when a step fails", () => {
+  const root = makeTempWorkspace();
+  const output = "artifacts/preflight-failed.json";
+  const result = spawnSync(
+    process.execPath,
+    [scriptPath, "--json", "--output", output],
+    {
+      cwd: root,
+      encoding: "utf8",
+    },
+  );
+
+  assert.equal(result.status, 1, `stdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
+  const payload = JSON.parse(fs.readFileSync(path.join(root, output), "utf8"));
+  assert.equal(payload.success, false);
+  assert.equal(payload.statusSummary.status, "BLOCKED");
+  assert.match(payload.statusSummary.reason, /Etapa falhou/);
+});

@@ -94,6 +94,37 @@ function buildExecutionContext() {
   };
 }
 
+function buildStatusSummary({ success, dryRun, ioCheck, results }) {
+  if (success) {
+    return {
+      status: "READY",
+      reason: dryRun
+        ? "Dry-run concluido: etapas planejadas sem execucao real."
+        : "Todas as etapas selecionadas finalizaram com sucesso.",
+    };
+  }
+
+  if (ioCheck?.enabled && ioCheck.ok === false) {
+    return {
+      status: "BLOCKED",
+      reason: `Falha no precheck de I/O em ${ioCheck.artifactsDir}.`,
+    };
+  }
+
+  const failedStep = results.find((step) => step.success === false);
+  if (failedStep) {
+    return {
+      status: "BLOCKED",
+      reason: `Etapa falhou: ${failedStep.name}.`,
+    };
+  }
+
+  return {
+    status: "BLOCKED",
+    reason: "Falha detectada sem etapa identificada.",
+  };
+}
+
 function toMarkdownReport(payload) {
   const lines = [];
   lines.push("# Skill Governance Preflight");
@@ -104,6 +135,14 @@ function toMarkdownReport(payload) {
   lines.push(`- artifactsDir: ${payload.artifactsDir}`);
   lines.push(`- success: ${payload.success ? "yes" : "no"}`);
   lines.push("");
+
+  if (payload.statusSummary) {
+    lines.push("## Summary");
+    lines.push("");
+    lines.push(`- status: ${payload.statusSummary.status}`);
+    lines.push(`- reason: ${payload.statusSummary.reason}`);
+    lines.push("");
+  }
 
   if (payload.executionContext?.ci) {
     lines.push("## Execution context");
@@ -244,6 +283,13 @@ function main() {
     selectedStepNames: steps.map((step) => step.name),
     results,
   };
+
+  payload.statusSummary = buildStatusSummary({
+    success,
+    dryRun,
+    ioCheck,
+    results,
+  });
 
   const content = jsonMode ? toJsonReport(payload) : toMarkdownReport(payload);
   outputReport(content, outputArg);
