@@ -455,6 +455,7 @@ templates:
   };
 
   assert.deepEqual(normalized, {
+    schemaVersion: 1,
     meta: {
       generatedAt: "<iso>",
       gitCommit: null,
@@ -485,6 +486,80 @@ templates:
     },
     issues: [],
   });
+});
+
+test("validator JSON supports compact mode with --pretty false", () => {
+  const root = makeTempWorkspace();
+
+  writeFile(root, ".agents/skills/demo-skill/SKILL.md", validSkillMd("demo-skill"));
+  writeFile(root, ".agents/skills/.template/SKILL.md", validSkillMd("template-skill"));
+  writeFile(
+    root,
+    ".agents/SKILLS-REGISTRY.yaml",
+    `schemaVersion: 1
+updatedAt: 2026-03-27
+owner: test
+
+skills:
+  - name: demo-skill
+    version: 1.0.0
+    status: migrated
+    path: .agents/skills/demo-skill/SKILL.md
+    tags: [test]
+    requires: []
+
+templates:
+  - name: default
+    path: .agents/skills/.template/SKILL.md
+`,
+  );
+
+  const result = runValidator(root, ["--strict", "--json", "--pretty", "false"]);
+
+  assert.equal(result.status, 0, `stdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
+  assert.match(result.stdout, /^\{"schemaVersion":1,/);
+  assert.ok(!result.stdout.includes("\n  \"meta\""));
+
+  const output = JSON.parse(result.stdout);
+  assert.equal(output.schemaVersion, 1);
+});
+
+test("validator fails when --pretty has invalid value", () => {
+  const root = makeTempWorkspace();
+
+  writeFile(root, ".agents/skills/demo-skill/SKILL.md", validSkillMd("demo-skill"));
+  writeFile(root, ".agents/skills/.template/SKILL.md", validSkillMd("template-skill"));
+  writeFile(
+    root,
+    ".agents/SKILLS-REGISTRY.yaml",
+    `schemaVersion: 1
+updatedAt: 2026-03-27
+owner: test
+
+skills:
+  - name: demo-skill
+    version: 1.0.0
+    status: migrated
+    path: .agents/skills/demo-skill/SKILL.md
+    tags: [test]
+    requires: []
+
+templates:
+  - name: default
+    path: .agents/skills/.template/SKILL.md
+`,
+  );
+
+  const result = runValidator(root, ["--strict", "--json", "--pretty", "invalid"]);
+
+  assert.equal(result.status, 2, `stdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
+  const output = JSON.parse(result.stdout);
+  assert.equal(output.summary.exitCode, 2);
+  assert.ok(
+    output.issues.some((issue) =>
+      issue.message.includes("A flag --pretty aceita apenas os valores true ou false"),
+    ),
+  );
 });
 
 test("validator fails when --output is used without --json", () => {

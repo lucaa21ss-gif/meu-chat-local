@@ -3,12 +3,21 @@ import { execSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 
+process.stdout.on("error", (err) => {
+  if (err?.code === "EPIPE") {
+    process.exit(0);
+  }
+  throw err;
+});
+
 const rootDir = process.cwd();
 const strictMode = process.argv.includes("--strict");
 const jsonMode = process.argv.includes("--json");
 const classFilterArg = getArgValue("--class");
 const outputArg = getArgValue("--output");
+const prettyArg = getArgValue("--pretty");
 const outputPath = outputArg ? path.resolve(rootDir, outputArg) : null;
+const prettyJson = prettyArg !== "false";
 const classFilters = classFilterArg
   ? classFilterArg
       .split(",")
@@ -346,6 +355,10 @@ function main() {
     error("A flag --output requer --json para gerar relatorio estruturado.");
   }
 
+  if (prettyArg && !["true", "false"].includes(prettyArg)) {
+    error("A flag --pretty aceita apenas os valores true ou false.");
+  }
+
   const invalidClasses = classFilters.filter((item) => !knownClasses.includes(item));
   if (invalidClasses.length > 0) {
     error(
@@ -384,6 +397,7 @@ function main() {
 
   if (jsonMode) {
     const payload = {
+      schemaVersion: 1,
       meta: {
         generatedAt: new Date().toISOString(),
         gitCommit: getGitCommit(),
@@ -405,7 +419,7 @@ function main() {
       issues: filteredIssues,
     };
 
-    const payloadText = `${JSON.stringify(payload, null, 2)}\n`;
+    const payloadText = `${JSON.stringify(payload, null, prettyJson ? 2 : 0)}\n`;
 
     if (outputPath) {
       fs.mkdirSync(path.dirname(outputPath), { recursive: true });
