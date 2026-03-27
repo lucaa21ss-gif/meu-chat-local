@@ -66,6 +66,9 @@ jobs:
       - name: Install root tooling
         run: npm ci
 
+      - name: Run skill validator tests
+        run: npm run test:skills:validator
+
       - name: Validate skills (strict)
         run: node scripts/skill-validator.mjs --strict | tee skill-validator-report.txt
 

@@ -30,6 +30,7 @@
     "dist:uninstall": "bash ops/scripts/local/uninstall.sh",
     "skill:validate": "node scripts/skill-validator.mjs",
     "skill:validate:strict": "node scripts/skill-validator.mjs --strict",
+    "test:skills:validator": "node --test scripts/skill-validator.test.mjs",
     "admin:dev": "npm run dev --workspace apps/web-admin",
     "admin:build": "npm run build --workspace apps/web-admin",
     "admin:preview": "npm run preview --workspace apps/web-admin"
