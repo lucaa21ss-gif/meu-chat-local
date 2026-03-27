@@ -101,6 +101,9 @@ function buildStatusSummary({ success, dryRun, ioCheck, results }) {
       reason: dryRun
         ? "Dry-run concluido: etapas planejadas sem execucao real."
         : "Todas as etapas selecionadas finalizaram com sucesso.",
+      nextAction: dryRun
+        ? "Execute sem --dry-run para validar a bateria completa no ambiente atual."
+        : "Nenhuma acao corretiva imediata necessaria.",
     };
   }
 
@@ -108,6 +111,7 @@ function buildStatusSummary({ success, dryRun, ioCheck, results }) {
     return {
       status: "BLOCKED",
       reason: `Falha no precheck de I/O em ${ioCheck.artifactsDir}.`,
+      nextAction: "Verifique permissao de escrita e validade do artifactsDir configurado.",
     };
   }
 
@@ -116,12 +120,14 @@ function buildStatusSummary({ success, dryRun, ioCheck, results }) {
     return {
       status: "BLOCKED",
       reason: `Etapa falhou: ${failedStep.name}.`,
+      nextAction: `Execute manualmente: npm run ${failedStep.npmScript}`,
     };
   }
 
   return {
     status: "BLOCKED",
     reason: "Falha detectada sem etapa identificada.",
+    nextAction: "Revise logs completos do preflight para identificar a causa raiz.",
   };
 }
 
@@ -142,6 +148,7 @@ function toMarkdownReport(payload) {
     const statusTag = payload.statusSummary.status === "READY" ? "[READY]" : "[BLOCKED]";
     lines.push(`- status: ${statusTag} ${payload.statusSummary.status}`);
     lines.push(`- reason: ${payload.statusSummary.reason}`);
+    lines.push(`- nextAction: ${payload.statusSummary.nextAction}`);
     lines.push("");
   }
 

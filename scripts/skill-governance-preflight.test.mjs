@@ -204,6 +204,7 @@ test("preflight markdown report includes READY summary in dry-run", () => {
   const content = fs.readFileSync(path.join(root, output), "utf8");
   assert.match(content, /## Summary/);
   assert.match(content, /status: \[READY\] READY/);
+  assert.match(content, /nextAction: Execute sem --dry-run/);
 });
 
 test("preflight report marks BLOCKED when a step fails", () => {
@@ -223,6 +224,7 @@ test("preflight report marks BLOCKED when a step fails", () => {
   assert.equal(payload.success, false);
   assert.equal(payload.statusSummary.status, "BLOCKED");
   assert.match(payload.statusSummary.reason, /Etapa falhou/);
+  assert.match(payload.statusSummary.nextAction, /npm run/);
 });
 
 test("preflight markdown report includes BLOCKED tag when a step fails", () => {
@@ -240,4 +242,5 @@ test("preflight markdown report includes BLOCKED tag when a step fails", () => {
   assert.equal(result.status, 1, `stdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
   const content = fs.readFileSync(path.join(root, output), "utf8");
   assert.match(content, /status: \[BLOCKED\] BLOCKED/);
+  assert.match(content, /nextAction: Execute manualmente: npm run/);
 });
