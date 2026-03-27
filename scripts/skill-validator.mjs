@@ -7,6 +7,8 @@ const rootDir = process.cwd();
 const strictMode = process.argv.includes("--strict");
 const jsonMode = process.argv.includes("--json");
 const classFilterArg = getArgValue("--class");
+const outputArg = getArgValue("--output");
+const outputPath = outputArg ? path.resolve(rootDir, outputArg) : null;
 const classFilters = classFilterArg
   ? classFilterArg
       .split(",")
@@ -340,6 +342,10 @@ function validateRegistryFile(skillFiles) {
 }
 
 function main() {
+  if (outputPath && !jsonMode) {
+    error("A flag --output requer --json para gerar relatorio estruturado.");
+  }
+
   const invalidClasses = classFilters.filter((item) => !knownClasses.includes(item));
   if (invalidClasses.length > 0) {
     error(
@@ -399,7 +405,16 @@ function main() {
       issues: filteredIssues,
     };
 
-    process.stdout.write(`${JSON.stringify(payload, null, 2)}\n`);
+    const payloadText = `${JSON.stringify(payload, null, 2)}\n`;
+
+    if (outputPath) {
+      fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+      fs.writeFileSync(outputPath, payloadText, "utf8");
+    }
+
+    if (!outputPath) {
+      process.stdout.write(payloadText);
+    }
     process.exitCode = exitCode;
     return;
   }

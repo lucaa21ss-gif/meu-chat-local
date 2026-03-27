@@ -44,6 +44,7 @@ Para cenarios de Gemini, priorize a skill `gemini-context-profissional` e valide
   - `npm run skill:validate:strict:json > skill-report.json`
   - `node -e "const fs=require('fs');const r=JSON.parse(fs.readFileSync('skill-report.json','utf8'));console.log(r.summary);"`
   - `node scripts/skill-validator.mjs --strict --json --class consistency,naming`
+  - `node scripts/skill-validator.mjs --strict --json --class consistency,naming --output artifacts/skill-report.json`
 
 - Aplicacao local completa com API Node.js/Express nativa (ESM), Web e persistencia SQLite
 - Servidor baseado em ESM nativo (Node.js), com grafo de dependencias estatico via `import`/`export`, fronteiras claras entre entrypoint/bootstrap/http/modulos e menor acoplamento entre camadas arquiteturais

@@ -374,3 +374,147 @@ templates:
   assert.equal(result.status, 2, `stdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
   assert.match(result.stderr, /Classes invalidas para --class: invalid-class/);
 });
+
+test("validator writes JSON report to file with --output", () => {
+  const root = makeTempWorkspace();
+  const outputRelPath = "artifacts/skill-report.json";
+  const outputAbsPath = path.join(root, outputRelPath);
+
+  writeFile(root, ".agents/skills/demo-skill/SKILL.md", validSkillMd("demo-skill"));
+  writeFile(root, ".agents/skills/.template/SKILL.md", validSkillMd("template-skill"));
+  writeFile(
+    root,
+    ".agents/SKILLS-REGISTRY.yaml",
+    `schemaVersion: 1
+updatedAt: 2026-03-27
+owner: test
+
+skills:
+  - name: demo-skill
+    version: 1.0.0
+    status: migrated
+    path: .agents/skills/demo-skill/SKILL.md
+    tags: [test]
+    requires: []
+
+templates:
+  - name: default
+    path: .agents/skills/.template/SKILL.md
+`,
+  );
+
+  const result = runValidator(root, ["--strict", "--json", "--output", outputRelPath]);
+
+  assert.equal(result.status, 0, `stdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
+  assert.equal(result.stdout.trim(), "");
+  assert.equal(result.stderr.trim(), "");
+  assert.equal(fs.existsSync(outputAbsPath), true);
+
+  const output = JSON.parse(fs.readFileSync(outputAbsPath, "utf8"));
+  assert.equal(output.summary.exitCode, 0);
+  assert.equal(output.summary.warnings, 0);
+});
+
+test("validator JSON payload contract (snapshot-style)", () => {
+  const root = makeTempWorkspace();
+
+  writeFile(root, ".agents/skills/demo-skill/SKILL.md", validSkillMd("demo-skill"));
+  writeFile(root, ".agents/skills/.template/SKILL.md", validSkillMd("template-skill"));
+  writeFile(
+    root,
+    ".agents/SKILLS-REGISTRY.yaml",
+    `schemaVersion: 1
+updatedAt: 2026-03-27
+owner: test
+
+skills:
+  - name: demo-skill
+    version: 1.0.0
+    status: migrated
+    path: .agents/skills/demo-skill/SKILL.md
+    tags: [test]
+    requires: []
+
+templates:
+  - name: default
+    path: .agents/skills/.template/SKILL.md
+`,
+  );
+
+  const result = runValidator(root, ["--strict", "--json"]);
+
+  assert.equal(result.status, 0, `stdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
+  const output = JSON.parse(result.stdout);
+
+  const normalized = {
+    ...output,
+    meta: {
+      generatedAt: "<iso>",
+      gitCommit: output.meta.gitCommit,
+    },
+  };
+
+  assert.deepEqual(normalized, {
+    meta: {
+      generatedAt: "<iso>",
+      gitCommit: null,
+    },
+    summary: {
+      skillsEvaluated: 2,
+      errors: 0,
+      warnings: 0,
+      filteredErrors: 0,
+      filteredWarnings: 0,
+      strictMode: true,
+      jsonMode: true,
+      classFilter: null,
+      classFilters: null,
+      exitCode: 0,
+    },
+    byClass: {
+      structure: { errors: 0, warnings: 0 },
+      consistency: { errors: 0, warnings: 0 },
+      naming: { errors: 0, warnings: 0 },
+      other: { errors: 0, warnings: 0 },
+    },
+    filteredByClass: {
+      structure: { errors: 0, warnings: 0 },
+      consistency: { errors: 0, warnings: 0 },
+      naming: { errors: 0, warnings: 0 },
+      other: { errors: 0, warnings: 0 },
+    },
+    issues: [],
+  });
+});
+
+test("validator fails when --output is used without --json", () => {
+  const root = makeTempWorkspace();
+
+  writeFile(root, ".agents/skills/demo-skill/SKILL.md", validSkillMd("demo-skill"));
+  writeFile(root, ".agents/skills/.template/SKILL.md", validSkillMd("template-skill"));
+  writeFile(
+    root,
+    ".agents/SKILLS-REGISTRY.yaml",
+    `schemaVersion: 1
+updatedAt: 2026-03-27
+owner: test
+
+skills:
+  - name: demo-skill
+    version: 1.0.0
+    status: migrated
+    path: .agents/skills/demo-skill/SKILL.md
+    tags: [test]
+    requires: []
+
+templates:
+  - name: default
+    path: .agents/skills/.template/SKILL.md
+`,
+  );
+
+  const result = runValidator(root, ["--strict", "--output", "tmp/report.json"]);
+
+  assert.equal(result.status, 2, `stdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
+  assert.match(result.stderr, /A flag --output requer --json/);
+});
