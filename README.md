@@ -42,6 +42,7 @@ Para cenarios de Gemini, priorize a skill `gemini-context-profissional` e valide
 - Para diagnostico rapido de preflight/IO no CI, consulte o artifact `skill-governance-preflight-inspect` (`.json` e `.md`).
   O JSON inclui metadados de execucao (CI, `GITHUB_SHA`, `GITHUB_REF`, `GITHUB_EVENT_NAME`, `GITHUB_RUN_ID`) para facilitar triagem.
   O markdown inclui um resumo sintetizado com `status: READY|BLOCKED`, `confidence` (0-100), `reason` e `nextAction`.
+  O summary tambem inclui `progress` no formato `succeededSteps/selectedSteps` para explicar a evolucao da execucao.
   Em `BLOCKED` por falha de etapa, o `confidence` e ponderado pelo progresso das etapas executadas antes da falha.
   O preflight aceita `--confidence-profile local|ci` para calibrar o score por contexto operacional.
   Sem a flag, o default e automatico por ambiente: `ci` quando `CI=true`, `local` nos demais casos.

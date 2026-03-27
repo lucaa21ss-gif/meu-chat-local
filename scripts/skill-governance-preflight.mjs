@@ -123,6 +123,16 @@ function buildExecutionContext() {
   };
 }
 
+function buildStepProgress({ results, selectedStepCount }) {
+  const selectedSteps = Math.max(selectedStepCount || 0, results.length);
+  const succeededSteps = results.filter((step) => step.success === true && step.dryRun !== true).length;
+
+  return {
+    succeededSteps,
+    selectedSteps,
+  };
+}
+
 function calculateStepFailureConfidence({ profile, results, selectedStepCount }) {
   const base = profile.blockedStep;
   const totalSelected = Math.max(selectedStepCount || 0, 1);
@@ -136,6 +146,10 @@ function calculateStepFailureConfidence({ profile, results, selectedStepCount })
 
 function buildStatusSummary({ success, dryRun, ioCheck, results, confidenceProfile, selectedStepCount }) {
   const profile = CONFIDENCE_PROFILES[confidenceProfile];
+  const progress = buildStepProgress({
+    results,
+    selectedStepCount,
+  });
 
   if (success) {
     return {
@@ -147,6 +161,7 @@ function buildStatusSummary({ success, dryRun, ioCheck, results, confidenceProfi
         ? "Execute sem --dry-run para validar a bateria completa no ambiente atual."
         : "Nenhuma acao corretiva imediata necessaria.",
       confidence: dryRun ? profile.readyDryRun : profile.readyReal,
+      progress,
     };
   }
 
@@ -156,6 +171,7 @@ function buildStatusSummary({ success, dryRun, ioCheck, results, confidenceProfi
       reason: `Falha no precheck de I/O em ${ioCheck.artifactsDir}.`,
       nextAction: "Verifique permissao de escrita e validade do artifactsDir configurado.",
       confidence: profile.blockedIo,
+      progress,
     };
   }
 
@@ -172,6 +188,7 @@ function buildStatusSummary({ success, dryRun, ioCheck, results, confidenceProfi
       reason: `Etapa falhou: ${failedStep.name}.`,
       nextAction: `Execute manualmente: npm run ${failedStep.npmScript}`,
       confidence: blockedStepConfidence,
+      progress,
     };
   }
 
@@ -180,6 +197,7 @@ function buildStatusSummary({ success, dryRun, ioCheck, results, confidenceProfi
     reason: "Falha detectada sem etapa identificada.",
     nextAction: "Revise logs completos do preflight para identificar a causa raiz.",
     confidence: profile.blockedUnknown,
+    progress,
   };
 }
 
@@ -201,6 +219,11 @@ function toMarkdownReport(payload) {
     const statusTag = payload.statusSummary.status === "READY" ? "[READY]" : "[BLOCKED]";
     lines.push(`- status: ${statusTag} ${payload.statusSummary.status}`);
     lines.push(`- confidence: ${payload.statusSummary.confidence}`);
+    if (payload.statusSummary.progress) {
+      lines.push(
+        `- progress: ${payload.statusSummary.progress.succeededSteps}/${payload.statusSummary.progress.selectedSteps}`,
+      );
+    }
     lines.push(`- reason: ${payload.statusSummary.reason}`);
     lines.push(`- nextAction: ${payload.statusSummary.nextAction}`);
     lines.push("");

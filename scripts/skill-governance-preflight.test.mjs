@@ -32,6 +32,10 @@ test("preflight dry-run returns planned default steps in json", () => {
   ]);
   assert.equal(payload.results.length, 4);
   assert.equal(payload.results.every((step) => step.dryRun === true), true);
+  assert.deepEqual(payload.statusSummary.progress, {
+    succeededSteps: 0,
+    selectedSteps: 4,
+  });
 });
 
 test("preflight dry-run supports --only filter", () => {
@@ -276,6 +280,7 @@ test("preflight markdown report includes READY summary in dry-run", () => {
   assert.match(content, /## Summary/);
   assert.match(content, /status: \[READY\] READY/);
   assert.match(content, /confidence: 80/);
+  assert.match(content, /progress: 0\/4/);
   assert.match(content, /nextAction: Execute sem --dry-run/);
 });
 
@@ -296,6 +301,10 @@ test("preflight report marks BLOCKED when a step fails", () => {
   assert.equal(payload.success, false);
   assert.equal(payload.statusSummary.status, "BLOCKED");
   assert.equal(payload.statusSummary.confidence, 35);
+  assert.deepEqual(payload.statusSummary.progress, {
+    succeededSteps: 0,
+    selectedSteps: 4,
+  });
   assert.match(payload.statusSummary.reason, /Etapa falhou/);
   assert.match(payload.statusSummary.nextAction, /npm run/);
 });
@@ -325,6 +334,10 @@ test("preflight increases BLOCKED confidence when failure happens after earlier 
   assert.equal(payload.statusSummary.status, "BLOCKED");
   assert.equal(payload.statusSummary.reason, "Etapa falhou: enforcement-status-tests.");
   assert.equal(payload.statusSummary.confidence, 48);
+  assert.deepEqual(payload.statusSummary.progress, {
+    succeededSteps: 2,
+    selectedSteps: 4,
+  });
 });
 
 test("preflight markdown report includes BLOCKED tag when a step fails", () => {
@@ -343,5 +356,6 @@ test("preflight markdown report includes BLOCKED tag when a step fails", () => {
   const content = fs.readFileSync(path.join(root, output), "utf8");
   assert.match(content, /status: \[BLOCKED\] BLOCKED/);
   assert.match(content, /confidence: 35/);
+  assert.match(content, /progress: 0\/4/);
   assert.match(content, /nextAction: Execute manualmente: npm run/);
 });
