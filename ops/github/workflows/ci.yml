@@ -40,15 +40,41 @@ jobs:
       - name: Install root tooling
         run: npm ci
 
-      - name: Validate skills (strict)
-        run: npm run skill:validate:strict
-
       - name: Lint JavaScript
         run: npm run lint
 
       - name: Check formatting (advisory)
         continue-on-error: true
         run: npm run format:check
+
+  skill-governance:
+    name: Skill Governance
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install root tooling
+        run: npm ci
+
+      - name: Validate skills (strict)
+        run: node scripts/skill-validator.mjs --strict | tee skill-validator-report.txt
+
+      - name: Upload skill validator report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: skill-validator-report
+          path: skill-validator-report.txt
 
   secret-scan:
     name: Secret Scan

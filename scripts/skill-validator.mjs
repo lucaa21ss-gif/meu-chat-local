@@ -125,7 +125,11 @@ function getSkillFiles() {
   return files;
 }
 
-function validateRegistryFile() {
+function normalizeRelPath(filePath) {
+  return path.relative(rootDir, filePath).replaceAll("\\", "/");
+}
+
+function validateRegistryFile(skillFiles) {
   if (!fs.existsSync(registryPath)) {
     error("Arquivo .agents/SKILLS-REGISTRY.yaml nao encontrado");
     return;
@@ -134,8 +138,9 @@ function validateRegistryFile() {
   const content = readFileSafe(registryPath);
   if (!content) return;
 
-  const pathLines = content
-    .split("\n")
+  const lines = content.split("\n");
+
+  const pathLines = lines
     .map((line) => line.trim())
     .filter((line) => line.startsWith("path:"));
 
@@ -151,6 +156,70 @@ function validateRegistryFile() {
       warn(`Registry referencia caminho inexistente: ${refPath}`);
     }
   }
+
+  const registryPaths = new Set(
+    pathLines.map((line) => line.replace("path:", "").trim().replaceAll("\\", "/")),
+  );
+
+  for (const skillFile of skillFiles) {
+    const relPath = normalizeRelPath(skillFile);
+    if (!registryPaths.has(relPath)) {
+      warn(`Skill sem referencia no registry: ${relPath}`);
+    }
+  }
+
+  // Validacao estrutural basica das entradas em `skills:` no registry.
+  let inSkillsSection = false;
+  let currentSkill = null;
+  const skillEntries = [];
+
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+
+    if (line === "skills:") {
+      inSkillsSection = true;
+      continue;
+    }
+
+    if (line === "templates:") {
+      if (currentSkill) skillEntries.push(currentSkill);
+      currentSkill = null;
+      inSkillsSection = false;
+      continue;
+    }
+
+    if (!inSkillsSection) continue;
+
+    if (line.startsWith("- name:")) {
+      if (currentSkill) skillEntries.push(currentSkill);
+      currentSkill = {
+        name: line.replace("- name:", "").trim(),
+        hasVersion: false,
+        hasStatus: false,
+        hasPath: false,
+        hasTags: false,
+        hasRequires: false,
+      };
+      continue;
+    }
+
+    if (!currentSkill) continue;
+    if (line.startsWith("version:")) currentSkill.hasVersion = true;
+    if (line.startsWith("status:")) currentSkill.hasStatus = true;
+    if (line.startsWith("path:")) currentSkill.hasPath = true;
+    if (line.startsWith("tags:")) currentSkill.hasTags = true;
+    if (line.startsWith("requires:")) currentSkill.hasRequires = true;
+  }
+
+  if (currentSkill) skillEntries.push(currentSkill);
+
+  for (const entry of skillEntries) {
+    if (!entry.hasVersion) warn(`Registry skill sem version: ${entry.name}`);
+    if (!entry.hasStatus) warn(`Registry skill sem status: ${entry.name}`);
+    if (!entry.hasPath) warn(`Registry skill sem path: ${entry.name}`);
+    if (!entry.hasTags) warn(`Registry skill sem tags: ${entry.name}`);
+    if (!entry.hasRequires) warn(`Registry skill sem requires: ${entry.name}`);
+  }
 }
 
 function main() {
@@ -163,7 +232,7 @@ function main() {
     validateSkillFile(file);
   }
 
-  validateRegistryFile();
+  validateRegistryFile(files);
 
   const totalIssues = errorCount + warningCount;
   console.log(`\nResumo skill-validator`);
