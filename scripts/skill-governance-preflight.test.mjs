@@ -97,6 +97,44 @@ test("preflight supports ci confidence profile in dry-run", () => {
   assert.equal(payload.statusSummary.confidence, 70);
 });
 
+test("preflight defaults confidence profile to ci when CI=true", () => {
+  const root = makeTempWorkspace();
+  const result = spawnSync(process.execPath, [scriptPath, "--dry-run", "--json"], {
+    cwd: root,
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      CI: "true",
+    },
+  });
+
+  assert.equal(result.status, 0, `stdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
+  const payload = JSON.parse(result.stdout);
+  assert.equal(payload.confidenceProfile, "ci");
+  assert.equal(payload.statusSummary.confidence, 70);
+});
+
+test("preflight explicit confidence profile overrides CI default", () => {
+  const root = makeTempWorkspace();
+  const result = spawnSync(
+    process.execPath,
+    [scriptPath, "--dry-run", "--json", "--confidence-profile", "local"],
+    {
+      cwd: root,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        CI: "true",
+      },
+    },
+  );
+
+  assert.equal(result.status, 0, `stdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
+  const payload = JSON.parse(result.stdout);
+  assert.equal(payload.confidenceProfile, "local");
+  assert.equal(payload.statusSummary.confidence, 80);
+});
+
 test("preflight writes markdown report to file", () => {
   const root = makeTempWorkspace();
   const output = "artifacts/skill-governance-preflight.md";

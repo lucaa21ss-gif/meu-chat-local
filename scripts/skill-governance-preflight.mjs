@@ -59,7 +59,8 @@ function selectSteps(onlyFilter) {
 }
 
 function parseConfidenceProfile() {
-  const profile = getArgValue("--confidence-profile") || "local";
+  const explicitProfile = getArgValue("--confidence-profile");
+  const profile = explicitProfile || (process.env.CI ? "ci" : "local");
   if (!Object.hasOwn(CONFIDENCE_PROFILES, profile)) {
     throw new Error(
       `Perfil invalido em --confidence-profile: ${profile}. Valores aceitos: ${Object.keys(CONFIDENCE_PROFILES).join(", ")}`,
