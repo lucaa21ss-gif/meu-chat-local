@@ -43,6 +43,26 @@ function ensureDirFor(filePath) {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
 }
 
+function fail(message) {
+  process.stderr.write(`${message}\n`);
+  process.exit(1);
+}
+
+function parseVersionArg(flag, value) {
+  if (value === null) return null;
+  if (!/^\d+$/.test(value)) {
+    fail(`Valor invalido para ${flag}: ${value}. Use inteiro nao negativo.`);
+  }
+  return Number(value);
+}
+
+function parseContractUpdatedArg(value) {
+  if (value === null) return null;
+  if (value === "true") return true;
+  if (value === "false") return false;
+  fail(`Valor invalido para --contract-updated: ${value}. Use true ou false.`);
+}
+
 function main() {
   const baseRef = getArgValue("--base-ref") || "HEAD~1";
   const headRef = getArgValue("--head-ref") || "HEAD";
@@ -55,6 +75,18 @@ function main() {
   const documentedPreviousArg = getArgValue("--documented-previous-version");
   const documentedCurrentArg = getArgValue("--documented-current-version");
   const contractUpdatedArg = getArgValue("--contract-updated");
+
+  const previousVersionFromArg = parseVersionArg("--previous-version", previousVersionArg);
+  const currentVersionFromArg = parseVersionArg("--current-version", currentVersionArg);
+  const documentedPreviousFromArg = parseVersionArg(
+    "--documented-previous-version",
+    documentedPreviousArg,
+  );
+  const documentedCurrentFromArg = parseVersionArg(
+    "--documented-current-version",
+    documentedCurrentArg,
+  );
+  const contractUpdatedFromArg = parseContractUpdatedArg(contractUpdatedArg);
 
   const validatorPath = "scripts/skill-validator.mjs";
   const contractPath = "docs/architecture/skill-validator-json-contract.md";
@@ -70,17 +102,17 @@ function main() {
   const previousContractContent = documentedPreviousArg ? null : readFileFromRef(baseRef, contractPath);
 
   const currentVersion = currentVersionArg
-    ? Number(currentVersionArg)
+    ? currentVersionFromArg
     : extractSchemaVersion(currentContent);
   const previousVersion = previousVersionArg
-    ? Number(previousVersionArg)
+    ? previousVersionFromArg
     : extractSchemaVersion(previousContent);
 
   const documentedCurrentVersion = documentedCurrentArg
-    ? Number(documentedCurrentArg)
+    ? documentedCurrentFromArg
     : extractSchemaVersion(currentContractContent);
   const documentedPreviousVersion = documentedPreviousArg
-    ? Number(documentedPreviousArg)
+    ? documentedPreviousFromArg
     : extractSchemaVersion(previousContractContent);
 
   const hasVersionChange =
@@ -89,10 +121,8 @@ function main() {
     currentVersion !== previousVersion;
 
   const contractUpdated =
-    contractUpdatedArg === "true"
-      ? true
-      : contractUpdatedArg === "false"
-      ? false
+    contractUpdatedFromArg !== null
+      ? contractUpdatedFromArg
       : currentContractContent !== null && previousContractContent !== null
       ? currentContractContent !== previousContractContent
       : null;

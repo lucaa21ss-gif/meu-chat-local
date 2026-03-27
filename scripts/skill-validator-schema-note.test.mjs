@@ -147,3 +147,45 @@ test("schema note fails when --fail-on-drift is enabled and drift exists", () =>
   const content = fs.readFileSync(outPath, "utf8");
   assert.match(content, /driftDetected: yes/);
 });
+
+test("schema note fails for invalid numeric version argument", () => {
+  const root = makeTempWorkspace();
+  const result = spawnSync(
+    process.execPath,
+    [
+      scriptPath,
+      "--output",
+      "artifacts/schema-note.md",
+      "--previous-version",
+      "abc",
+      "--current-version",
+      "2",
+    ],
+    { cwd: root, encoding: "utf8" },
+  );
+
+  assert.equal(result.status, 1, `stdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
+  assert.match(result.stderr, /Valor invalido para --previous-version/);
+});
+
+test("schema note fails for invalid --contract-updated value", () => {
+  const root = makeTempWorkspace();
+  const result = spawnSync(
+    process.execPath,
+    [
+      scriptPath,
+      "--output",
+      "artifacts/schema-note.md",
+      "--previous-version",
+      "1",
+      "--current-version",
+      "2",
+      "--contract-updated",
+      "maybe",
+    ],
+    { cwd: root, encoding: "utf8" },
+  );
+
+  assert.equal(result.status, 1, `stdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
+  assert.match(result.stderr, /Valor invalido para --contract-updated/);
+});
