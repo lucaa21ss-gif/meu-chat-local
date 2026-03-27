@@ -55,6 +55,7 @@ Para cenarios de Gemini, priorize a skill `gemini-context-profissional` e valide
   - `npm run skill:governance:preflight -- --dry-run --json`
   - `npm run skill:governance:preflight -- --strict-io --artifacts-dir artifacts`
   - `npm run skill:governance:preflight:strict-io`
+  - `npm run skill:governance:preflight:inspect`
 - O payload JSON inclui `schemaVersion` para versionamento do contrato de integracao.
 - Contrato oficial do payload: `docs/architecture/skill-validator-json-contract.md`.
 
