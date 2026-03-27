@@ -72,12 +72,18 @@ jobs:
       - name: Validate skills (strict)
         run: node scripts/skill-validator.mjs --strict | tee skill-validator-report.txt
 
+      - name: Generate skill validator JSON report
+        if: always()
+        run: node scripts/skill-validator.mjs --strict --json > skill-validator-report.json
+
       - name: Upload skill validator report
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: skill-validator-report
-          path: skill-validator-report.txt
+          path: |
+            skill-validator-report.txt
+            skill-validator-report.json
 
   secret-scan:
     name: Secret Scan

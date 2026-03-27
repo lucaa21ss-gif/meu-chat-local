@@ -4,6 +4,7 @@ import path from "node:path";
 
 const rootDir = process.cwd();
 const strictMode = process.argv.includes("--strict");
+const jsonMode = process.argv.includes("--json");
 
 const EXIT_OK = 0;
 const EXIT_ERRORS = 2;
@@ -24,14 +25,68 @@ const requiredSections = [
 let errorCount = 0;
 let warningCount = 0;
 
+const knownClasses = ["structure", "consistency", "naming", "other"];
+const issues = [];
+
+const byClass = {
+  structure: { errors: 0, warnings: 0 },
+  consistency: { errors: 0, warnings: 0 },
+  naming: { errors: 0, warnings: 0 },
+  other: { errors: 0, warnings: 0 },
+};
+
+function classifyIssue(message) {
+  if (
+    message.includes("frontmatter") ||
+    message.includes("campo obrigatorio ausente no frontmatter") ||
+    message.includes("secao recomendada ausente")
+  ) {
+    return "structure";
+  }
+
+  if (
+    message.includes("name fora do padrao kebab-case") ||
+    message.includes("name (") ||
+    message.includes("name duplicado")
+  ) {
+    return "naming";
+  }
+
+  if (
+    message.includes("Registry") ||
+    message.includes("registry") ||
+    message.includes("Skill sem referencia no registry")
+  ) {
+    return "consistency";
+  }
+
+  return "other";
+}
+
+function recordIssue(level, message) {
+  const issueClass = classifyIssue(message);
+  const safeClass = knownClasses.includes(issueClass) ? issueClass : "other";
+
+  issues.push({ level, class: safeClass, message });
+
+  if (level === "error") byClass[safeClass].errors += 1;
+  if (level === "warn") byClass[safeClass].warnings += 1;
+}
+
 function warn(message) {
   warningCount += 1;
-  console.warn(`[warn] ${message}`);
+  recordIssue("warn", message);
+  if (!jsonMode) {
+    console.warn(`[warn] ${message}`);
+  }
 }
 
 function error(message) {
   errorCount += 1;
-  console.error(`[error] ${message}`);
+  recordIssue("error", message);
+  if (!jsonMode) {
+    console.error(`[error] ${message}`);
+  }
 }
 
 function readFileSafe(filePath) {
@@ -251,22 +306,47 @@ function main() {
   validateRegistryFile(files);
 
   const totalIssues = errorCount + warningCount;
+  let exitCode = EXIT_OK;
+
+  if (strictMode && totalIssues > 0) {
+    exitCode = errorCount > 0 ? EXIT_ERRORS : EXIT_STRICT_WARNINGS;
+  } else if (errorCount > 0) {
+    exitCode = EXIT_ERRORS;
+  }
+
+  if (jsonMode) {
+    const payload = {
+      summary: {
+        skillsEvaluated: files.length,
+        errors: errorCount,
+        warnings: warningCount,
+        strictMode,
+        jsonMode,
+        exitCode,
+      },
+      byClass,
+      issues,
+    };
+
+    process.stdout.write(`${JSON.stringify(payload, null, 2)}\n`);
+    process.exitCode = exitCode;
+    return;
+  }
+
   console.log(`\nResumo skill-validator`);
   console.log(`- skills avaliadas: ${files.length}`);
   console.log(`- erros: ${errorCount}`);
   console.log(`- avisos: ${warningCount}`);
 
-  if (strictMode && totalIssues > 0) {
-    process.exitCode = errorCount > 0 ? EXIT_ERRORS : EXIT_STRICT_WARNINGS;
-    return;
+  const classSummary = Object.entries(byClass).filter(([, counts]) => counts.errors + counts.warnings > 0);
+  if (classSummary.length > 0) {
+    console.log(`- classes:`);
+    for (const [issueClass, counts] of classSummary) {
+      console.log(`  - ${issueClass}: errors=${counts.errors}, warnings=${counts.warnings}`);
+    }
   }
 
-  if (errorCount > 0) {
-    process.exitCode = EXIT_ERRORS;
-    return;
-  }
-
-  process.exitCode = EXIT_OK;
+  process.exitCode = exitCode;
 }
 
 main();

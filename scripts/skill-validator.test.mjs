@@ -106,7 +106,7 @@ templates:
 
   const result = runValidator(root, ["--strict"]);
 
-  assert.notEqual(result.status, 0, `stdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
+  assert.equal(result.status, 3, `stdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
   assert.match(result.stderr, /Skill sem referencia no registry: .agents\/skills\/demo-skill\/SKILL.md/);
 });
 
@@ -136,7 +136,7 @@ templates:
 
   const result = runValidator(root, ["--strict"]);
 
-  assert.notEqual(result.status, 0, `stdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
+  assert.equal(result.status, 3, `stdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
   assert.match(result.stderr, /Registry skill sem tags: demo-skill/);
   assert.match(result.stderr, /Registry skill sem requires: demo-skill/);
 });
@@ -169,7 +169,7 @@ templates:
 
   const result = runValidator(root, ["--strict"]);
 
-  assert.notEqual(result.status, 0, `stdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
+  assert.equal(result.status, 3, `stdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
   assert.match(result.stderr, /Registry referencia caminho inexistente: .agents\/skills\/does-not-exist\/SKILL.md/);
   assert.match(result.stderr, /Skill sem referencia no registry: .agents\/skills\/demo-skill\/SKILL.md/);
 });
@@ -228,7 +228,7 @@ templates:
 
   const result = runValidator(root, ["--strict"]);
 
-  assert.notEqual(result.status, 0, `stdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
+  assert.equal(result.status, 2, `stdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
   assert.match(result.stderr, /frontmatter malformado \(delimitador final ausente\)/);
 });
 
@@ -268,6 +268,40 @@ templates:
 
   const result = runValidator(root, ["--strict"]);
 
-  assert.notEqual(result.status, 0, `stdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
+  assert.equal(result.status, 3, `stdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
   assert.match(result.stderr, /Registry skill com name duplicado: demo-skill \(2 entradas\)/);
+});
+
+test("validator outputs JSON report with class summary", () => {
+  const root = makeTempWorkspace();
+
+  writeFile(root, ".agents/skills/demo-skill/SKILL.md", validSkillMd("demo-skill"));
+  writeFile(root, ".agents/skills/.template/SKILL.md", validSkillMd("template-skill"));
+  writeFile(
+    root,
+    ".agents/SKILLS-REGISTRY.yaml",
+    `schemaVersion: 1
+updatedAt: 2026-03-27
+owner: test
+
+skills:
+  - name: demo-skill
+    version: 1.0.0
+    status: migrated
+    path: .agents/skills/demo-skill/SKILL.md
+
+templates:
+  - name: default
+    path: .agents/skills/.template/SKILL.md
+`,
+  );
+
+  const result = runValidator(root, ["--strict", "--json"]);
+
+  assert.equal(result.status, 3, `stdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
+  const output = JSON.parse(result.stdout);
+  assert.equal(output.summary.exitCode, 3);
+  assert.ok(output.summary.warnings > 0);
+  assert.ok(output.byClass.consistency.warnings > 0);
+  assert.ok(Array.isArray(output.issues));
 });
