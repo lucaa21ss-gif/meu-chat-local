@@ -1,4 +1,4 @@
-import { useReducer, useState } from "react";
+import { useReducer } from "react";
 import { Route, Routes } from "react-router-dom";
 import AdminOperationsPanel from "./components/AdminOperationsPanel.jsx";
 import AppSidebar from "./components/AppSidebar.jsx";
@@ -8,12 +8,13 @@ import GuidePage from "./components/GuidePage.jsx";
 import HealthCard from "./components/HealthCard.jsx";
 import ProductPage from "./components/ProductPage.jsx";
 import UiStatusBanner from "./components/UiStatusBanner.jsx";
+import useAppLayoutState from "./hooks/useAppLayoutState.js";
 import useReactAppWiring from "./hooks/useReactAppWiring.js";
 import { ROUTE_PATHS } from "./routes/navigation.js";
 import { INITIAL_UI_STATE, uiReducer } from "./state/ui-state.js";
 
 export default function App() {
-  const [menuOpen, setMenuOpen] = useState(false);
+  const { menuOpen, openMenu, closeMenu, backdropClassName } = useAppLayoutState();
   const [uiState, dispatch] = useReducer(uiReducer, INITIAL_UI_STATE);
   const { fetchJson, showStatus } = useReactAppWiring({
     uiStatus: uiState.status,
@@ -22,11 +23,11 @@ export default function App() {
 
   return (
     <div className="app-shell">
-      <div className={`backdrop ${menuOpen ? "show" : ""}`} onClick={() => setMenuOpen(false)} />
-      <AppSidebar menuOpen={menuOpen} onCloseMenu={() => setMenuOpen(false)} />
+      <div className={backdropClassName} onClick={closeMenu} />
+      <AppSidebar menuOpen={menuOpen} onCloseMenu={closeMenu} />
 
       <main className="content">
-        <AppTopbar onOpenMenu={() => setMenuOpen(true)} />
+        <AppTopbar onOpenMenu={openMenu} />
         <UiStatusBanner status={uiState.status} />
 
         <HealthCard fetchJson={fetchJson} onStatus={showStatus} />
