@@ -6,6 +6,8 @@ import {
   APP_SIDEBAR_PROP_KEYS,
   APP_TOPBAR_PROP_KEYS,
   APP_MAIN_CONTENT_PROP_KEYS,
+  APP_MAIN_CONTENT_HEADER_PROP_KEYS,
+  UI_STATUS_BANNER_PROP_KEYS,
   APP_STATUS_SHAPE,
   APP_STATUS_KEYS,
 } from "../src/ui/contracts/index.js";
@@ -35,6 +37,16 @@ test("component contracts define expected prop keys", () => {
     "showStatus",
     "status",
   ]);
+
+  // MainContentHeaderSection expects status, fetchJson, showStatus
+  assert.deepEqual(APP_MAIN_CONTENT_HEADER_PROP_KEYS, [
+    "fetchJson",
+    "showStatus",
+    "status",
+  ]);
+
+  // UiStatusBanner expects status only
+  assert.deepEqual(UI_STATUS_BANNER_PROP_KEYS, ["status"]);
 });
 
 test("status shape maintains message and level structure", () => {
@@ -65,6 +77,16 @@ test("app main content prop keys matches view-model main content props", () => {
   const viewModelMainContentProps = ["status", "fetchJson", "showStatus"].sort();
 
   assert.deepEqual(APP_MAIN_CONTENT_PROP_KEYS, viewModelMainContentProps);
+});
+
+test("main content header prop keys matches app main content props", () => {
+  assert.deepEqual(APP_MAIN_CONTENT_HEADER_PROP_KEYS, APP_MAIN_CONTENT_PROP_KEYS);
+});
+
+test("status banner prop keys are covered by header props", () => {
+  for (const prop of UI_STATUS_BANNER_PROP_KEYS) {
+    assert.equal(APP_MAIN_CONTENT_HEADER_PROP_KEYS.includes(prop), true);
+  }
 });
 
 test("app sidebar prop keys are fully covered by shell layout props", () => {

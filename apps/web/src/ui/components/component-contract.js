@@ -21,6 +21,16 @@ export const APP_MAIN_CONTENT_PROP_KEYS = Object.freeze([
   "status",
 ].sort());
 
+export const APP_MAIN_CONTENT_HEADER_PROP_KEYS = Object.freeze([
+  "fetchJson",
+  "showStatus",
+  "status",
+].sort());
+
+export const UI_STATUS_BANNER_PROP_KEYS = Object.freeze([
+  "status",
+].sort());
+
 export const APP_STATUS_SHAPE = Object.freeze({
   message: "",
   level: "info",
