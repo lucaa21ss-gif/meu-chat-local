@@ -9,31 +9,7 @@ import HealthCard from "./components/HealthCard.jsx";
 import ProductPage from "./components/ProductPage.jsx";
 import UiStatusBanner from "./components/UiStatusBanner.jsx";
 import useReactAppWiring from "./hooks/useReactAppWiring.js";
-
-const INITIAL_UI_STATE = {
-  status: {
-    message: "",
-    level: "info",
-  },
-};
-
-function uiReducer(state, action) {
-  if (action?.type === "ui/status") {
-    return {
-      ...state,
-      status: {
-        message: action.payload?.message || "",
-        level: action.payload?.level || "info",
-      },
-    };
-  }
-
-  if (action?.type === "chat/setActive") {
-    return state;
-  }
-
-  return state;
-}
+import { INITIAL_UI_STATE, uiReducer } from "./state/ui-state.js";
 
 export default function App() {
   const [menuOpen, setMenuOpen] = useState(false);
