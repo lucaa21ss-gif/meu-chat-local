@@ -32,6 +32,13 @@ import {
   ADMIN_TILE_LABELS,
   ADMIN_STATIC_COPY,
 } from "../state/admin-copy-contract.js";
+import {
+  ADMIN_FORMATTING,
+  formatAdminTime,
+  formatAdminDate,
+  formatAdminFileSizeMb,
+  getAdminItemCount,
+} from "../state/admin-format-contract.js";
 
 export default function AdminOperationsPanel({ fetchJson, onStatus }) {
   const [health, setHealth] = useState(null);
@@ -254,7 +261,7 @@ export default function AdminOperationsPanel({ fetchJson, onStatus }) {
         </div>
         <div className="admin-tile">
           <span className="tile-label">{ADMIN_TILE_LABELS.UPDATED_AT}</span>
-          <strong className="tile-value">{new Date().toLocaleTimeString("pt-BR")}</strong>
+          <strong className="tile-value">{formatAdminTime(Date.now())}</strong>
         </div>
       </div>
 
@@ -332,7 +339,7 @@ export default function AdminOperationsPanel({ fetchJson, onStatus }) {
             </div>
             <div className="admin-tile">
               <span className="tile-label">{ADMIN_TILE_LABELS.VERIFIED_ITEMS}</span>
-              <strong className="tile-value">{Array.isArray(backupValidation.items) ? backupValidation.items.length : 0}</strong>
+              <strong className="tile-value">{getAdminItemCount(backupValidation.items)}</strong>
             </div>
           </div>
 
@@ -343,8 +350,8 @@ export default function AdminOperationsPanel({ fetchJson, onStatus }) {
                   <div>
                     <strong>{item.fileName || ADMIN_DISPLAY_DEFAULTS.BACKUP_FILE_NAME}</strong>
                     <p className="hint">
-                      {(Number(item.sizeBytes || 0) / 1024 / 1024).toFixed(2)} MB
-                      {item.createdAt ? ` • ${new Date(item.createdAt).toLocaleDateString("pt-BR")}` : ""}
+                      {formatAdminFileSizeMb(item.sizeBytes)}
+                      {item.createdAt ? `${ADMIN_FORMATTING.DATE_PREFIX_SEPARATOR}${formatAdminDate(item.createdAt)}` : ""}
                     </p>
                   </div>
                   <span className={`check-badge ${item.validationStatus === ADMIN_STATUS_VALUES.VALIDATION_STATUS_OK ? ADMIN_BADGE_VARIANTS.OK : ADMIN_BADGE_VARIANTS.FAIL}`}>
@@ -437,7 +444,7 @@ export default function AdminOperationsPanel({ fetchJson, onStatus }) {
           </div>
           <div className="admin-tile">
             <span className="tile-label">{ADMIN_TILE_LABELS.RUNBOOK_STEPS}</span>
-            <strong className="tile-value">{Array.isArray(runbookResult.steps) ? runbookResult.steps.length : 0}</strong>
+            <strong className="tile-value">{getAdminItemCount(runbookResult.steps)}</strong>
           </div>
         </div>
       ) : null}
