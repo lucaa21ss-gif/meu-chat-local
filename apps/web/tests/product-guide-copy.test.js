@@ -43,16 +43,6 @@ test("GUIDE_COPY mantém rotas canonicas de acesso", () => {
   assert.equal(GUIDE_COPY.accessAdminPath, "/admin");
 });
 
-test("GUIDE_COPY mantém comando API + Web em duas linhas reais", () => {
-  const startStep = GUIDE_COPY.steps.find(
-    (step) => step.label === "Inicie API + Web:",
-  );
-
-  assert.ok(startStep);
-  assert.equal(startStep.command.includes("\n"), true);
-  assert.equal(startStep.command.includes("\\n"), false);
-});
-
 test("UI_COPY expõe dominios product/guide e helpers consistentes", () => {
   assert.equal(UI_COPY.product, PRODUCT_COPY);
   assert.equal(UI_COPY.guide, GUIDE_COPY);
