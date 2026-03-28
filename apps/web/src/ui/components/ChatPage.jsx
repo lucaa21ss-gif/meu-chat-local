@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { UI_STATUS_LEVELS } from "../contracts/index.js";
+import { buildChatRequest } from "../state/chat-request-contract.js";
 
 export default function ChatPage({ fetchJson, onStatus }) {
   const [message, setMessage] = useState("");
@@ -20,12 +21,7 @@ export default function ChatPage({ fetchJson, onStatus }) {
       const payload = await fetchJson("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          message,
-          model: "meu-llama3",
-          temperature: 0.7,
-          userId: "user-default",
-        }),
+        body: JSON.stringify(buildChatRequest(message)),
       });
       setReply(payload?.response || payload?.message || "Sem resposta no payload.");
       onStatus("Mensagem enviada com sucesso.", UI_STATUS_LEVELS.SUCCESS);

@@ -71,3 +71,9 @@ export {
   ASYNC_STATE_KEYS,
   createAsyncState,
 } from "../state/async-state-contract.js";
+
+export {
+  CHAT_REQUEST_SHAPE,
+  CHAT_REQUEST_KEYS,
+  buildChatRequest,
+} from "../state/chat-request-contract.js";
