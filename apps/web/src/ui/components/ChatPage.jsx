@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { UI_STATUS_LEVELS } from "../contracts/index.js";
 import { buildChatRequest } from "../state/chat-request-contract.js";
+import { API_ENDPOINTS } from "../state/api-endpoints-contract.js";
 
 export default function ChatPage({ fetchJson, onStatus }) {
   const [message, setMessage] = useState("");
@@ -18,7 +19,7 @@ export default function ChatPage({ fetchJson, onStatus }) {
     onStatus("Enviando mensagem...", UI_STATUS_LEVELS.INFO);
 
     try {
-      const payload = await fetchJson("/api/chat", {
+      const payload = await fetchJson(API_ENDPOINTS.CHAT, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(buildChatRequest(message)),
@@ -26,7 +27,7 @@ export default function ChatPage({ fetchJson, onStatus }) {
       setReply(payload?.response || payload?.message || "Sem resposta no payload.");
       onStatus("Mensagem enviada com sucesso.", UI_STATUS_LEVELS.SUCCESS);
     } catch (err) {
-      const detail = err?.message || "Falha ao enviar mensagem para /api/chat.";
+      const detail = err?.message || `Falha ao enviar mensagem para ${API_ENDPOINTS.CHAT}.`;
       setError(detail);
       onStatus(detail, UI_STATUS_LEVELS.ERROR);
     } finally {

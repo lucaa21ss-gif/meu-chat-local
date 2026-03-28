@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { UI_STATUS_LEVELS } from "../contracts/index.js";
+import { API_ENDPOINTS } from "../state/api-endpoints-contract.js";
 
 export default function AdminOperationsPanel({ fetchJson, onStatus }) {
   const [health, setHealth] = useState(null);
@@ -25,11 +26,11 @@ export default function AdminOperationsPanel({ fetchJson, onStatus }) {
     setLoading(true);
     setError("");
     try {
-      const payload = await fetchJson("/api/health/public");
+      const payload = await fetchJson(API_ENDPOINTS.HEALTH_ADMIN);
       setHealth(payload || {});
       onStatus("Status admin atualizado.", UI_STATUS_LEVELS.SUCCESS);
     } catch (err) {
-      const detail = err?.message || "Falha ao carregar /api/health/public.";
+      const detail = err?.message || `Falha ao carregar ${API_ENDPOINTS.HEALTH_ADMIN}.`;
       setError(detail);
       onStatus(detail, UI_STATUS_LEVELS.ERROR);
     } finally {
@@ -41,7 +42,7 @@ export default function AdminOperationsPanel({ fetchJson, onStatus }) {
     setUsersLoading(true);
     setUsersError("");
     try {
-      const payload = await fetchJson("/api/users", {
+      const payload = await fetchJson(API_ENDPOINTS.USERS, {
         headers: {
           "x-user-id": "user-default",
         },
@@ -49,7 +50,7 @@ export default function AdminOperationsPanel({ fetchJson, onStatus }) {
       const list = Array.isArray(payload) ? payload : [];
       setUsers(list);
     } catch (err) {
-      const detail = err?.message || "Falha ao carregar /api/users.";
+      const detail = err?.message || `Falha ao carregar ${API_ENDPOINTS.USERS}.`;
       setUsersError(detail);
       onStatus(detail, UI_STATUS_LEVELS.ERROR);
     } finally {
@@ -69,7 +70,7 @@ export default function AdminOperationsPanel({ fetchJson, onStatus }) {
     setBackupsLoading(true);
     setBackupsError("");
     try {
-      const payload = await fetchJson("/api/backup/validate?limit=10", {
+      const payload = await fetchJson(`${API_ENDPOINTS.BACKUP_VALIDATE}?limit=10`, {
         headers: {
           "x-user-id": getActorUserId(),
         },
@@ -87,7 +88,7 @@ export default function AdminOperationsPanel({ fetchJson, onStatus }) {
   async function exportBackupNow() {
     onStatus("Iniciando exportacao de backup...", UI_STATUS_LEVELS.INFO);
     try {
-      const response = await fetch("/api/backup/export", {
+      const response = await fetch(API_ENDPOINTS.BACKUP_EXPORT, {
         method: "GET",
         headers: {
           "x-user-id": getActorUserId(),
@@ -130,12 +131,12 @@ export default function AdminOperationsPanel({ fetchJson, onStatus }) {
     setIncidentError("");
     try {
       const [incidentPayload, autoHealingPayload] = await Promise.all([
-        fetchJson("/api/incident/status", {
+        fetchJson(API_ENDPOINTS.INCIDENT_STATUS, {
           headers: {
             "x-user-id": getActorUserId(),
           },
         }),
-        fetchJson("/api/auto-healing/status", {
+        fetchJson(API_ENDPOINTS.AUTO_HEALING_STATUS, {
           headers: {
             "x-user-id": getActorUserId(),
           },
@@ -157,7 +158,7 @@ export default function AdminOperationsPanel({ fetchJson, onStatus }) {
     setHealingLoading(true);
     onStatus("Executando auto-healing manual...", UI_STATUS_LEVELS.INFO);
     try {
-      await fetchJson("/api/auto-healing/execute", {
+      await fetchJson(API_ENDPOINTS.AUTO_HEALING_EXECUTE, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -181,7 +182,7 @@ export default function AdminOperationsPanel({ fetchJson, onStatus }) {
     onStatus(`Executando runbook (${runbookMode})...`, UI_STATUS_LEVELS.INFO);
 
     try {
-      const payload = await fetchJson("/api/incident/runbook/execute", {
+      const payload = await fetchJson(API_ENDPOINTS.INCIDENT_RUNBOOK_EXECUTE, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

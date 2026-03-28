@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { UI_STATUS_LEVELS } from "../contracts/index.js";
+import { API_ENDPOINTS } from "../state/api-endpoints-contract.js";
 
 export default function HealthCard({ fetchJson, onStatus }) {
   const [health, setHealth] = useState({ status: "loading" });
@@ -10,14 +11,14 @@ export default function HealthCard({ fetchJson, onStatus }) {
 
     async function loadHealth() {
       try {
-        const payload = await fetchJson("/api/health");
+        const payload = await fetchJson(API_ENDPOINTS.HEALTH);
         if (mounted) {
           setHealth(payload);
           setError("");
         }
       } catch {
         if (mounted) {
-          const message = "Nao foi possivel consultar /api/health";
+          const message = `Nao foi possivel consultar ${API_ENDPOINTS.HEALTH}`;
           setError(message);
           setHealth({ status: "offline" });
           onStatus(message, UI_STATUS_LEVELS.WARNING);

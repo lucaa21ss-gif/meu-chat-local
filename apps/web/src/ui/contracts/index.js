@@ -77,3 +77,8 @@ export {
   CHAT_REQUEST_KEYS,
   buildChatRequest,
 } from "../state/chat-request-contract.js";
+
+export {
+  API_ENDPOINTS,
+  API_ENDPOINT_KEYS,
+} from "../state/api-endpoints-contract.js";
