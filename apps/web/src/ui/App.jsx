@@ -142,16 +142,81 @@ function ChatPage({ fetchJson, onStatus }) {
   );
 }
 
-function AdminPage() {
+function AdminPage({ fetchJson, onStatus }) {
+  const [health, setHealth] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  async function loadAdminHealth() {
+    setLoading(true);
+    setError("");
+    try {
+      const payload = await fetchJson("/api/health/public");
+      setHealth(payload || {});
+      onStatus("Status admin atualizado.", "success");
+    } catch (err) {
+      const detail = err?.message || "Falha ao carregar /api/health/public.";
+      setError(detail);
+      onStatus(detail, "error");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadAdminHealth();
+    const timer = window.setInterval(loadAdminHealth, 30000);
+    return () => window.clearInterval(timer);
+  }, [fetchJson]);
+
+  const checks = Object.entries(health?.checks || {});
+
   return (
     <section className="card">
-      <h2>Admin</h2>
-      <p>Interface administrativa unificada em rota /admin no mesmo frontend.</p>
-      <ul>
-        <li>Saude e observabilidade via /api/health</li>
-        <li>Governanca e operacoes com controllers existentes</li>
-        <li>Pronto para evoluir RBAC de telas</li>
-      </ul>
+      <div className="admin-header">
+        <div>
+          <h2>Admin - Health</h2>
+          <p className="hint">Recorte inicial de paridade do painel administrativo.</p>
+        </div>
+        <button type="button" className="ghost" onClick={loadAdminHealth} disabled={loading}>
+          {loading ? "Atualizando..." : "Atualizar"}
+        </button>
+      </div>
+
+      {error ? <p className="error">{error}</p> : null}
+
+      <div className="admin-grid">
+        <div className="admin-tile">
+          <span className="tile-label">Status</span>
+          <strong className="tile-value">{String(health?.status || "desconhecido")}</strong>
+        </div>
+        <div className="admin-tile">
+          <span className="tile-label">Atualizado em</span>
+          <strong className="tile-value">{new Date().toLocaleTimeString("pt-BR")}</strong>
+        </div>
+      </div>
+
+      <h3 className="section-title">Checks</h3>
+      {checks.length === 0 ? (
+        <p className="hint">Nenhum check disponivel.</p>
+      ) : (
+        <div className="check-list">
+          {checks.map(([name, check]) => {
+            const isHealthy = check?.status === "healthy";
+            return (
+              <article key={name} className="check-item">
+                <div>
+                  <strong className="check-name">{name}</strong>
+                  <p className="hint">{check?.message || "Status verificado."}</p>
+                </div>
+                <span className={`check-badge ${isHealthy ? "ok" : "fail"}`}>
+                  {isHealthy ? "Saudavel" : "Falha"}
+                </span>
+              </article>
+            );
+          })}
+        </div>
+      )}
     </section>
   );
 }
@@ -342,7 +407,7 @@ export default function App() {
 
         <Routes>
           <Route path="/" element={<ChatPage fetchJson={apiClient.fetchJson} onStatus={showStatus} />} />
-          <Route path="/admin" element={<AdminPage />} />
+          <Route path="/admin" element={<AdminPage fetchJson={apiClient.fetchJson} onStatus={showStatus} />} />
           <Route path="/app" element={<ChatPage fetchJson={apiClient.fetchJson} onStatus={showStatus} />} />
           <Route path="/produto" element={<ProductPage />} />
           <Route path="/guia" element={<GuidePage />} />
