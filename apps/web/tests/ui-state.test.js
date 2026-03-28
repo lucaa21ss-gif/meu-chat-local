@@ -1,7 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { UI_STATE_ACTION_TYPES } from "../src/ui/contracts/index.js";
+import {
+  DEFAULT_UI_STATUS_LEVEL,
+  UI_STATE_ACTION_TYPES,
+  UI_STATUS_LEVELS,
+} from "../src/ui/contracts/index.js";
 import { INITIAL_UI_STATE, uiReducer } from "../src/ui/state/ui-state.js";
 
 test("uiReducer atualiza status com payload valido", () => {
@@ -14,7 +18,7 @@ test("uiReducer atualiza status com payload valido", () => {
   });
 
   assert.equal(state.status.message, "Sistema online");
-  assert.equal(state.status.level, "success");
+  assert.equal(state.status.level, UI_STATUS_LEVELS.SUCCESS);
 });
 
 test("uiReducer aplica fallback de level quando payload eh parcial", () => {
@@ -26,7 +30,7 @@ test("uiReducer aplica fallback de level quando payload eh parcial", () => {
   });
 
   assert.equal(state.status.message, "Sem nivel");
-  assert.equal(state.status.level, "info");
+  assert.equal(state.status.level, DEFAULT_UI_STATUS_LEVEL);
 });
 
 test("uiReducer ignora acao chat/setActive sem mutar estado", () => {

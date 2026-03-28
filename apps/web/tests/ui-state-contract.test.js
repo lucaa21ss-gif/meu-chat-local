@@ -78,11 +78,11 @@ describe("ui-state-contract", () => {
     it("should handle ui/status action and transform status", () => {
       const nextState = uiReducer(INITIAL_UI_STATE, {
         type: "ui/status",
-        payload: { message: "Hello", level: "success" },
+        payload: { message: "Hello", level: UI_STATUS_LEVELS.SUCCESS },
       });
 
       assert.equal(nextState.status.message, "Hello");
-      assert.equal(nextState.status.level, "success");
+      assert.equal(nextState.status.level, UI_STATUS_LEVELS.SUCCESS);
     });
 
     it("should handle chat/setActive action", () => {

@@ -32,6 +32,9 @@ export {
   UI_STATUS_LEVELS,
   UI_STATUS_LEVEL_VALUES,
   DEFAULT_UI_STATUS_LEVEL,
+  isValidUiStatusLevel,
+  normalizeUiStatusLevel,
+  normalizeUiStatus,
 } from "../state/status-level-contract.js";
 
 export {
