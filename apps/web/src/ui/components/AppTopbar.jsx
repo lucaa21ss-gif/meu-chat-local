@@ -1,17 +1,18 @@
 import { Link } from "react-router-dom";
+import { SHELL_COPY } from "../constants/shell-copy.js";
 
 export default function AppTopbar({ onOpenMenu }) {
   return (
     <header className="topbar">
       <button className="ghost lg-hidden" onClick={onOpenMenu}>
-        Menu
+        {SHELL_COPY.openMenuLabel}
       </button>
       <div>
-        <strong>Frontend Unico</strong>
-        <p>Mesmo host para usuario e admin em rede domestica.</p>
+        <strong>{SHELL_COPY.topbarTitle}</strong>
+        <p>{SHELL_COPY.topbarSubtitle}</p>
       </div>
-      <Link to="/admin" className="pill">
-        /admin
+      <Link to={SHELL_COPY.adminShortcutPath} className="pill">
+        {SHELL_COPY.adminShortcutLabel}
       </Link>
     </header>
   );
