@@ -99,3 +99,11 @@ export {
   buildUserIdHeader,
   buildJsonUserHeaders,
 } from "../state/api-headers-contract.js";
+
+export {
+  HEALTH_STATUSES,
+  HEALTH_STATUS_VALUES,
+  HEALTH_STATUS_LABELS,
+  normalizeHealthStatus,
+  getHealthStatusLabel,
+} from "../state/health-status-contract.js";

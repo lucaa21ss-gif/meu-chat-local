@@ -9,6 +9,7 @@ import {
   DEFAULT_AUTO_HEALING_POLICY,
 } from "../state/runbook-contract.js";
 import { buildUserIdHeader, buildJsonUserHeaders, API_HEADER_DEFAULTS } from "../state/api-headers-contract.js";
+import { HEALTH_STATUSES } from "../state/health-status-contract.js";
 
 export default function AdminOperationsPanel({ fetchJson, onStatus }) {
   const [health, setHealth] = useState(null);
@@ -244,7 +245,7 @@ export default function AdminOperationsPanel({ fetchJson, onStatus }) {
       ) : (
         <div className="check-list">
           {checks.map(([name, check]) => {
-            const isHealthy = check?.status === "healthy";
+            const isHealthy = check?.status === HEALTH_STATUSES.HEALTHY;
             return (
               <article key={name} className="check-item">
                 <div>

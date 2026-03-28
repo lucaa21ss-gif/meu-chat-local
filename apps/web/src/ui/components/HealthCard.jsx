@@ -1,9 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { UI_STATUS_LEVELS } from "../contracts/index.js";
 import { API_ENDPOINTS } from "../state/api-endpoints-contract.js";
+import {
+  HEALTH_STATUSES,
+  getHealthStatusLabel,
+} from "../state/health-status-contract.js";
 
 export default function HealthCard({ fetchJson, onStatus }) {
-  const [health, setHealth] = useState({ status: "loading" });
+  const [health, setHealth] = useState({ status: HEALTH_STATUSES.LOADING });
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -20,7 +24,7 @@ export default function HealthCard({ fetchJson, onStatus }) {
         if (mounted) {
           const message = `Nao foi possivel consultar ${API_ENDPOINTS.HEALTH}`;
           setError(message);
-          setHealth({ status: "offline" });
+          setHealth({ status: HEALTH_STATUSES.OFFLINE });
           onStatus(message, UI_STATUS_LEVELS.WARNING);
         }
       }
@@ -35,11 +39,7 @@ export default function HealthCard({ fetchJson, onStatus }) {
   }, [fetchJson, onStatus]);
 
   const statusLabel = useMemo(() => {
-    const raw = String(health?.status || "unknown").toLowerCase();
-    if (raw === "healthy") return "saudavel";
-    if (raw === "degraded") return "degradado";
-    if (raw === "unhealthy" || raw === "offline") return "indisponivel";
-    return "carregando";
+    return getHealthStatusLabel(health?.status);
   }, [health]);
 
   return (
