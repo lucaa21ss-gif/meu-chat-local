@@ -1,4 +1,4 @@
-import { GUIDE_COPY } from "../constants/product-guide-copy.js";
+import { GUIDE_COPY } from "../constants/ui-copy.js";
 
 export default function GuidePage() {
   return (

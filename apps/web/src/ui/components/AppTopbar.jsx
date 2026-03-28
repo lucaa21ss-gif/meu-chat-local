@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { SHELL_COPY } from "../constants/shell-copy.js";
+import { SHELL_COPY } from "../constants/ui-copy.js";
 
 export default function AppTopbar({ onOpenMenu }) {
   return (

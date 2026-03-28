@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import {
   GUIDE_COPY,
   PRODUCT_COPY,
-} from "../src/ui/constants/product-guide-copy.js";
+} from "../src/ui/constants/ui-copy.js";
 
 test("PRODUCT_COPY possui conteúdo minimo esperado", () => {
   assert.equal(typeof PRODUCT_COPY.title, "string");

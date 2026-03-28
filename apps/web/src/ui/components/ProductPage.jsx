@@ -1,4 +1,4 @@
-import { PRODUCT_COPY } from "../constants/product-guide-copy.js";
+import { PRODUCT_COPY } from "../constants/ui-copy.js";
 
 export default function ProductPage() {
   return (

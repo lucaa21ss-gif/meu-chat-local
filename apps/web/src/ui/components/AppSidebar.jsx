@@ -1,5 +1,5 @@
 import { NavLink } from "react-router-dom";
-import { SHELL_COPY } from "../constants/shell-copy.js";
+import { SHELL_COPY } from "../constants/ui-copy.js";
 import { SIDEBAR_NAV_ITEMS } from "../routes/navigation.js";
 
 export default function AppSidebar({ menuOpen, onCloseMenu }) {

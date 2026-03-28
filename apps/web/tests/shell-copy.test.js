@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { SHELL_COPY } from "../src/ui/constants/shell-copy.js";
+import { SHELL_COPY } from "../src/ui/constants/ui-copy.js";
 import { ROUTE_PATHS } from "../src/ui/routes/navigation.js";
 
 test("SHELL_COPY possui textos obrigatorios não vazios", () => {
