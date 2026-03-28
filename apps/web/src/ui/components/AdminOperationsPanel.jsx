@@ -12,6 +12,10 @@ import { buildUserIdHeader, buildJsonUserHeaders, API_HEADER_DEFAULTS } from "..
 import { HEALTH_STATUSES } from "../state/health-status-contract.js";
 import { POLLING_INTERVALS_MS } from "../state/polling-contract.js";
 import { buildBackupValidateUrl } from "../state/backup-query-contract.js";
+import {
+  ADMIN_STATUS_VALUES,
+  BACKUP_VALIDATION_LABELS,
+} from "../state/admin-status-contract.js";
 
 export default function AdminOperationsPanel({ fetchJson, onStatus }) {
   const [health, setHealth] = useState(null);
@@ -279,8 +283,8 @@ export default function AdminOperationsPanel({ fetchJson, onStatus }) {
                 <strong>{user.name || "Sem nome"}</strong>
                 <p className="hint">ID: {user.id || "n/a"}</p>
               </div>
-              <span className={`role-badge ${String(user.role || "viewer").toLowerCase()}`}>
-                {String(user.role || "viewer")}
+              <span className={`role-badge ${String(user.role || ADMIN_STATUS_VALUES.USER_ROLE_DEFAULT).toLowerCase()}`}>
+                {String(user.role || ADMIN_STATUS_VALUES.USER_ROLE_DEFAULT)}
               </span>
             </article>
           ))}
@@ -308,7 +312,7 @@ export default function AdminOperationsPanel({ fetchJson, onStatus }) {
           <div className="admin-grid">
             <div className="admin-tile">
               <span className="tile-label">Status</span>
-              <strong className="tile-value">{String(backupValidation.status || "unknown")}</strong>
+              <strong className="tile-value">{String(backupValidation.status || ADMIN_STATUS_VALUES.BACKUP_STATUS_DEFAULT)}</strong>
             </div>
             <div className="admin-tile">
               <span className="tile-label">Itens verificados</span>
@@ -327,8 +331,8 @@ export default function AdminOperationsPanel({ fetchJson, onStatus }) {
                       {item.createdAt ? ` • ${new Date(item.createdAt).toLocaleDateString("pt-BR")}` : ""}
                     </p>
                   </div>
-                  <span className={`check-badge ${item.validationStatus === "ok" ? "ok" : "fail"}`}>
-                    {item.validationStatus === "ok" ? "Valido" : "Verificar"}
+                  <span className={`check-badge ${item.validationStatus === ADMIN_STATUS_VALUES.VALIDATION_STATUS_OK ? "ok" : "fail"}`}>
+                    {item.validationStatus === ADMIN_STATUS_VALUES.VALIDATION_STATUS_OK ? BACKUP_VALIDATION_LABELS.OK : BACKUP_VALIDATION_LABELS.REVIEW}
                   </span>
                 </article>
               ))}
@@ -356,13 +360,13 @@ export default function AdminOperationsPanel({ fetchJson, onStatus }) {
       <div className="admin-grid">
         <div className="admin-tile">
           <span className="tile-label">Status incidente</span>
-          <strong className="tile-value">{String(incident?.status || "normal")}</strong>
+          <strong className="tile-value">{String(incident?.status || ADMIN_STATUS_VALUES.INCIDENT_STATUS_DEFAULT)}</strong>
           {incident?.summary ? <p className="hint">{incident.summary}</p> : null}
         </div>
         <div className="admin-tile">
           <span className="tile-label">Severidade</span>
-          <span className={`check-badge ${String(incident?.severity || "info") === "info" ? "ok" : "fail"}`}>
-            {String(incident?.severity || "info")}
+          <span className={`check-badge ${String(incident?.severity || ADMIN_STATUS_VALUES.INCIDENT_SEVERITY_INFO) === ADMIN_STATUS_VALUES.INCIDENT_SEVERITY_INFO ? "ok" : "fail"}`}>
+            {String(incident?.severity || ADMIN_STATUS_VALUES.INCIDENT_SEVERITY_INFO)}
           </span>
         </div>
       </div>
@@ -374,7 +378,7 @@ export default function AdminOperationsPanel({ fetchJson, onStatus }) {
         </div>
         <div className="admin-tile">
           <span className="tile-label">Circuit</span>
-          <strong className="tile-value">{String(autoHealingStatus?.circuit?.state || "closed")}</strong>
+          <strong className="tile-value">{String(autoHealingStatus?.circuit?.state || ADMIN_STATUS_VALUES.CIRCUIT_STATE_DEFAULT)}</strong>
         </div>
       </div>
 
