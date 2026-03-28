@@ -1,7 +1,6 @@
 import { useReducer } from "react";
 import AppRoutes from "./components/AppRoutes.jsx";
-import AppSidebar from "./components/AppSidebar.jsx";
-import AppTopbar from "./components/AppTopbar.jsx";
+import AppShellLayout from "./components/AppShellLayout.jsx";
 import MainContentHeaderSection from "./components/MainContentHeaderSection.jsx";
 import useAppLayoutState from "./hooks/useAppLayoutState.js";
 import useReactAppWiring from "./hooks/useReactAppWiring.js";
@@ -16,15 +15,14 @@ export default function App() {
   });
 
   return (
-    <div className="app-shell">
-      <div className={backdropClassName} onClick={closeMenu} />
-      <AppSidebar menuOpen={menuOpen} onCloseMenu={closeMenu} />
-
-      <main className="content">
-        <AppTopbar onOpenMenu={openMenu} />
-        <MainContentHeaderSection status={uiState.status} fetchJson={fetchJson} showStatus={showStatus} />
-        <AppRoutes fetchJson={fetchJson} showStatus={showStatus} />
-      </main>
-    </div>
+    <AppShellLayout
+      menuOpen={menuOpen}
+      backdropClassName={backdropClassName}
+      onCloseMenu={closeMenu}
+      onOpenMenu={openMenu}
+    >
+      <MainContentHeaderSection status={uiState.status} fetchJson={fetchJson} showStatus={showStatus} />
+      <AppRoutes fetchJson={fetchJson} showStatus={showStatus} />
+    </AppShellLayout>
   );
 }
