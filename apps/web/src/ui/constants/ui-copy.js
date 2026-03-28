@@ -50,7 +50,7 @@ const guide = Object.freeze({
     },
     {
       label: "Inicie API + Web:",
-      command: "npm run dev --workspace apps/api\\nnpm run dev --workspace apps/web",
+      command: "npm run dev --workspace apps/api\nnpm run dev --workspace apps/web",
     },
   ]),
   accessLabel: "Acesse:",
