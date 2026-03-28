@@ -18,6 +18,10 @@ import {
   ADMIN_BADGE_VARIANTS,
   HEALTH_CHECK_LABELS,
 } from "../state/admin-status-contract.js";
+import {
+  ADMIN_DISPLAY_DEFAULTS,
+  ADMIN_EMPTY_STATE_MESSAGES,
+} from "../state/admin-display-contract.js";
 
 export default function AdminOperationsPanel({ fetchJson, onStatus }) {
   const [health, setHealth] = useState(null);
@@ -246,7 +250,7 @@ export default function AdminOperationsPanel({ fetchJson, onStatus }) {
 
       <h3 className="section-title">Checks</h3>
       {checks.length === 0 ? (
-        <p className="hint">Nenhum check disponivel.</p>
+        <p className="hint">{ADMIN_EMPTY_STATE_MESSAGES.CHECKS}</p>
       ) : (
         <div className="check-list">
           {checks.map(([name, check]) => {
@@ -276,14 +280,14 @@ export default function AdminOperationsPanel({ fetchJson, onStatus }) {
       {usersError ? <p className="error">{usersError}</p> : null}
 
       {users.length === 0 ? (
-        <p className="hint">Nenhum usuario retornado pela API.</p>
+        <p className="hint">{ADMIN_EMPTY_STATE_MESSAGES.USERS}</p>
       ) : (
         <div className="users-list">
           {users.map((user) => (
             <article key={user.id || user.name} className="user-item">
               <div>
-                <strong>{user.name || "Sem nome"}</strong>
-                <p className="hint">ID: {user.id || "n/a"}</p>
+                <strong>{user.name || ADMIN_DISPLAY_DEFAULTS.USER_NAME}</strong>
+                <p className="hint">ID: {user.id || ADMIN_DISPLAY_DEFAULTS.IDENTIFIER}</p>
               </div>
               <span className={`role-badge ${String(user.role || ADMIN_STATUS_VALUES.USER_ROLE_DEFAULT).toLowerCase()}`}>
                 {String(user.role || ADMIN_STATUS_VALUES.USER_ROLE_DEFAULT)}
@@ -308,7 +312,7 @@ export default function AdminOperationsPanel({ fetchJson, onStatus }) {
       {backupsError ? <p className="error">{backupsError}</p> : null}
 
       {!backupValidation ? (
-        <p className="hint">Nenhuma validacao de backup disponivel.</p>
+        <p className="hint">{ADMIN_EMPTY_STATE_MESSAGES.BACKUP_VALIDATION}</p>
       ) : (
         <>
           <div className="admin-grid">
@@ -327,7 +331,7 @@ export default function AdminOperationsPanel({ fetchJson, onStatus }) {
               {backupValidation.items.map((item) => (
                 <article key={item.fileName || item.id} className="user-item">
                   <div>
-                    <strong>{item.fileName || "backup"}</strong>
+                    <strong>{item.fileName || ADMIN_DISPLAY_DEFAULTS.BACKUP_FILE_NAME}</strong>
                     <p className="hint">
                       {(Number(item.sizeBytes || 0) / 1024 / 1024).toFixed(2)} MB
                       {item.createdAt ? ` • ${new Date(item.createdAt).toLocaleDateString("pt-BR")}` : ""}
@@ -340,7 +344,7 @@ export default function AdminOperationsPanel({ fetchJson, onStatus }) {
               ))}
             </div>
           ) : (
-            <p className="hint">Sem arquivos de backup recentes.</p>
+            <p className="hint">{ADMIN_EMPTY_STATE_MESSAGES.BACKUP_RECENT_FILES}</p>
           )}
         </>
       )}
@@ -419,7 +423,7 @@ export default function AdminOperationsPanel({ fetchJson, onStatus }) {
         <div className="admin-grid">
           <div className="admin-tile">
             <span className="tile-label">Runbook ID</span>
-            <strong className="tile-value">{runbookResult.id || "n/a"}</strong>
+            <strong className="tile-value">{runbookResult.id || ADMIN_DISPLAY_DEFAULTS.IDENTIFIER}</strong>
           </div>
           <div className="admin-tile">
             <span className="tile-label">Passos executados</span>
