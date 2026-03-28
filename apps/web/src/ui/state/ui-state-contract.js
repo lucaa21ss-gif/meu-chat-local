@@ -5,6 +5,13 @@
  * Ensures type safety and alignment across state mutations.
  */
 
+import { DEFAULT_UI_STATUS_LEVEL } from "./status-level-contract.js";
+export {
+  UI_STATUS_LEVELS,
+  UI_STATUS_LEVEL_VALUES,
+  DEFAULT_UI_STATUS_LEVEL,
+} from "./status-level-contract.js";
+
 /**
  * Reducer action type identifiers
  * @type {Readonly<{STATUS: 'ui/status', CHAT_ACTIVE: 'chat/setActive'}>}
@@ -31,7 +38,7 @@ export const UI_STATE_ACTION_TYPE_VALUES = Object.freeze(
 export const UI_STATE_SHAPE = Object.freeze({
   status: Object.freeze({
     message: "",
-    level: "info",
+    level: DEFAULT_UI_STATUS_LEVEL,
   }),
 });
 

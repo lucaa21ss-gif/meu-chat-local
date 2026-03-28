@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { UI_STATUS_LEVELS } from "../contracts/index.js";
 
 export default function AdminOperationsPanel({ fetchJson, onStatus }) {
   const [health, setHealth] = useState(null);
@@ -26,11 +27,11 @@ export default function AdminOperationsPanel({ fetchJson, onStatus }) {
     try {
       const payload = await fetchJson("/api/health/public");
       setHealth(payload || {});
-      onStatus("Status admin atualizado.", "success");
+      onStatus("Status admin atualizado.", UI_STATUS_LEVELS.SUCCESS);
     } catch (err) {
       const detail = err?.message || "Falha ao carregar /api/health/public.";
       setError(detail);
-      onStatus(detail, "error");
+      onStatus(detail, UI_STATUS_LEVELS.ERROR);
     } finally {
       setLoading(false);
     }
@@ -50,7 +51,7 @@ export default function AdminOperationsPanel({ fetchJson, onStatus }) {
     } catch (err) {
       const detail = err?.message || "Falha ao carregar /api/users.";
       setUsersError(detail);
-      onStatus(detail, "error");
+      onStatus(detail, UI_STATUS_LEVELS.ERROR);
     } finally {
       setUsersLoading(false);
     }
@@ -77,14 +78,14 @@ export default function AdminOperationsPanel({ fetchJson, onStatus }) {
     } catch (err) {
       const detail = err?.message || "Falha ao validar backups.";
       setBackupsError(detail);
-      onStatus(detail, "error");
+      onStatus(detail, UI_STATUS_LEVELS.ERROR);
     } finally {
       setBackupsLoading(false);
     }
   }
 
   async function exportBackupNow() {
-    onStatus("Iniciando exportacao de backup...", "info");
+    onStatus("Iniciando exportacao de backup...", UI_STATUS_LEVELS.INFO);
     try {
       const response = await fetch("/api/backup/export", {
         method: "GET",
@@ -116,11 +117,11 @@ export default function AdminOperationsPanel({ fetchJson, onStatus }) {
       a.remove();
       window.URL.revokeObjectURL(url);
 
-      onStatus("Backup exportado com sucesso.", "success");
+      onStatus("Backup exportado com sucesso.", UI_STATUS_LEVELS.SUCCESS);
       await loadBackups();
     } catch (err) {
       const detail = err?.message || "Falha ao exportar backup.";
-      onStatus(detail, "error");
+      onStatus(detail, UI_STATUS_LEVELS.ERROR);
     }
   }
 
@@ -146,7 +147,7 @@ export default function AdminOperationsPanel({ fetchJson, onStatus }) {
     } catch (err) {
       const detail = err?.message || "Falha ao carregar status de incidentes.";
       setIncidentError(detail);
-      onStatus(detail, "error");
+      onStatus(detail, UI_STATUS_LEVELS.ERROR);
     } finally {
       setIncidentLoading(false);
     }
@@ -154,7 +155,7 @@ export default function AdminOperationsPanel({ fetchJson, onStatus }) {
 
   async function runAutoHealing() {
     setHealingLoading(true);
-    onStatus("Executando auto-healing manual...", "info");
+    onStatus("Executando auto-healing manual...", UI_STATUS_LEVELS.INFO);
     try {
       await fetchJson("/api/auto-healing/execute", {
         method: "POST",
@@ -164,11 +165,11 @@ export default function AdminOperationsPanel({ fetchJson, onStatus }) {
         },
         body: JSON.stringify({ policy: "model-offline" }),
       });
-      onStatus("Auto-healing executado.", "success");
+      onStatus("Auto-healing executado.", UI_STATUS_LEVELS.SUCCESS);
       await loadIncidentStatus();
     } catch (err) {
       const detail = err?.message || "Falha na execucao de auto-healing.";
-      onStatus(detail, "error");
+      onStatus(detail, UI_STATUS_LEVELS.ERROR);
     } finally {
       setHealingLoading(false);
     }
@@ -177,7 +178,7 @@ export default function AdminOperationsPanel({ fetchJson, onStatus }) {
   async function executeIncidentRunbook() {
     setRunbookLoading(true);
     setRunbookResult(null);
-    onStatus(`Executando runbook (${runbookMode})...`, "info");
+    onStatus(`Executando runbook (${runbookMode})...`, UI_STATUS_LEVELS.INFO);
 
     try {
       const payload = await fetchJson("/api/incident/runbook/execute", {
@@ -193,11 +194,11 @@ export default function AdminOperationsPanel({ fetchJson, onStatus }) {
       });
 
       setRunbookResult(payload?.runbook || null);
-      onStatus("Runbook executado com sucesso.", "success");
+      onStatus("Runbook executado com sucesso.", UI_STATUS_LEVELS.SUCCESS);
       await loadIncidentStatus();
     } catch (err) {
       const detail = err?.message || "Falha ao executar runbook de incidente.";
-      onStatus(detail, "error");
+      onStatus(detail, UI_STATUS_LEVELS.ERROR);
     } finally {
       setRunbookLoading(false);
     }

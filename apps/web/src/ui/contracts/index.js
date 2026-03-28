@@ -29,6 +29,12 @@ export {
 } from "../components/component-contract.js";
 
 export {
+  UI_STATUS_LEVELS,
+  UI_STATUS_LEVEL_VALUES,
+  DEFAULT_UI_STATUS_LEVEL,
+} from "../state/status-level-contract.js";
+
+export {
   UI_STATE_ACTION_TYPES,
   UI_STATE_ACTION_TYPE_VALUES,
   UI_STATE_SHAPE,

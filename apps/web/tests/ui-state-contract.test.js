@@ -1,6 +1,9 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import {
+  DEFAULT_UI_STATUS_LEVEL,
+  UI_STATUS_LEVELS,
+  UI_STATUS_LEVEL_VALUES,
   UI_STATE_ACTION_TYPES,
   UI_STATE_ACTION_TYPE_VALUES,
   UI_STATE_SHAPE,
@@ -20,6 +23,30 @@ describe("ui-state-contract", () => {
       "chat/setActive",
       "ui/status",
     ]);
+  });
+
+  it("should have UI_STATUS_LEVELS frozen with expected values", () => {
+    assert.equal(Object.isFrozen(UI_STATUS_LEVELS), true);
+    assert.deepEqual(UI_STATUS_LEVELS, {
+      INFO: "info",
+      SUCCESS: "success",
+      WARNING: "warning",
+      ERROR: "error",
+    });
+  });
+
+  it("should have UI_STATUS_LEVEL_VALUES frozen and sorted", () => {
+    assert.equal(Object.isFrozen(UI_STATUS_LEVEL_VALUES), true);
+    assert.deepEqual(UI_STATUS_LEVEL_VALUES, [
+      "error",
+      "info",
+      "success",
+      "warning",
+    ]);
+  });
+
+  it("should expose default status level from contract", () => {
+    assert.equal(DEFAULT_UI_STATUS_LEVEL, UI_STATUS_LEVELS.INFO);
   });
 
   it("should have UI_STATE_SHAPE frozen with nested freeze", () => {
@@ -75,7 +102,7 @@ describe("ui-state-contract", () => {
       });
 
       assert.equal(nextState.status.message, "Error");
-      assert.equal(nextState.status.level, "info"); // default
+      assert.equal(nextState.status.level, DEFAULT_UI_STATUS_LEVEL); // default
     });
 
     it("should return unchanged state for unknown action", () => {

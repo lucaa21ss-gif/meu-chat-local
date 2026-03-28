@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { UI_STATUS_LEVELS } from "../contracts/index.js";
 
 export default function HealthCard({ fetchJson, onStatus }) {
   const [health, setHealth] = useState({ status: "loading" });
@@ -19,7 +20,7 @@ export default function HealthCard({ fetchJson, onStatus }) {
           const message = "Nao foi possivel consultar /api/health";
           setError(message);
           setHealth({ status: "offline" });
-          onStatus(message, "warning");
+          onStatus(message, UI_STATUS_LEVELS.WARNING);
         }
       }
     }

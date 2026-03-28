@@ -2,6 +2,7 @@ import {
   UI_STATE_ACTION_TYPES,
   UI_STATE_SHAPE,
 } from "./ui-state-contract.js";
+import { DEFAULT_UI_STATUS_LEVEL } from "./status-level-contract.js";
 
 export const INITIAL_UI_STATE = {
   ...UI_STATE_SHAPE,
@@ -13,7 +14,7 @@ export function uiReducer(state, action) {
       ...state,
       status: {
         message: action.payload?.message || "",
-        level: action.payload?.level || "info",
+        level: action.payload?.level || DEFAULT_UI_STATUS_LEVEL,
       },
     };
   }
