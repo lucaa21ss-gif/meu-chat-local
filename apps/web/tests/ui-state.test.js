@@ -1,11 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
+import { UI_STATE_ACTION_TYPES } from "../src/ui/contracts/index.js";
 import { INITIAL_UI_STATE, uiReducer } from "../src/ui/state/ui-state.js";
 
 test("uiReducer atualiza status com payload valido", () => {
   const state = uiReducer(INITIAL_UI_STATE, {
-    type: "ui/status",
+    type: UI_STATE_ACTION_TYPES.STATUS,
     payload: {
       message: "Sistema online",
       level: "success",
@@ -18,7 +19,7 @@ test("uiReducer atualiza status com payload valido", () => {
 
 test("uiReducer aplica fallback de level quando payload eh parcial", () => {
   const state = uiReducer(INITIAL_UI_STATE, {
-    type: "ui/status",
+    type: UI_STATE_ACTION_TYPES.STATUS,
     payload: {
       message: "Sem nivel",
     },
@@ -30,7 +31,7 @@ test("uiReducer aplica fallback de level quando payload eh parcial", () => {
 
 test("uiReducer ignora acao chat/setActive sem mutar estado", () => {
   const state = uiReducer(INITIAL_UI_STATE, {
-    type: "chat/setActive",
+    type: UI_STATE_ACTION_TYPES.CHAT_ACTIVE,
     payload: { chatId: "abc" },
   });
 

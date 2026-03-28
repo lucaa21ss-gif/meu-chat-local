@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import { createApiClient } from "../../app/shared/api.js";
 import { createReactAppWiringContract } from "../../app/shared/app-wiring-react.js";
+import { UI_STATE_ACTION_TYPES } from "../state/ui-state-contract.js";
 
 export default function useReactAppWiring({ uiStatus, dispatch }) {
   const stateRef = useRef({});
@@ -35,7 +36,11 @@ export default function useReactAppWiring({ uiStatus, dispatch }) {
           appendMessage: () => {},
           hideTyping: () => {},
           hideStatus: () => {},
-          showStatus: (message) => dispatch({ type: "ui/status", payload: { message, level: "info" } }),
+          showStatus: (message) =>
+            dispatch({
+              type: UI_STATE_ACTION_TYPES.STATUS,
+              payload: { message, level: "info" },
+            }),
           loadRagDocuments: async () => {},
           runHistorySearch: async () => {},
           clearSearchResults: () => {},

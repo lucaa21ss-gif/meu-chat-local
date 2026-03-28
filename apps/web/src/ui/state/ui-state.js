@@ -1,12 +1,14 @@
+import {
+  UI_STATE_ACTION_TYPES,
+  UI_STATE_SHAPE,
+} from "./ui-state-contract.js";
+
 export const INITIAL_UI_STATE = {
-  status: {
-    message: "",
-    level: "info",
-  },
+  ...UI_STATE_SHAPE,
 };
 
 export function uiReducer(state, action) {
-  if (action?.type === "ui/status") {
+  if (action?.type === UI_STATE_ACTION_TYPES.STATUS) {
     return {
       ...state,
       status: {
@@ -16,7 +18,7 @@ export function uiReducer(state, action) {
     };
   }
 
-  if (action?.type === "chat/setActive") {
+  if (action?.type === UI_STATE_ACTION_TYPES.CHAT_ACTIVE) {
     return state;
   }
 
