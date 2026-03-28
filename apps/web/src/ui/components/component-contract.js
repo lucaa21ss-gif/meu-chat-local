@@ -21,6 +21,11 @@ export const APP_MAIN_CONTENT_PROP_KEYS = Object.freeze([
   "status",
 ].sort());
 
+export const APP_ROUTES_PROP_KEYS = Object.freeze([
+  "fetchJson",
+  "showStatus",
+].sort());
+
 export const APP_MAIN_CONTENT_HEADER_PROP_KEYS = Object.freeze([
   "fetchJson",
   "showStatus",

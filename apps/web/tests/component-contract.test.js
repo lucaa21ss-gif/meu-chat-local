@@ -5,6 +5,7 @@ import {
   APP_SHELL_LAYOUT_PROP_KEYS,
   APP_SIDEBAR_PROP_KEYS,
   APP_TOPBAR_PROP_KEYS,
+  APP_ROUTES_PROP_KEYS,
   APP_MAIN_CONTENT_PROP_KEYS,
   APP_MAIN_CONTENT_HEADER_PROP_KEYS,
   UI_STATUS_BANNER_PROP_KEYS,
@@ -34,6 +35,12 @@ test("component contracts define expected prop keys", () => {
 
   // AppTopbar expects open handler
   assert.deepEqual(APP_TOPBAR_PROP_KEYS, ["onOpenMenu"]);
+
+  // AppRoutes expects fetchJson + showStatus
+  assert.deepEqual(APP_ROUTES_PROP_KEYS, [
+    "fetchJson",
+    "showStatus",
+  ]);
 
   // AppMainContent expects status, fetchJson, showStatus
   assert.deepEqual(APP_MAIN_CONTENT_PROP_KEYS, [
@@ -81,6 +88,12 @@ test("app main content prop keys matches view-model main content props", () => {
   const viewModelMainContentProps = ["status", "fetchJson", "showStatus"].sort();
 
   assert.deepEqual(APP_MAIN_CONTENT_PROP_KEYS, viewModelMainContentProps);
+});
+
+test("app routes prop keys are fully covered by app main content props", () => {
+  for (const prop of APP_ROUTES_PROP_KEYS) {
+    assert.equal(APP_MAIN_CONTENT_PROP_KEYS.includes(prop), true);
+  }
 });
 
 test("main content header prop keys matches app main content props", () => {
