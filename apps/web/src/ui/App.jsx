@@ -9,6 +9,7 @@ import HealthCard from "./components/HealthCard.jsx";
 import ProductPage from "./components/ProductPage.jsx";
 import UiStatusBanner from "./components/UiStatusBanner.jsx";
 import useReactAppWiring from "./hooks/useReactAppWiring.js";
+import { ROUTE_PATHS } from "./routes/navigation.js";
 import { INITIAL_UI_STATE, uiReducer } from "./state/ui-state.js";
 
 export default function App() {
@@ -31,11 +32,11 @@ export default function App() {
         <HealthCard fetchJson={fetchJson} onStatus={showStatus} />
 
         <Routes>
-          <Route path="/" element={<ChatPage fetchJson={fetchJson} onStatus={showStatus} />} />
-          <Route path="/admin" element={<AdminOperationsPanel fetchJson={fetchJson} onStatus={showStatus} />} />
-          <Route path="/app" element={<ChatPage fetchJson={fetchJson} onStatus={showStatus} />} />
-          <Route path="/produto" element={<ProductPage />} />
-          <Route path="/guia" element={<GuidePage />} />
+          <Route path={ROUTE_PATHS.chat} element={<ChatPage fetchJson={fetchJson} onStatus={showStatus} />} />
+          <Route path={ROUTE_PATHS.admin} element={<AdminOperationsPanel fetchJson={fetchJson} onStatus={showStatus} />} />
+          <Route path={ROUTE_PATHS.chatAlias} element={<ChatPage fetchJson={fetchJson} onStatus={showStatus} />} />
+          <Route path={ROUTE_PATHS.product} element={<ProductPage />} />
+          <Route path={ROUTE_PATHS.guide} element={<GuidePage />} />
         </Routes>
       </main>
     </div>

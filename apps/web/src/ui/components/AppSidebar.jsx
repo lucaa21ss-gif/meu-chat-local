@@ -1,4 +1,5 @@
 import { NavLink } from "react-router-dom";
+import { SIDEBAR_NAV_ITEMS } from "../routes/navigation.js";
 
 export default function AppSidebar({ menuOpen, onCloseMenu }) {
   return (
@@ -10,18 +11,11 @@ export default function AppSidebar({ menuOpen, onCloseMenu }) {
         </button>
       </div>
       <nav>
-        <NavLink to="/" onClick={onCloseMenu} end>
-          Chat
-        </NavLink>
-        <NavLink to="/admin" onClick={onCloseMenu}>
-          Admin
-        </NavLink>
-        <NavLink to="/produto" onClick={onCloseMenu}>
-          Produto
-        </NavLink>
-        <NavLink to="/guia" onClick={onCloseMenu}>
-          Guia
-        </NavLink>
+        {SIDEBAR_NAV_ITEMS.map((item) => (
+          <NavLink key={item.to} to={item.to} onClick={onCloseMenu} end={item.end}>
+            {item.label}
+          </NavLink>
+        ))}
       </nav>
       <p className="hint">Responsivo para desktop, tablet e celular.</p>
     </aside>
