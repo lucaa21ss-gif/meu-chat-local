@@ -10,8 +10,28 @@ import ProductPage from "./components/ProductPage.jsx";
 import UiStatusBanner from "./components/UiStatusBanner.jsx";
 import useAppLayoutState from "./hooks/useAppLayoutState.js";
 import useReactAppWiring from "./hooks/useReactAppWiring.js";
-import { ROUTE_PATHS } from "./routes/navigation.js";
+import { ROUTE_DEFINITIONS } from "./routes/navigation.js";
 import { INITIAL_UI_STATE, uiReducer } from "./state/ui-state.js";
+
+function renderRouteElement(route, { fetchJson, showStatus }) {
+  if (route.view === "chat") {
+    return <ChatPage fetchJson={fetchJson} onStatus={showStatus} />;
+  }
+
+  if (route.view === "admin") {
+    return <AdminOperationsPanel fetchJson={fetchJson} onStatus={showStatus} />;
+  }
+
+  if (route.view === "product") {
+    return <ProductPage />;
+  }
+
+  if (route.view === "guide") {
+    return <GuidePage />;
+  }
+
+  return null;
+}
 
 export default function App() {
   const { menuOpen, openMenu, closeMenu, backdropClassName } = useAppLayoutState();
@@ -33,11 +53,9 @@ export default function App() {
         <HealthCard fetchJson={fetchJson} onStatus={showStatus} />
 
         <Routes>
-          <Route path={ROUTE_PATHS.chat} element={<ChatPage fetchJson={fetchJson} onStatus={showStatus} />} />
-          <Route path={ROUTE_PATHS.admin} element={<AdminOperationsPanel fetchJson={fetchJson} onStatus={showStatus} />} />
-          <Route path={ROUTE_PATHS.chatAlias} element={<ChatPage fetchJson={fetchJson} onStatus={showStatus} />} />
-          <Route path={ROUTE_PATHS.product} element={<ProductPage />} />
-          <Route path={ROUTE_PATHS.guide} element={<GuidePage />} />
+          {ROUTE_DEFINITIONS.map((route) => (
+            <Route key={route.id} path={route.path} element={renderRouteElement(route, { fetchJson, showStatus })} />
+          ))}
         </Routes>
       </main>
     </div>

@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 
 import {
   ALL_ROUTE_PATHS,
+  ROUTE_DEFINITIONS,
   ROUTE_PATHS,
   SIDEBAR_NAV_ITEMS,
 } from "../src/ui/routes/navigation.js";
@@ -28,4 +29,18 @@ test("contrato minimo de navegacao se mantém", () => {
   const menuPaths = SIDEBAR_NAV_ITEMS.map((item) => item.to);
   assert.equal(menuPaths.includes(ROUTE_PATHS.chat), true);
   assert.equal(menuPaths.includes(ROUTE_PATHS.admin), true);
+});
+
+test("ROUTE_DEFINITIONS possui estrutura valida para map de Routes", () => {
+  for (const route of ROUTE_DEFINITIONS) {
+    assert.equal(typeof route.id, "string");
+    assert.equal(typeof route.path, "string");
+    assert.equal(typeof route.view, "string");
+    assert.equal(route.path.length > 0, true);
+  }
+});
+
+test("menu lateral nao inclui rota alias de chat", () => {
+  const menuPaths = SIDEBAR_NAV_ITEMS.map((item) => item.to);
+  assert.equal(menuPaths.includes(ROUTE_PATHS.chatAlias), false);
 });
