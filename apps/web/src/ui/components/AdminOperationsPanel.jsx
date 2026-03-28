@@ -11,6 +11,7 @@ import {
 import { buildUserIdHeader, buildJsonUserHeaders, API_HEADER_DEFAULTS } from "../state/api-headers-contract.js";
 import { HEALTH_STATUSES } from "../state/health-status-contract.js";
 import { POLLING_INTERVALS_MS } from "../state/polling-contract.js";
+import { buildBackupValidateUrl } from "../state/backup-query-contract.js";
 
 export default function AdminOperationsPanel({ fetchJson, onStatus }) {
   const [health, setHealth] = useState(null);
@@ -80,12 +81,9 @@ export default function AdminOperationsPanel({ fetchJson, onStatus }) {
     setBackupsLoading(true);
     setBackupsError("");
     try {
-      const payload = await fetchJson(
-        `${API_ENDPOINTS.BACKUP_VALIDATE}?limit=10`,
-        {
-          headers: buildUserIdHeader(getActorUserId()),
-        },
-      );
+      const payload = await fetchJson(buildBackupValidateUrl(), {
+        headers: buildUserIdHeader(getActorUserId()),
+      });
       setBackupValidation(payload?.validation || null);
     } catch (err) {
       const detail = err?.message || "Falha ao validar backups.";

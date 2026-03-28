@@ -113,3 +113,10 @@ export {
   POLLING_INTERVALS_MS,
   POLLING_INTERVAL_KEYS,
 } from "../state/polling-contract.js";
+
+export {
+  BACKUP_QUERY_DEFAULTS,
+  BACKUP_QUERY_KEYS,
+  normalizeBackupValidateLimit,
+  buildBackupValidateUrl,
+} from "../state/backup-query-contract.js";
