@@ -39,6 +39,7 @@ import {
   formatAdminFileSizeMb,
   getAdminItemCount,
 } from "../state/admin-format-contract.js";
+import { ADMIN_PAYLOAD_KEYS } from "../state/admin-payload-contract.js";
 
 export default function AdminOperationsPanel({ fetchJson, onStatus }) {
   const [health, setHealth] = useState(null);
@@ -111,7 +112,7 @@ export default function AdminOperationsPanel({ fetchJson, onStatus }) {
       const payload = await fetchJson(buildBackupValidateUrl(), {
         headers: buildUserIdHeader(getActorUserId()),
       });
-      setBackupValidation(payload?.validation || null);
+      setBackupValidation(payload?.[ADMIN_PAYLOAD_KEYS.BACKUP_VALIDATION_ROOT] || null);
     } catch (err) {
       const detail = err?.message || ADMIN_OPERATION_MESSAGES.BACKUPS_VALIDATE_FAILED;
       setBackupsError(detail);
@@ -173,8 +174,8 @@ export default function AdminOperationsPanel({ fetchJson, onStatus }) {
         }),
       ]);
 
-      setIncident(incidentPayload?.incident || null);
-      setAutoHealingStatus(autoHealingPayload?.autoHealing || null);
+      setIncident(incidentPayload?.[ADMIN_PAYLOAD_KEYS.INCIDENT_ROOT] || null);
+      setAutoHealingStatus(autoHealingPayload?.[ADMIN_PAYLOAD_KEYS.AUTO_HEALING_ROOT] || null);
     } catch (err) {
       const detail = err?.message || ADMIN_OPERATION_MESSAGES.INCIDENT_STATUS_FAILED;
       setIncidentError(detail);
@@ -238,7 +239,7 @@ export default function AdminOperationsPanel({ fetchJson, onStatus }) {
     return () => window.clearInterval(timer);
   }, [fetchJson]);
 
-  const checks = Object.entries(health?.checks || {});
+  const checks = Object.entries(health?.[ADMIN_PAYLOAD_KEYS.HEALTH_CHECKS] || {});
 
   return (
     <section className="card">
@@ -301,13 +302,13 @@ export default function AdminOperationsPanel({ fetchJson, onStatus }) {
       ) : (
         <div className="users-list">
           {users.map((user) => (
-            <article key={user.id || user.name} className="user-item">
+            <article key={user[ADMIN_PAYLOAD_KEYS.USERS_ID] || user[ADMIN_PAYLOAD_KEYS.USERS_NAME]} className="user-item">
               <div>
-                <strong>{user.name || ADMIN_DISPLAY_DEFAULTS.USER_NAME}</strong>
-                <p className="hint">ID: {user.id || ADMIN_DISPLAY_DEFAULTS.IDENTIFIER}</p>
+                <strong>{user[ADMIN_PAYLOAD_KEYS.USERS_NAME] || ADMIN_DISPLAY_DEFAULTS.USER_NAME}</strong>
+                <p className="hint">ID: {user[ADMIN_PAYLOAD_KEYS.USERS_ID] || ADMIN_DISPLAY_DEFAULTS.IDENTIFIER}</p>
               </div>
-              <span className={`role-badge ${String(user.role || ADMIN_STATUS_VALUES.USER_ROLE_DEFAULT).toLowerCase()}`}>
-                {String(user.role || ADMIN_STATUS_VALUES.USER_ROLE_DEFAULT)}
+              <span className={`role-badge ${String(user[ADMIN_PAYLOAD_KEYS.USERS_ROLE] || ADMIN_STATUS_VALUES.USER_ROLE_DEFAULT).toLowerCase()}`}>
+                {String(user[ADMIN_PAYLOAD_KEYS.USERS_ROLE] || ADMIN_STATUS_VALUES.USER_ROLE_DEFAULT)}
               </span>
             </article>
           ))}
@@ -335,27 +336,27 @@ export default function AdminOperationsPanel({ fetchJson, onStatus }) {
           <div className="admin-grid">
             <div className="admin-tile">
               <span className="tile-label">{ADMIN_TILE_LABELS.STATUS}</span>
-              <strong className="tile-value">{String(backupValidation.status || ADMIN_STATUS_VALUES.BACKUP_STATUS_DEFAULT)}</strong>
+              <strong className="tile-value">{String(backupValidation[ADMIN_PAYLOAD_KEYS.BACKUP_STATUS] || ADMIN_STATUS_VALUES.BACKUP_STATUS_DEFAULT)}</strong>
             </div>
             <div className="admin-tile">
               <span className="tile-label">{ADMIN_TILE_LABELS.VERIFIED_ITEMS}</span>
-              <strong className="tile-value">{getAdminItemCount(backupValidation.items)}</strong>
+              <strong className="tile-value">{getAdminItemCount(backupValidation[ADMIN_PAYLOAD_KEYS.BACKUP_ITEMS])}</strong>
             </div>
           </div>
 
-          {Array.isArray(backupValidation.items) && backupValidation.items.length > 0 ? (
+          {Array.isArray(backupValidation[ADMIN_PAYLOAD_KEYS.BACKUP_ITEMS]) && backupValidation[ADMIN_PAYLOAD_KEYS.BACKUP_ITEMS].length > 0 ? (
             <div className="users-list">
-              {backupValidation.items.map((item) => (
-                <article key={item.fileName || item.id} className="user-item">
+              {backupValidation[ADMIN_PAYLOAD_KEYS.BACKUP_ITEMS].map((item) => (
+                <article key={item[ADMIN_PAYLOAD_KEYS.BACKUP_ITEM_FILE_NAME] || item[ADMIN_PAYLOAD_KEYS.BACKUP_ITEM_ID]} className="user-item">
                   <div>
-                    <strong>{item.fileName || ADMIN_DISPLAY_DEFAULTS.BACKUP_FILE_NAME}</strong>
+                    <strong>{item[ADMIN_PAYLOAD_KEYS.BACKUP_ITEM_FILE_NAME] || ADMIN_DISPLAY_DEFAULTS.BACKUP_FILE_NAME}</strong>
                     <p className="hint">
-                      {formatAdminFileSizeMb(item.sizeBytes)}
-                      {item.createdAt ? `${ADMIN_FORMATTING.DATE_PREFIX_SEPARATOR}${formatAdminDate(item.createdAt)}` : ""}
+                      {formatAdminFileSizeMb(item[ADMIN_PAYLOAD_KEYS.BACKUP_ITEM_SIZE_BYTES])}
+                      {item[ADMIN_PAYLOAD_KEYS.BACKUP_ITEM_CREATED_AT] ? `${ADMIN_FORMATTING.DATE_PREFIX_SEPARATOR}${formatAdminDate(item[ADMIN_PAYLOAD_KEYS.BACKUP_ITEM_CREATED_AT])}` : ""}
                     </p>
                   </div>
-                  <span className={`check-badge ${item.validationStatus === ADMIN_STATUS_VALUES.VALIDATION_STATUS_OK ? ADMIN_BADGE_VARIANTS.OK : ADMIN_BADGE_VARIANTS.FAIL}`}>
-                    {item.validationStatus === ADMIN_STATUS_VALUES.VALIDATION_STATUS_OK ? BACKUP_VALIDATION_LABELS.OK : BACKUP_VALIDATION_LABELS.REVIEW}
+                  <span className={`check-badge ${item[ADMIN_PAYLOAD_KEYS.BACKUP_ITEM_VALIDATION_STATUS] === ADMIN_STATUS_VALUES.VALIDATION_STATUS_OK ? ADMIN_BADGE_VARIANTS.OK : ADMIN_BADGE_VARIANTS.FAIL}`}>
+                    {item[ADMIN_PAYLOAD_KEYS.BACKUP_ITEM_VALIDATION_STATUS] === ADMIN_STATUS_VALUES.VALIDATION_STATUS_OK ? BACKUP_VALIDATION_LABELS.OK : BACKUP_VALIDATION_LABELS.REVIEW}
                   </span>
                 </article>
               ))}
@@ -383,13 +384,13 @@ export default function AdminOperationsPanel({ fetchJson, onStatus }) {
       <div className="admin-grid">
         <div className="admin-tile">
           <span className="tile-label">{ADMIN_TILE_LABELS.INCIDENT_STATUS}</span>
-          <strong className="tile-value">{String(incident?.status || ADMIN_STATUS_VALUES.INCIDENT_STATUS_DEFAULT)}</strong>
-          {incident?.summary ? <p className="hint">{incident.summary}</p> : null}
+          <strong className="tile-value">{String(incident?.[ADMIN_PAYLOAD_KEYS.INCIDENT_STATUS] || ADMIN_STATUS_VALUES.INCIDENT_STATUS_DEFAULT)}</strong>
+          {incident?.[ADMIN_PAYLOAD_KEYS.INCIDENT_SUMMARY] ? <p className="hint">{incident[ADMIN_PAYLOAD_KEYS.INCIDENT_SUMMARY]}</p> : null}
         </div>
         <div className="admin-tile">
           <span className="tile-label">{ADMIN_TILE_LABELS.SEVERITY}</span>
-          <span className={`check-badge ${String(incident?.severity || ADMIN_STATUS_VALUES.INCIDENT_SEVERITY_INFO) === ADMIN_STATUS_VALUES.INCIDENT_SEVERITY_INFO ? ADMIN_BADGE_VARIANTS.OK : ADMIN_BADGE_VARIANTS.FAIL}`}>
-            {String(incident?.severity || ADMIN_STATUS_VALUES.INCIDENT_SEVERITY_INFO)}
+          <span className={`check-badge ${String(incident?.[ADMIN_PAYLOAD_KEYS.INCIDENT_SEVERITY] || ADMIN_STATUS_VALUES.INCIDENT_SEVERITY_INFO) === ADMIN_STATUS_VALUES.INCIDENT_SEVERITY_INFO ? ADMIN_BADGE_VARIANTS.OK : ADMIN_BADGE_VARIANTS.FAIL}`}>
+            {String(incident?.[ADMIN_PAYLOAD_KEYS.INCIDENT_SEVERITY] || ADMIN_STATUS_VALUES.INCIDENT_SEVERITY_INFO)}
           </span>
         </div>
       </div>
@@ -397,11 +398,11 @@ export default function AdminOperationsPanel({ fetchJson, onStatus }) {
       <div className="admin-grid">
         <div className="admin-tile">
           <span className="tile-label">{ADMIN_TILE_LABELS.AUTO_HEALING}</span>
-          <strong className="tile-value">{autoHealingStatus?.enabled ? ADMIN_STATIC_COPY.AUTO_HEALING_ENABLED : ADMIN_STATIC_COPY.AUTO_HEALING_DISABLED}</strong>
+          <strong className="tile-value">{autoHealingStatus?.[ADMIN_PAYLOAD_KEYS.AUTO_HEALING_ENABLED] ? ADMIN_STATIC_COPY.AUTO_HEALING_ENABLED : ADMIN_STATIC_COPY.AUTO_HEALING_DISABLED}</strong>
         </div>
         <div className="admin-tile">
           <span className="tile-label">{ADMIN_TILE_LABELS.CIRCUIT}</span>
-          <strong className="tile-value">{String(autoHealingStatus?.circuit?.state || ADMIN_STATUS_VALUES.CIRCUIT_STATE_DEFAULT)}</strong>
+          <strong className="tile-value">{String(autoHealingStatus?.[ADMIN_PAYLOAD_KEYS.AUTO_HEALING_CIRCUIT]?.[ADMIN_PAYLOAD_KEYS.AUTO_HEALING_CIRCUIT_STATE] || ADMIN_STATUS_VALUES.CIRCUIT_STATE_DEFAULT)}</strong>
         </div>
       </div>
 
@@ -440,11 +441,11 @@ export default function AdminOperationsPanel({ fetchJson, onStatus }) {
         <div className="admin-grid">
           <div className="admin-tile">
             <span className="tile-label">{ADMIN_TILE_LABELS.RUNBOOK_ID}</span>
-            <strong className="tile-value">{runbookResult.id || ADMIN_DISPLAY_DEFAULTS.IDENTIFIER}</strong>
+            <strong className="tile-value">{runbookResult[ADMIN_PAYLOAD_KEYS.RUNBOOK_ID] || ADMIN_DISPLAY_DEFAULTS.IDENTIFIER}</strong>
           </div>
           <div className="admin-tile">
             <span className="tile-label">{ADMIN_TILE_LABELS.RUNBOOK_STEPS}</span>
-            <strong className="tile-value">{getAdminItemCount(runbookResult.steps)}</strong>
+            <strong className="tile-value">{getAdminItemCount(runbookResult[ADMIN_PAYLOAD_KEYS.RUNBOOK_STEPS])}</strong>
           </div>
         </div>
       ) : null}
