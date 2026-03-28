@@ -1,26 +1,18 @@
-import { useReducer } from "react";
 import AppMainContent from "./components/AppMainContent.jsx";
 import AppShellLayout from "./components/AppShellLayout.jsx";
-import useAppLayoutState from "./hooks/useAppLayoutState.js";
-import useReactAppWiring from "./hooks/useReactAppWiring.js";
-import { INITIAL_UI_STATE, uiReducer } from "./state/ui-state.js";
+import useAppController from "./hooks/useAppController.js";
 
 export default function App() {
-  const { menuOpen, openMenu, closeMenu, backdropClassName } = useAppLayoutState();
-  const [uiState, dispatch] = useReducer(uiReducer, INITIAL_UI_STATE);
-  const { fetchJson, showStatus } = useReactAppWiring({
-    uiStatus: uiState.status,
-    dispatch,
-  });
+  const controller = useAppController();
 
   return (
     <AppShellLayout
-      menuOpen={menuOpen}
-      backdropClassName={backdropClassName}
-      onCloseMenu={closeMenu}
-      onOpenMenu={openMenu}
+      menuOpen={controller.menuOpen}
+      backdropClassName={controller.backdropClassName}
+      onCloseMenu={controller.closeMenu}
+      onOpenMenu={controller.openMenu}
     >
-      <AppMainContent status={uiState.status} fetchJson={fetchJson} showStatus={showStatus} />
+      <AppMainContent status={controller.status} fetchJson={controller.fetchJson} showStatus={controller.showStatus} />
     </AppShellLayout>
   );
 }
