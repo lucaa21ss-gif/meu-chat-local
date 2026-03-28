@@ -4,6 +4,8 @@ import {
   ADMIN_STATUS_VALUES,
   ADMIN_STATUS_KEYS,
   BACKUP_VALIDATION_LABELS,
+  ADMIN_BADGE_VARIANTS,
+  HEALTH_CHECK_LABELS,
 } from "../src/ui/state/admin-status-contract.js";
 
 describe("ADMIN_STATUS_VALUES", () => {
@@ -39,5 +41,27 @@ describe("BACKUP_VALIDATION_LABELS", () => {
   it("deve mapear labels de validação", () => {
     assert.equal(BACKUP_VALIDATION_LABELS.OK, "Valido");
     assert.equal(BACKUP_VALIDATION_LABELS.REVIEW, "Verificar");
+  });
+});
+
+describe("ADMIN_BADGE_VARIANTS", () => {
+  it("deve ser objeto congelado", () => {
+    assert.ok(Object.isFrozen(ADMIN_BADGE_VARIANTS));
+  });
+
+  it("deve mapear variantes de badge", () => {
+    assert.equal(ADMIN_BADGE_VARIANTS.OK, "ok");
+    assert.equal(ADMIN_BADGE_VARIANTS.FAIL, "fail");
+  });
+});
+
+describe("HEALTH_CHECK_LABELS", () => {
+  it("deve ser objeto congelado", () => {
+    assert.ok(Object.isFrozen(HEALTH_CHECK_LABELS));
+  });
+
+  it("deve mapear labels de checks de saúde", () => {
+    assert.equal(HEALTH_CHECK_LABELS.OK, "Saudavel");
+    assert.equal(HEALTH_CHECK_LABELS.FAIL, "Falha");
   });
 });

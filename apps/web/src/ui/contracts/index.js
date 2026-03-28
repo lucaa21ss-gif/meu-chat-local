@@ -125,4 +125,6 @@ export {
   ADMIN_STATUS_VALUES,
   ADMIN_STATUS_KEYS,
   BACKUP_VALIDATION_LABELS,
+  ADMIN_BADGE_VARIANTS,
+  HEALTH_CHECK_LABELS,
 } from "../state/admin-status-contract.js";

@@ -21,3 +21,13 @@ export const BACKUP_VALIDATION_LABELS = Object.freeze({
   OK: "Valido",
   REVIEW: "Verificar",
 });
+
+export const ADMIN_BADGE_VARIANTS = Object.freeze({
+  OK: "ok",
+  FAIL: "fail",
+});
+
+export const HEALTH_CHECK_LABELS = Object.freeze({
+  OK: "Saudavel",
+  FAIL: "Falha",
+});

@@ -15,6 +15,8 @@ import { buildBackupValidateUrl } from "../state/backup-query-contract.js";
 import {
   ADMIN_STATUS_VALUES,
   BACKUP_VALIDATION_LABELS,
+  ADMIN_BADGE_VARIANTS,
+  HEALTH_CHECK_LABELS,
 } from "../state/admin-status-contract.js";
 
 export default function AdminOperationsPanel({ fetchJson, onStatus }) {
@@ -255,8 +257,8 @@ export default function AdminOperationsPanel({ fetchJson, onStatus }) {
                   <strong className="check-name">{name}</strong>
                   <p className="hint">{check?.message || "Status verificado."}</p>
                 </div>
-                <span className={`check-badge ${isHealthy ? "ok" : "fail"}`}>
-                  {isHealthy ? "Saudavel" : "Falha"}
+                <span className={`check-badge ${isHealthy ? ADMIN_BADGE_VARIANTS.OK : ADMIN_BADGE_VARIANTS.FAIL}`}>
+                  {isHealthy ? HEALTH_CHECK_LABELS.OK : HEALTH_CHECK_LABELS.FAIL}
                 </span>
               </article>
             );
@@ -331,7 +333,7 @@ export default function AdminOperationsPanel({ fetchJson, onStatus }) {
                       {item.createdAt ? ` • ${new Date(item.createdAt).toLocaleDateString("pt-BR")}` : ""}
                     </p>
                   </div>
-                  <span className={`check-badge ${item.validationStatus === ADMIN_STATUS_VALUES.VALIDATION_STATUS_OK ? "ok" : "fail"}`}>
+                  <span className={`check-badge ${item.validationStatus === ADMIN_STATUS_VALUES.VALIDATION_STATUS_OK ? ADMIN_BADGE_VARIANTS.OK : ADMIN_BADGE_VARIANTS.FAIL}`}>
                     {item.validationStatus === ADMIN_STATUS_VALUES.VALIDATION_STATUS_OK ? BACKUP_VALIDATION_LABELS.OK : BACKUP_VALIDATION_LABELS.REVIEW}
                   </span>
                 </article>
@@ -365,7 +367,7 @@ export default function AdminOperationsPanel({ fetchJson, onStatus }) {
         </div>
         <div className="admin-tile">
           <span className="tile-label">Severidade</span>
-          <span className={`check-badge ${String(incident?.severity || ADMIN_STATUS_VALUES.INCIDENT_SEVERITY_INFO) === ADMIN_STATUS_VALUES.INCIDENT_SEVERITY_INFO ? "ok" : "fail"}`}>
+          <span className={`check-badge ${String(incident?.severity || ADMIN_STATUS_VALUES.INCIDENT_SEVERITY_INFO) === ADMIN_STATUS_VALUES.INCIDENT_SEVERITY_INFO ? ADMIN_BADGE_VARIANTS.OK : ADMIN_BADGE_VARIANTS.FAIL}`}>
             {String(incident?.severity || ADMIN_STATUS_VALUES.INCIDENT_SEVERITY_INFO)}
           </span>
         </div>
