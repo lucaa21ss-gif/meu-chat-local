@@ -1,0 +1,41 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+
+import {
+  GUIDE_COPY,
+  PRODUCT_COPY,
+} from "../src/ui/constants/product-guide-copy.js";
+
+test("PRODUCT_COPY possui conteúdo minimo esperado", () => {
+  assert.equal(typeof PRODUCT_COPY.title, "string");
+  assert.equal(PRODUCT_COPY.title.length > 0, true);
+
+  assert.equal(Array.isArray(PRODUCT_COPY.features), true);
+  assert.equal(PRODUCT_COPY.features.length >= 5, true);
+
+  assert.equal(Array.isArray(PRODUCT_COPY.requirements), true);
+  assert.equal(PRODUCT_COPY.requirements.length >= 3, true);
+});
+
+test("GUIDE_COPY possui passos e atalhos validos", () => {
+  assert.equal(typeof GUIDE_COPY.title, "string");
+  assert.equal(GUIDE_COPY.title.length > 0, true);
+
+  assert.equal(Array.isArray(GUIDE_COPY.steps), true);
+  assert.equal(GUIDE_COPY.steps.length >= 3, true);
+
+  for (const step of GUIDE_COPY.steps) {
+    assert.equal(typeof step.label, "string");
+    assert.equal(step.label.length > 0, true);
+    assert.equal(typeof step.command, "string");
+    assert.equal(step.command.length > 0, true);
+  }
+
+  assert.equal(Array.isArray(GUIDE_COPY.shortcuts), true);
+  assert.equal(GUIDE_COPY.shortcuts.length >= 3, true);
+});
+
+test("GUIDE_COPY mantém rotas canonicas de acesso", () => {
+  assert.equal(GUIDE_COPY.accessAppPath, "/app");
+  assert.equal(GUIDE_COPY.accessAdminPath, "/admin");
+});
