@@ -1,6 +1,13 @@
 import { useEffect, useState } from "react";
 import { UI_STATUS_LEVELS } from "../contracts/index.js";
 import { API_ENDPOINTS } from "../state/api-endpoints-contract.js";
+import {
+  RUNBOOK_TYPES,
+  RUNBOOK_MODES,
+  DEFAULT_RUNBOOK_TYPE,
+  DEFAULT_RUNBOOK_MODE,
+  DEFAULT_AUTO_HEALING_POLICY,
+} from "../state/runbook-contract.js";
 
 export default function AdminOperationsPanel({ fetchJson, onStatus }) {
   const [health, setHealth] = useState(null);
@@ -17,8 +24,8 @@ export default function AdminOperationsPanel({ fetchJson, onStatus }) {
   const [incidentError, setIncidentError] = useState("");
   const [autoHealingStatus, setAutoHealingStatus] = useState(null);
   const [healingLoading, setHealingLoading] = useState(false);
-  const [runbookType, setRunbookType] = useState("model-offline");
-  const [runbookMode, setRunbookMode] = useState("dry-run");
+  const [runbookType, setRunbookType] = useState(DEFAULT_RUNBOOK_TYPE);
+  const [runbookMode, setRunbookMode] = useState(DEFAULT_RUNBOOK_MODE);
   const [runbookLoading, setRunbookLoading] = useState(false);
   const [runbookResult, setRunbookResult] = useState(null);
 
@@ -30,7 +37,8 @@ export default function AdminOperationsPanel({ fetchJson, onStatus }) {
       setHealth(payload || {});
       onStatus("Status admin atualizado.", UI_STATUS_LEVELS.SUCCESS);
     } catch (err) {
-      const detail = err?.message || `Falha ao carregar ${API_ENDPOINTS.HEALTH_ADMIN}.`;
+      const detail =
+        err?.message || `Falha ao carregar ${API_ENDPOINTS.HEALTH_ADMIN}.`;
       setError(detail);
       onStatus(detail, UI_STATUS_LEVELS.ERROR);
     } finally {
@@ -50,7 +58,8 @@ export default function AdminOperationsPanel({ fetchJson, onStatus }) {
       const list = Array.isArray(payload) ? payload : [];
       setUsers(list);
     } catch (err) {
-      const detail = err?.message || `Falha ao carregar ${API_ENDPOINTS.USERS}.`;
+      const detail =
+        err?.message || `Falha ao carregar ${API_ENDPOINTS.USERS}.`;
       setUsersError(detail);
       onStatus(detail, UI_STATUS_LEVELS.ERROR);
     } finally {
@@ -70,11 +79,14 @@ export default function AdminOperationsPanel({ fetchJson, onStatus }) {
     setBackupsLoading(true);
     setBackupsError("");
     try {
-      const payload = await fetchJson(`${API_ENDPOINTS.BACKUP_VALIDATE}?limit=10`, {
-        headers: {
-          "x-user-id": getActorUserId(),
+      const payload = await fetchJson(
+        `${API_ENDPOINTS.BACKUP_VALIDATE}?limit=10`,
+        {
+          headers: {
+            "x-user-id": getActorUserId(),
+          },
         },
-      });
+      );
       setBackupValidation(payload?.validation || null);
     } catch (err) {
       const detail = err?.message || "Falha ao validar backups.";
@@ -164,7 +176,7 @@ export default function AdminOperationsPanel({ fetchJson, onStatus }) {
           "Content-Type": "application/json",
           "x-user-id": getActorUserId(),
         },
-        body: JSON.stringify({ policy: "model-offline" }),
+        body: JSON.stringify({ policy: DEFAULT_AUTO_HEALING_POLICY }),
       });
       onStatus("Auto-healing executado.", UI_STATUS_LEVELS.SUCCESS);
       await loadIncidentStatus();
@@ -389,19 +401,19 @@ export default function AdminOperationsPanel({ fetchJson, onStatus }) {
         <label className="runbook-field">
           <span className="tile-label">Tipo</span>
           <select value={runbookType} onChange={(event) => setRunbookType(event.target.value)}>
-            <option value="model-offline">model-offline</option>
-            <option value="db-degraded">db-degraded</option>
-            <option value="disk-pressure">disk-pressure</option>
-            <option value="backup-alert">backup-alert</option>
+            <option value={RUNBOOK_TYPES.MODEL_OFFLINE}>{RUNBOOK_TYPES.MODEL_OFFLINE}</option>
+            <option value={RUNBOOK_TYPES.DB_DEGRADED}>{RUNBOOK_TYPES.DB_DEGRADED}</option>
+            <option value={RUNBOOK_TYPES.DISK_PRESSURE}>{RUNBOOK_TYPES.DISK_PRESSURE}</option>
+            <option value={RUNBOOK_TYPES.BACKUP_ALERT}>{RUNBOOK_TYPES.BACKUP_ALERT}</option>
           </select>
         </label>
 
         <label className="runbook-field">
           <span className="tile-label">Modo</span>
           <select value={runbookMode} onChange={(event) => setRunbookMode(event.target.value)}>
-            <option value="dry-run">dry-run</option>
-            <option value="execute">execute</option>
-            <option value="rollback">rollback</option>
+            <option value={RUNBOOK_MODES.DRY_RUN}>{RUNBOOK_MODES.DRY_RUN}</option>
+            <option value={RUNBOOK_MODES.EXECUTE}>{RUNBOOK_MODES.EXECUTE}</option>
+            <option value={RUNBOOK_MODES.ROLLBACK}>{RUNBOOK_MODES.ROLLBACK}</option>
           </select>
         </label>
 
