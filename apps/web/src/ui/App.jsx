@@ -149,6 +149,9 @@ function AdminPage({ fetchJson, onStatus }) {
   const [users, setUsers] = useState([]);
   const [usersLoading, setUsersLoading] = useState(true);
   const [usersError, setUsersError] = useState("");
+  const [backupValidation, setBackupValidation] = useState(null);
+  const [backupsLoading, setBackupsLoading] = useState(true);
+  const [backupsError, setBackupsError] = useState("");
 
   async function loadAdminHealth() {
     setLoading(true);
@@ -186,9 +189,78 @@ function AdminPage({ fetchJson, onStatus }) {
     }
   }
 
+  function getActorUserId() {
+    try {
+      return window.localStorage.getItem("chatUserId") || "user-default";
+    } catch {
+      return "user-default";
+    }
+  }
+
+  async function loadBackups() {
+    setBackupsLoading(true);
+    setBackupsError("");
+    try {
+      const payload = await fetchJson("/api/backup/validate?limit=10", {
+        headers: {
+          "x-user-id": getActorUserId(),
+        },
+      });
+      setBackupValidation(payload?.validation || null);
+    } catch (err) {
+      const detail = err?.message || "Falha ao validar backups.";
+      setBackupsError(detail);
+      onStatus(detail, "error");
+    } finally {
+      setBackupsLoading(false);
+    }
+  }
+
+  async function exportBackupNow() {
+    onStatus("Iniciando exportacao de backup...", "info");
+    try {
+      const response = await fetch("/api/backup/export", {
+        method: "GET",
+        headers: {
+          "x-user-id": getActorUserId(),
+        },
+      });
+
+      if (!response.ok) {
+        let detail = "Falha ao exportar backup.";
+        try {
+          const data = await response.json();
+          detail = data?.error || detail;
+        } catch {
+          // fallback mantido
+        }
+        throw new Error(detail);
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      const contentDisposition = response.headers.get("content-disposition") || "";
+      const fileMatch = /filename="?([^";]+)"?/i.exec(contentDisposition);
+      a.href = url;
+      a.download = fileMatch?.[1] || `backup-${Date.now()}.tgz`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+
+      onStatus("Backup exportado com sucesso.", "success");
+      await loadBackups();
+    } catch (err) {
+      const detail = err?.message || "Falha ao exportar backup.";
+      onStatus(detail, "error");
+    }
+  }
+
   useEffect(() => {
     loadAdminHealth();
     loadUsers();
+    loadBackups();
     const timer = window.setInterval(loadAdminHealth, 30000);
     return () => window.clearInterval(timer);
   }, [fetchJson]);
@@ -267,6 +339,58 @@ function AdminPage({ fetchJson, onStatus }) {
             </article>
           ))}
         </div>
+      )}
+
+      <div className="admin-users-header">
+        <h3 className="section-title">Backups</h3>
+        <div className="admin-actions-inline">
+          <button type="button" className="ghost" onClick={loadBackups} disabled={backupsLoading}>
+            {backupsLoading ? "Validando..." : "Validar backups"}
+          </button>
+          <button type="button" onClick={exportBackupNow}>
+            Exportar backup
+          </button>
+        </div>
+      </div>
+
+      {backupsError ? <p className="error">{backupsError}</p> : null}
+
+      {!backupValidation ? (
+        <p className="hint">Nenhuma validacao de backup disponivel.</p>
+      ) : (
+        <>
+          <div className="admin-grid">
+            <div className="admin-tile">
+              <span className="tile-label">Status</span>
+              <strong className="tile-value">{String(backupValidation.status || "unknown")}</strong>
+            </div>
+            <div className="admin-tile">
+              <span className="tile-label">Itens verificados</span>
+              <strong className="tile-value">{Array.isArray(backupValidation.items) ? backupValidation.items.length : 0}</strong>
+            </div>
+          </div>
+
+          {Array.isArray(backupValidation.items) && backupValidation.items.length > 0 ? (
+            <div className="users-list">
+              {backupValidation.items.map((item) => (
+                <article key={item.fileName || item.id} className="user-item">
+                  <div>
+                    <strong>{item.fileName || "backup"}</strong>
+                    <p className="hint">
+                      {(Number(item.sizeBytes || 0) / 1024 / 1024).toFixed(2)} MB
+                      {item.createdAt ? ` • ${new Date(item.createdAt).toLocaleDateString("pt-BR")}` : ""}
+                    </p>
+                  </div>
+                  <span className={`check-badge ${item.validationStatus === "ok" ? "ok" : "fail"}`}>
+                    {item.validationStatus === "ok" ? "Valido" : "Verificar"}
+                  </span>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <p className="hint">Sem arquivos de backup recentes.</p>
+          )}
+        </>
       )}
     </section>
   );
