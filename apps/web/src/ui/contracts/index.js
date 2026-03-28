@@ -80,6 +80,15 @@ export {
 } from "../state/chat-request-contract.js";
 
 export {
+  CHAT_STATUS_MESSAGES,
+  CHAT_STATUS_MESSAGE_KEYS,
+  CHAT_UI_COPY,
+  CHAT_UI_COPY_KEYS,
+  resolveChatReply,
+  buildChatSendErrorMessage,
+} from "../state/chat-ui-contract.js";
+
+export {
   API_ENDPOINTS,
   API_ENDPOINT_KEYS,
 } from "../state/api-endpoints-contract.js";
