@@ -2,7 +2,9 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  APP_MAIN_CONTENT_PROP_KEYS,
   APP_MAIN_CONTENT_PROP_MAPPINGS,
+  APP_SHELL_PROP_KEYS,
   APP_SHELL_PROP_MAPPINGS,
   buildAppViewModel,
   createAppMainContentProps,
@@ -28,18 +30,21 @@ test("mapControllerProps mapeia propriedades com base no contrato declarativo", 
 });
 
 test("mappings declarativos do view-model mantêm chaves esperadas", () => {
-  assert.deepEqual(Object.keys(APP_SHELL_PROP_MAPPINGS).sort(), [
+  assert.deepEqual(APP_SHELL_PROP_KEYS, [
     "backdropClassName",
     "menuOpen",
     "onCloseMenu",
     "onOpenMenu",
   ]);
 
-  assert.deepEqual(Object.keys(APP_MAIN_CONTENT_PROP_MAPPINGS).sort(), [
+  assert.deepEqual(APP_MAIN_CONTENT_PROP_KEYS, [
     "fetchJson",
     "showStatus",
     "status",
   ]);
+
+  assert.deepEqual(Object.keys(APP_SHELL_PROP_MAPPINGS).sort(), APP_SHELL_PROP_KEYS);
+  assert.deepEqual(Object.keys(APP_MAIN_CONTENT_PROP_MAPPINGS).sort(), APP_MAIN_CONTENT_PROP_KEYS);
 });
 
 test("createAppShellProps mapeia contrato esperado para AppShellLayout", () => {

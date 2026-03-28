@@ -11,6 +11,14 @@ export const APP_MAIN_CONTENT_PROP_MAPPINGS = Object.freeze({
   showStatus: "showStatus",
 });
 
+export const APP_SHELL_PROP_KEYS = Object.freeze(
+  Object.keys(APP_SHELL_PROP_MAPPINGS).sort(),
+);
+
+export const APP_MAIN_CONTENT_PROP_KEYS = Object.freeze(
+  Object.keys(APP_MAIN_CONTENT_PROP_MAPPINGS).sort(),
+);
+
 export function mapControllerProps(controller, propMappings) {
   return Object.fromEntries(
     Object.entries(propMappings || {}).map(([targetProp, sourceProp]) => [
