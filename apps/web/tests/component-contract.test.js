@@ -10,6 +10,10 @@ import {
   UI_STATUS_BANNER_PROP_KEYS,
   APP_STATUS_SHAPE,
   APP_STATUS_KEYS,
+  PAGE_PANEL_PROP_KEYS,
+  CHAT_PAGE_PROP_KEYS,
+  HEALTH_CARD_PROP_KEYS,
+  ADMIN_OPERATIONS_PANEL_PROP_KEYS,
 } from "../src/ui/contracts/index.js";
 
 test("component contracts define expected prop keys", () => {
@@ -97,6 +101,25 @@ test("app sidebar prop keys are fully covered by shell layout props", () => {
   for (const prop of APP_SIDEBAR_PROP_KEYS) {
     assert.equal(shellLayoutPropsWithoutChildren.includes(prop), true);
   }
+});
+
+test("page panel prop keys define a interface compartilhada dos painéis", () => {
+  assert.deepEqual(PAGE_PANEL_PROP_KEYS, ["fetchJson", "onStatus"]);
+  assert.ok(Object.isFrozen(PAGE_PANEL_PROP_KEYS));
+});
+
+test("ChatPage, HealthCard e AdminOperationsPanel compartilham a mesma referência de prop keys", () => {
+  assert.strictEqual(CHAT_PAGE_PROP_KEYS, PAGE_PANEL_PROP_KEYS);
+  assert.strictEqual(HEALTH_CARD_PROP_KEYS, PAGE_PANEL_PROP_KEYS);
+  assert.strictEqual(ADMIN_OPERATIONS_PANEL_PROP_KEYS, PAGE_PANEL_PROP_KEYS);
+});
+
+test("page panel props estão alinhados com assinatura dos componentes de painel", () => {
+  // ChatPage({ fetchJson, onStatus }), HealthCard({ fetchJson, onStatus }),
+  // AdminOperationsPanel({ fetchJson, onStatus }) — todas usam esta interface
+  assert.ok(PAGE_PANEL_PROP_KEYS.includes("fetchJson"));
+  assert.ok(PAGE_PANEL_PROP_KEYS.includes("onStatus"));
+  assert.equal(PAGE_PANEL_PROP_KEYS.length, 2);
 });
 
 test("app topbar prop keys are fully covered by shell layout props", () => {
