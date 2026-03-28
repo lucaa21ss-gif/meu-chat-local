@@ -1,35 +1,29 @@
 import { createElement } from "react";
+import { ROUTE_VIEWS } from "./navigation.js";
+
+const ROUTE_DESCRIPTOR_BUILDERS = Object.freeze({
+  [ROUTE_VIEWS.chat]: ({ fetchJson, showStatus }) => ({
+    componentKey: "chat",
+    props: { fetchJson, onStatus: showStatus },
+  }),
+  [ROUTE_VIEWS.admin]: ({ fetchJson, showStatus }) => ({
+    componentKey: "admin",
+    props: { fetchJson, onStatus: showStatus },
+  }),
+  [ROUTE_VIEWS.product]: () => ({
+    componentKey: "product",
+    props: {},
+  }),
+  [ROUTE_VIEWS.guide]: () => ({
+    componentKey: "guide",
+    props: {},
+  }),
+});
 
 export function resolveRouteElementDescriptor(route, { fetchJson, showStatus }) {
-  if (route.view === "chat") {
-    return {
-      componentKey: "chat",
-      props: { fetchJson, onStatus: showStatus },
-    };
-  }
-
-  if (route.view === "admin") {
-    return {
-      componentKey: "admin",
-      props: { fetchJson, onStatus: showStatus },
-    };
-  }
-
-  if (route.view === "product") {
-    return {
-      componentKey: "product",
-      props: {},
-    };
-  }
-
-  if (route.view === "guide") {
-    return {
-      componentKey: "guide",
-      props: {},
-    };
-  }
-
-  return null;
+  const builder = ROUTE_DESCRIPTOR_BUILDERS[route?.view];
+  if (!builder) return null;
+  return builder({ fetchJson, showStatus });
 }
 
 export function createRouteElement(route, deps, componentRegistry) {

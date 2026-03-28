@@ -5,6 +5,7 @@ import {
   createRouteElement,
   resolveRouteElementDescriptor,
 } from "../src/ui/routes/route-element-factory.js";
+import { ROUTE_VIEWS } from "../src/ui/routes/navigation.js";
 
 function DummyComponent() {
   return null;
@@ -26,8 +27,8 @@ test("resolveRouteElementDescriptor monta descriptor para views com deps", () =>
 });
 
 test("resolveRouteElementDescriptor retorna props vazias para paginas estaticas", () => {
-  const product = resolveRouteElementDescriptor({ view: "product" }, {});
-  const guide = resolveRouteElementDescriptor({ view: "guide" }, {});
+  const product = resolveRouteElementDescriptor({ view: ROUTE_VIEWS.product }, {});
+  const guide = resolveRouteElementDescriptor({ view: ROUTE_VIEWS.guide }, {});
 
   assert.equal(product.componentKey, "product");
   assert.deepEqual(product.props, {});
@@ -54,4 +55,16 @@ test("createRouteElement retorna null para view desconhecida ou sem registry", (
 
   const missingRegistry = createRouteElement({ view: "chat" }, {}, {});
   assert.equal(missingRegistry, null);
+});
+
+test("resolveRouteElementDescriptor suporta todas as views canônicas", () => {
+  const fetchJson = async () => ({ ok: true });
+  const showStatus = () => {};
+
+  const views = Object.values(ROUTE_VIEWS);
+  for (const view of views) {
+    const descriptor = resolveRouteElementDescriptor({ view }, { fetchJson, showStatus });
+    assert.notEqual(descriptor, null);
+    assert.equal(typeof descriptor.componentKey, "string");
+  }
 });
