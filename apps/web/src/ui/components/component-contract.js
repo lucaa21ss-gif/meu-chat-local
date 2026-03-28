@@ -6,6 +6,15 @@ export const APP_SHELL_LAYOUT_PROP_KEYS = Object.freeze([
   "onOpenMenu",
 ].sort());
 
+export const APP_SIDEBAR_PROP_KEYS = Object.freeze([
+  "menuOpen",
+  "onCloseMenu",
+].sort());
+
+export const APP_TOPBAR_PROP_KEYS = Object.freeze([
+  "onOpenMenu",
+].sort());
+
 export const APP_MAIN_CONTENT_PROP_KEYS = Object.freeze([
   "fetchJson",
   "showStatus",

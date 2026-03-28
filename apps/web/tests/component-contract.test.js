@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 
 import {
   APP_SHELL_LAYOUT_PROP_KEYS,
+  APP_SIDEBAR_PROP_KEYS,
+  APP_TOPBAR_PROP_KEYS,
   APP_MAIN_CONTENT_PROP_KEYS,
   APP_STATUS_SHAPE,
   APP_STATUS_KEYS,
@@ -17,6 +19,15 @@ test("component contracts define expected prop keys", () => {
     "onCloseMenu",
     "onOpenMenu",
   ]);
+
+  // AppSidebar expects menu state + close handler
+  assert.deepEqual(APP_SIDEBAR_PROP_KEYS, [
+    "menuOpen",
+    "onCloseMenu",
+  ]);
+
+  // AppTopbar expects open handler
+  assert.deepEqual(APP_TOPBAR_PROP_KEYS, ["onOpenMenu"]);
 
   // AppMainContent expects status, fetchJson, showStatus
   assert.deepEqual(APP_MAIN_CONTENT_PROP_KEYS, [
@@ -54,4 +65,24 @@ test("app main content prop keys matches view-model main content props", () => {
   const viewModelMainContentProps = ["status", "fetchJson", "showStatus"].sort();
 
   assert.deepEqual(APP_MAIN_CONTENT_PROP_KEYS, viewModelMainContentProps);
+});
+
+test("app sidebar prop keys are fully covered by shell layout props", () => {
+  const shellLayoutPropsWithoutChildren = APP_SHELL_LAYOUT_PROP_KEYS.filter(
+    (k) => k !== "children",
+  );
+
+  for (const prop of APP_SIDEBAR_PROP_KEYS) {
+    assert.equal(shellLayoutPropsWithoutChildren.includes(prop), true);
+  }
+});
+
+test("app topbar prop keys are fully covered by shell layout props", () => {
+  const shellLayoutPropsWithoutChildren = APP_SHELL_LAYOUT_PROP_KEYS.filter(
+    (k) => k !== "children",
+  );
+
+  for (const prop of APP_TOPBAR_PROP_KEYS) {
+    assert.equal(shellLayoutPropsWithoutChildren.includes(prop), true);
+  }
 });

@@ -22,6 +22,8 @@ export {
 
 export {
   APP_SHELL_LAYOUT_PROP_KEYS,
+  APP_SIDEBAR_PROP_KEYS,
+  APP_TOPBAR_PROP_KEYS,
   APP_STATUS_SHAPE,
   APP_STATUS_KEYS,
 } from "../components/component-contract.js";
