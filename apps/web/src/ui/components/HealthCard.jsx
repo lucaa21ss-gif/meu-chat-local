@@ -6,6 +6,10 @@ import {
   getHealthStatusLabel,
 } from "../state/health-status-contract.js";
 import { POLLING_INTERVALS_MS } from "../state/polling-contract.js";
+import {
+  HEALTH_CARD_COPY,
+  buildHealthFetchErrorMessage,
+} from "../state/health-card-ui-contract.js";
 
 export default function HealthCard({ fetchJson, onStatus }) {
   const [health, setHealth] = useState({ status: HEALTH_STATUSES.LOADING });
@@ -23,7 +27,7 @@ export default function HealthCard({ fetchJson, onStatus }) {
         }
       } catch {
         if (mounted) {
-          const message = `Nao foi possivel consultar ${API_ENDPOINTS.HEALTH}`;
+          const message = buildHealthFetchErrorMessage(API_ENDPOINTS.HEALTH);
           setError(message);
           setHealth({ status: HEALTH_STATUSES.OFFLINE });
           onStatus(message, UI_STATUS_LEVELS.WARNING);
@@ -45,12 +49,12 @@ export default function HealthCard({ fetchJson, onStatus }) {
 
   return (
     <section className="card">
-      <h2>Status do Servidor</h2>
+      <h2>{HEALTH_CARD_COPY.TITLE}</h2>
       <p>
-        API: <strong>{statusLabel}</strong>
+        {HEALTH_CARD_COPY.API_LABEL} <strong>{statusLabel}</strong>
       </p>
       {error ? <p className="error">{error}</p> : null}
-      <p className="hint">Consumo por mesma origem em /api para funcionar em celular/tablet na LAN.</p>
+      <p className="hint">{HEALTH_CARD_COPY.LAN_HINT}</p>
     </section>
   );
 }

@@ -89,6 +89,12 @@ export {
 } from "../state/chat-ui-contract.js";
 
 export {
+  HEALTH_CARD_COPY,
+  HEALTH_CARD_COPY_KEYS,
+  buildHealthFetchErrorMessage,
+} from "../state/health-card-ui-contract.js";
+
+export {
   API_ENDPOINTS,
   API_ENDPOINT_KEYS,
 } from "../state/api-endpoints-contract.js";
