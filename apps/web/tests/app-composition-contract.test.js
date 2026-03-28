@@ -5,7 +5,7 @@ import { createAppControllerModel } from "../src/ui/hooks/useAppController.js";
 import {
   APP_MAIN_CONTENT_PROP_KEYS,
   APP_SHELL_PROP_KEYS,
-} from "../src/ui/contracts/app-view-model-contract.js";
+} from "../src/ui/contracts/index.js";
 import { buildAppViewModel } from "../src/ui/view-model/app-view-model.js";
 
 test("App composition contract mantém compatibilidade entre controller e view-model", () => {

@@ -3,14 +3,14 @@ import {
     APP_MAIN_CONTENT_PROP_MAPPINGS,
     APP_SHELL_PROP_KEYS,
     APP_MAIN_CONTENT_PROP_KEYS,
-} from "../contracts/app-view-model-contract.js";
+} from "../contracts/index.js";
 
 export {
     APP_SHELL_PROP_MAPPINGS,
     APP_MAIN_CONTENT_PROP_MAPPINGS,
     APP_SHELL_PROP_KEYS,
     APP_MAIN_CONTENT_PROP_KEYS,
-} from "../contracts/app-view-model-contract.js";
+} from "../contracts/index.js";
 
 export function mapControllerProps(controller, propMappings) {
   return Object.fromEntries(

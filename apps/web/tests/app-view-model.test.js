@@ -6,7 +6,7 @@ import {
   APP_MAIN_CONTENT_PROP_MAPPINGS,
   APP_SHELL_PROP_KEYS,
   APP_SHELL_PROP_MAPPINGS,
-} from "../src/ui/contracts/app-view-model-contract.js";
+} from "../src/ui/contracts/index.js";
 import {
   buildAppViewModel,
   createAppMainContentProps,

@@ -6,12 +6,14 @@ import {
   createAppControllerModel,
   mapControllerModelSources,
 } from "../src/ui/hooks/useAppController.js";
-import { APP_CONTROLLER_MODEL_KEYS } from "../src/ui/contracts/app-controller-contract.js";
 import {
-    APP_MAIN_CONTENT_PROP_MAPPINGS,
-    APP_SHELL_PROP_MAPPINGS,
-    buildAppViewModel,
-} from "../src/ui/view-model/app-view-model.js";
+  APP_CONTROLLER_MODEL_KEYS,
+  APP_MAIN_CONTENT_PROP_MAPPINGS,
+  APP_MAIN_CONTENT_PROP_KEYS,
+  APP_SHELL_PROP_MAPPINGS,
+  APP_SHELL_PROP_KEYS,
+} from "../src/ui/contracts/index.js";
+import { buildAppViewModel } from "../src/ui/view-model/app-view-model.js";
 
 test("mapControllerModelSources monta model com selectors declarativos", () => {
   const openMenu = () => {};

@@ -3,10 +3,10 @@ import useAppLayoutState from "./useAppLayoutState.js";
 import useReactAppWiring from "./useReactAppWiring.js";
 import {
     APP_CONTROLLER_MODEL_SELECTORS,
-} from "../contracts/app-controller-contract.js";
+} from "../contracts/index.js";
 import { INITIAL_UI_STATE, uiReducer } from "../state/ui-state.js";
 
-export { APP_CONTROLLER_MODEL_SELECTORS } from "../contracts/app-controller-contract.js";
+export { APP_CONTROLLER_MODEL_SELECTORS } from "../contracts/index.js";
 
 export function mapControllerModelSources(sources, selectors) {
   return Object.fromEntries(
