@@ -157,6 +157,10 @@ function AdminPage({ fetchJson, onStatus }) {
   const [incidentError, setIncidentError] = useState("");
   const [autoHealingStatus, setAutoHealingStatus] = useState(null);
   const [healingLoading, setHealingLoading] = useState(false);
+  const [runbookType, setRunbookType] = useState("model-offline");
+  const [runbookMode, setRunbookMode] = useState("dry-run");
+  const [runbookLoading, setRunbookLoading] = useState(false);
+  const [runbookResult, setRunbookResult] = useState(null);
 
   async function loadAdminHealth() {
     setLoading(true);
@@ -309,6 +313,35 @@ function AdminPage({ fetchJson, onStatus }) {
       onStatus(detail, "error");
     } finally {
       setHealingLoading(false);
+    }
+  }
+
+  async function executeIncidentRunbook() {
+    setRunbookLoading(true);
+    setRunbookResult(null);
+    onStatus(`Executando runbook (${runbookMode})...`, "info");
+
+    try {
+      const payload = await fetchJson("/api/incident/runbook/execute", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-user-id": getActorUserId(),
+        },
+        body: JSON.stringify({
+          runbookType,
+          mode: runbookMode,
+        }),
+      });
+
+      setRunbookResult(payload?.runbook || null);
+      onStatus("Runbook executado com sucesso.", "success");
+      await loadIncidentStatus();
+    } catch (err) {
+      const detail = err?.message || "Falha ao executar runbook de incidente.";
+      onStatus(detail, "error");
+    } finally {
+      setRunbookLoading(false);
     }
   }
 
@@ -487,6 +520,50 @@ function AdminPage({ fetchJson, onStatus }) {
           <strong className="tile-value">{String(autoHealingStatus?.circuit?.state || "closed")}</strong>
         </div>
       </div>
+
+      <div className="admin-users-header">
+        <h3 className="section-title">Runbook</h3>
+      </div>
+
+      <div className="runbook-form-grid">
+        <label className="runbook-field">
+          <span className="tile-label">Tipo</span>
+          <select value={runbookType} onChange={(event) => setRunbookType(event.target.value)}>
+            <option value="model-offline">model-offline</option>
+            <option value="db-degraded">db-degraded</option>
+            <option value="disk-pressure">disk-pressure</option>
+            <option value="backup-alert">backup-alert</option>
+          </select>
+        </label>
+
+        <label className="runbook-field">
+          <span className="tile-label">Modo</span>
+          <select value={runbookMode} onChange={(event) => setRunbookMode(event.target.value)}>
+            <option value="dry-run">dry-run</option>
+            <option value="execute">execute</option>
+            <option value="rollback">rollback</option>
+          </select>
+        </label>
+
+        <div className="runbook-actions">
+          <button type="button" onClick={executeIncidentRunbook} disabled={runbookLoading}>
+            {runbookLoading ? "Executando..." : "Executar runbook"}
+          </button>
+        </div>
+      </div>
+
+      {runbookResult ? (
+        <div className="admin-grid">
+          <div className="admin-tile">
+            <span className="tile-label">Runbook ID</span>
+            <strong className="tile-value">{runbookResult.id || "n/a"}</strong>
+          </div>
+          <div className="admin-tile">
+            <span className="tile-label">Passos executados</span>
+            <strong className="tile-value">{Array.isArray(runbookResult.steps) ? runbookResult.steps.length : 0}</strong>
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }

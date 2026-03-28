@@ -255,6 +255,32 @@ code {
   flex-wrap: wrap;
 }
 
+.runbook-form-grid {
+  margin-top: 0.5rem;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.runbook-field {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.runbook-actions {
+  display: flex;
+  align-items: end;
+}
+
+select {
+  width: 100%;
+  border-radius: 0.65rem;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  background: rgba(2, 6, 23, 0.75);
+  color: #e2e8f0;
+  padding: 0.55rem 0.65rem;
+}
+
 .users-list {
   margin-top: 0.5rem;
   display: grid;
@@ -373,6 +399,14 @@ code {
   }
 
   .admin-actions-inline {
+    width: 100%;
+  }
+
+  .runbook-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .runbook-actions {
     width: 100%;
   }
 }
