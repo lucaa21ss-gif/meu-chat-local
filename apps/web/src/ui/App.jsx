@@ -156,6 +156,84 @@ function AdminPage() {
   );
 }
 
+function ProductPage() {
+  const features = [
+    "Privacidade local com dados na sua maquina",
+    "Modo offline sem dependencia obrigatoria de nuvem",
+    "Historico persistente de conversas",
+    "Modelos customizaveis com Ollama",
+    "Importacao e exportacao em JSON/Markdown",
+    "Backup e recuperacao de dados",
+    "Suporte a documentos (RAG)",
+    "Perfis de usuario e controle de acesso",
+    "Health e observabilidade integrados",
+    "Auditoria de eventos criticos",
+  ];
+
+  return (
+    <section className="card">
+      <h2>Produto</h2>
+      <p>
+        Meu Chat Local e um assistente de IA local-first para uso profissional com foco em privacidade,
+        resiliencia e operacao em rede domestica.
+      </p>
+
+      <h3 className="section-title">Principais Caracteristicas</h3>
+      <ul className="feature-list">
+        {features.map((item) => (
+          <li key={item}>{item}</li>
+        ))}
+      </ul>
+
+      <h3 className="section-title">Requisitos Basicos</h3>
+      <ul className="simple-list">
+        <li>Node.js 20+</li>
+        <li>Ollama instalado e em execucao</li>
+        <li>Navegador moderno (Chrome, Firefox, Safari ou Edge)</li>
+        <li>Recomendado: 4 GB+ de RAM e espaco para modelos</li>
+      </ul>
+    </section>
+  );
+}
+
+function GuidePage() {
+  return (
+    <section className="card">
+      <h2>Guia Rapido</h2>
+      <ol className="guide-steps">
+        <li>
+          <strong>Instale dependencias:</strong>
+          <pre>npm install</pre>
+        </li>
+        <li>
+          <strong>Suba o modelo local:</strong>
+          <pre>ollama serve</pre>
+        </li>
+        <li>
+          <strong>Inicie API + Web:</strong>
+          <pre>npm run dev --workspace apps/api{"\n"}npm run dev --workspace apps/web</pre>
+        </li>
+        <li>
+          <strong>Acesse:</strong> <code>/app</code> para chat e <code>/admin</code> para operacao.
+        </li>
+      </ol>
+
+      <h3 className="section-title">Atalhos uteis</h3>
+      <ul className="simple-list">
+        <li>
+          <strong>Ctrl+N</strong>: nova conversa
+        </li>
+        <li>
+          <strong>Ctrl+K</strong>: foco em busca
+        </li>
+        <li>
+          <strong>?</strong>: ajuda de atalhos
+        </li>
+      </ul>
+    </section>
+  );
+}
+
 export default function App() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [uiState, dispatch] = useReducer(uiReducer, INITIAL_UI_STATE);
@@ -228,8 +306,12 @@ export default function App() {
           <NavLink to="/admin" onClick={() => setMenuOpen(false)}>
             Admin
           </NavLink>
-          <a href="/produto">Produto</a>
-          <a href="/guia">Guia</a>
+          <NavLink to="/produto" onClick={() => setMenuOpen(false)}>
+            Produto
+          </NavLink>
+          <NavLink to="/guia" onClick={() => setMenuOpen(false)}>
+            Guia
+          </NavLink>
         </nav>
         <p className="hint">Responsivo para desktop, tablet e celular.</p>
       </aside>
@@ -262,8 +344,8 @@ export default function App() {
           <Route path="/" element={<ChatPage fetchJson={apiClient.fetchJson} onStatus={showStatus} />} />
           <Route path="/admin" element={<AdminPage />} />
           <Route path="/app" element={<ChatPage fetchJson={apiClient.fetchJson} onStatus={showStatus} />} />
-          <Route path="/produto" element={<ChatPage fetchJson={apiClient.fetchJson} onStatus={showStatus} />} />
-          <Route path="/guia" element={<ChatPage fetchJson={apiClient.fetchJson} onStatus={showStatus} />} />
+          <Route path="/produto" element={<ProductPage />} />
+          <Route path="/guia" element={<GuidePage />} />
         </Routes>
       </main>
     </div>

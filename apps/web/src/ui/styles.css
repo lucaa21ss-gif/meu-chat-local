@@ -135,6 +135,39 @@ button:disabled {
   padding-top: 1rem;
 }
 
+.section-title {
+  margin: 1.25rem 0 0.75rem;
+  color: #cbd5e1;
+  font-size: 1rem;
+}
+
+.feature-list,
+.simple-list,
+.guide-steps {
+  display: grid;
+  gap: 0.5rem;
+  padding-left: 1.2rem;
+}
+
+.guide-steps li {
+  margin-bottom: 0.4rem;
+}
+
+.guide-steps pre {
+  margin: 0.5rem 0 0;
+  background: rgba(2, 6, 23, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 0.6rem;
+  padding: 0.7rem;
+  overflow-x: auto;
+}
+
+code {
+  background: rgba(148, 163, 184, 0.18);
+  border-radius: 0.35rem;
+  padding: 0.1rem 0.35rem;
+}
+
 .error {
   color: #fda4af;
 }
