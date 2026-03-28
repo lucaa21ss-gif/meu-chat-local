@@ -3,14 +3,15 @@ import AdminOperationsPanel from "./AdminOperationsPanel.jsx";
 import ChatPage from "./ChatPage.jsx";
 import GuidePage from "./GuidePage.jsx";
 import ProductPage from "./ProductPage.jsx";
+import { createRouteComponentRegistry } from "../routes/route-component-registry.js";
 import { createRouteElement } from "../routes/route-element-factory.js";
 import { ROUTE_DEFINITIONS } from "../routes/navigation.js";
 
-const ROUTE_COMPONENT_REGISTRY = Object.freeze({
-  chat: ChatPage,
-  admin: AdminOperationsPanel,
-  product: ProductPage,
-  guide: GuidePage,
+const ROUTE_COMPONENT_REGISTRY = createRouteComponentRegistry({
+  ChatPage,
+  AdminOperationsPanel,
+  ProductPage,
+  GuidePage,
 });
 
 export default function AppRoutes({ fetchJson, showStatus }) {
