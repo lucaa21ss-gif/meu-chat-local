@@ -1,7 +1,6 @@
 import { useReducer } from "react";
-import AppRoutes from "./components/AppRoutes.jsx";
+import AppMainContent from "./components/AppMainContent.jsx";
 import AppShellLayout from "./components/AppShellLayout.jsx";
-import MainContentHeaderSection from "./components/MainContentHeaderSection.jsx";
 import useAppLayoutState from "./hooks/useAppLayoutState.js";
 import useReactAppWiring from "./hooks/useReactAppWiring.js";
 import { INITIAL_UI_STATE, uiReducer } from "./state/ui-state.js";
@@ -21,8 +20,7 @@ export default function App() {
       onCloseMenu={closeMenu}
       onOpenMenu={openMenu}
     >
-      <MainContentHeaderSection status={uiState.status} fetchJson={fetchJson} showStatus={showStatus} />
-      <AppRoutes fetchJson={fetchJson} showStatus={showStatus} />
+      <AppMainContent status={uiState.status} fetchJson={fetchJson} showStatus={showStatus} />
     </AppShellLayout>
   );
 }
