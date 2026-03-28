@@ -8,6 +8,7 @@ import {
   DEFAULT_RUNBOOK_MODE,
   DEFAULT_AUTO_HEALING_POLICY,
 } from "../state/runbook-contract.js";
+import { buildUserIdHeader, buildJsonUserHeaders, API_HEADER_DEFAULTS } from "../state/api-headers-contract.js";
 
 export default function AdminOperationsPanel({ fetchJson, onStatus }) {
   const [health, setHealth] = useState(null);
@@ -51,9 +52,7 @@ export default function AdminOperationsPanel({ fetchJson, onStatus }) {
     setUsersError("");
     try {
       const payload = await fetchJson(API_ENDPOINTS.USERS, {
-        headers: {
-          "x-user-id": "user-default",
-        },
+        headers: buildUserIdHeader(API_HEADER_DEFAULTS.USER_ID),
       });
       const list = Array.isArray(payload) ? payload : [];
       setUsers(list);
@@ -69,9 +68,9 @@ export default function AdminOperationsPanel({ fetchJson, onStatus }) {
 
   function getActorUserId() {
     try {
-      return window.localStorage.getItem("chatUserId") || "user-default";
+      return window.localStorage.getItem("chatUserId") || API_HEADER_DEFAULTS.USER_ID;
     } catch {
-      return "user-default";
+      return API_HEADER_DEFAULTS.USER_ID;
     }
   }
 
@@ -82,9 +81,7 @@ export default function AdminOperationsPanel({ fetchJson, onStatus }) {
       const payload = await fetchJson(
         `${API_ENDPOINTS.BACKUP_VALIDATE}?limit=10`,
         {
-          headers: {
-            "x-user-id": getActorUserId(),
-          },
+          headers: buildUserIdHeader(getActorUserId()),
         },
       );
       setBackupValidation(payload?.validation || null);
@@ -102,9 +99,7 @@ export default function AdminOperationsPanel({ fetchJson, onStatus }) {
     try {
       const response = await fetch(API_ENDPOINTS.BACKUP_EXPORT, {
         method: "GET",
-        headers: {
-          "x-user-id": getActorUserId(),
-        },
+        headers: buildUserIdHeader(getActorUserId()),
       });
 
       if (!response.ok) {
@@ -144,14 +139,10 @@ export default function AdminOperationsPanel({ fetchJson, onStatus }) {
     try {
       const [incidentPayload, autoHealingPayload] = await Promise.all([
         fetchJson(API_ENDPOINTS.INCIDENT_STATUS, {
-          headers: {
-            "x-user-id": getActorUserId(),
-          },
+          headers: buildUserIdHeader(getActorUserId()),
         }),
         fetchJson(API_ENDPOINTS.AUTO_HEALING_STATUS, {
-          headers: {
-            "x-user-id": getActorUserId(),
-          },
+          headers: buildUserIdHeader(getActorUserId()),
         }),
       ]);
 
@@ -172,10 +163,7 @@ export default function AdminOperationsPanel({ fetchJson, onStatus }) {
     try {
       await fetchJson(API_ENDPOINTS.AUTO_HEALING_EXECUTE, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-user-id": getActorUserId(),
-        },
+        headers: buildJsonUserHeaders(getActorUserId()),
         body: JSON.stringify({ policy: DEFAULT_AUTO_HEALING_POLICY }),
       });
       onStatus("Auto-healing executado.", UI_STATUS_LEVELS.SUCCESS);
@@ -196,10 +184,7 @@ export default function AdminOperationsPanel({ fetchJson, onStatus }) {
     try {
       const payload = await fetchJson(API_ENDPOINTS.INCIDENT_RUNBOOK_EXECUTE, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-user-id": getActorUserId(),
-        },
+        headers: buildJsonUserHeaders(getActorUserId()),
         body: JSON.stringify({
           runbookType,
           mode: runbookMode,

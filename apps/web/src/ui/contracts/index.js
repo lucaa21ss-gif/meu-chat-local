@@ -92,3 +92,10 @@ export {
   DEFAULT_RUNBOOK_MODE,
   DEFAULT_AUTO_HEALING_POLICY,
 } from "../state/runbook-contract.js";
+
+export {
+  API_HEADER_NAMES,
+  API_HEADER_DEFAULTS,
+  buildUserIdHeader,
+  buildJsonUserHeaders,
+} from "../state/api-headers-contract.js";
