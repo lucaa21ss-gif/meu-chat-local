@@ -33,3 +33,12 @@ export {
   UI_STATE_KEYS,
   UI_STATUS_KEYS,
 } from "../state/ui-state-contract.js";
+
+export {
+  ROUTE_DEFINITION_SHAPE,
+  ROUTE_ID_KEYS,
+  ROUTE_PATH_KEYS,
+  ROUTE_VIEW_VALUES,
+  ROUTE_DEFINITION_MAP,
+  validateRouteDefinitionShape,
+} from "../routes/navigation-descriptor-contract.js";
