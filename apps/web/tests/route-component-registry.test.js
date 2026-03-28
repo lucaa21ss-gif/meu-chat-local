@@ -5,6 +5,7 @@ import {
   createRouteComponentRegistry,
   getMissingRouteViews,
   getRouteComponentRegistryViews,
+  getUnexpectedRouteViews,
 } from "../src/ui/routes/route-component-registry.js";
 import { ROUTE_DEFINITIONS, ROUTE_VIEWS } from "../src/ui/routes/navigation.js";
 
@@ -43,4 +44,29 @@ test("getMissingRouteViews detecta view sem componente registrado", () => {
   const missing = getMissingRouteViews(ROUTE_DEFINITIONS, registryViews);
 
   assert.equal(missing.includes(ROUTE_VIEWS.admin), true);
+});
+
+test("getUnexpectedRouteViews retorna vazio quando registry segue contrato", () => {
+  const registry = createRouteComponentRegistry({
+    ChatPage: Dummy,
+    AdminOperationsPanel: Dummy,
+    ProductPage: Dummy,
+    GuidePage: Dummy,
+  });
+
+  const unexpected = getUnexpectedRouteViews(ROUTE_DEFINITIONS, getRouteComponentRegistryViews(registry));
+  assert.deepEqual(unexpected, []);
+});
+
+test("getUnexpectedRouteViews detecta view extra fora das rotas", () => {
+  const registryViews = [
+    ROUTE_VIEWS.chat,
+    ROUTE_VIEWS.admin,
+    ROUTE_VIEWS.product,
+    ROUTE_VIEWS.guide,
+    "unknown",
+  ];
+
+  const unexpected = getUnexpectedRouteViews(ROUTE_DEFINITIONS, registryViews);
+  assert.deepEqual(unexpected, ["unknown"]);
 });

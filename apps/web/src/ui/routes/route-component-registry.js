@@ -24,3 +24,10 @@ export function getMissingRouteViews(routeDefinitions, registryViews) {
 
   return Array.from(requiredViews).filter((view) => !configuredViews.has(view));
 }
+
+export function getUnexpectedRouteViews(routeDefinitions, registryViews) {
+  const requiredViews = new Set((routeDefinitions || []).map((route) => route.view));
+  const configuredViews = new Set(registryViews || []);
+
+  return Array.from(configuredViews).filter((view) => !requiredViews.has(view));
+}
