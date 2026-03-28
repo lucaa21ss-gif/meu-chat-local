@@ -1,7 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { SHELL_COPY } from "../src/ui/constants/ui-copy.js";
+import {
+  getShellCopy,
+  SHELL_COPY,
+  UI_COPY,
+} from "../src/ui/constants/ui-copy.js";
 import { ROUTE_PATHS } from "../src/ui/routes/navigation.js";
 
 test("SHELL_COPY possui textos obrigatorios não vazios", () => {
@@ -25,4 +29,9 @@ test("SHELL_COPY possui textos obrigatorios não vazios", () => {
 test("SHELL_COPY referencia rota admin canonical", () => {
   assert.equal(SHELL_COPY.adminShortcutPath, ROUTE_PATHS.admin);
   assert.equal(SHELL_COPY.adminShortcutLabel, "/admin");
+});
+
+test("UI_COPY expõe dominio shell e helper getShellCopy consistente", () => {
+  assert.equal(UI_COPY.shell, SHELL_COPY);
+  assert.equal(getShellCopy(), SHELL_COPY);
 });

@@ -1,6 +1,6 @@
 import { ROUTE_PATHS } from "../routes/navigation.js";
 
-export const SHELL_COPY = Object.freeze({
+const shell = Object.freeze({
   appTitle: "Meu Chat Local",
   closeMenuLabel: "Fechar",
   responsiveHint: "Responsivo para desktop, tablet e celular.",
@@ -11,7 +11,7 @@ export const SHELL_COPY = Object.freeze({
   adminShortcutPath: ROUTE_PATHS.admin,
 });
 
-export const PRODUCT_COPY = Object.freeze({
+const product = Object.freeze({
   title: "Produto",
   description:
     "Meu Chat Local e um assistente de IA local-first para uso profissional com foco em privacidade, resiliencia e operacao em rede domestica.",
@@ -37,7 +37,7 @@ export const PRODUCT_COPY = Object.freeze({
   ]),
 });
 
-export const GUIDE_COPY = Object.freeze({
+const guide = Object.freeze({
   title: "Guia Rapido",
   steps: Object.freeze([
     {
@@ -64,3 +64,26 @@ export const GUIDE_COPY = Object.freeze({
     { key: "?", description: "ajuda de atalhos" },
   ]),
 });
+
+export const UI_COPY = Object.freeze({
+  shell,
+  product,
+  guide,
+});
+
+export function getShellCopy() {
+  return UI_COPY.shell;
+}
+
+export function getProductCopy() {
+  return UI_COPY.product;
+}
+
+export function getGuideCopy() {
+  return UI_COPY.guide;
+}
+
+// Exports legados para manter compatibilidade com os componentes atuais.
+export const SHELL_COPY = getShellCopy();
+export const PRODUCT_COPY = getProductCopy();
+export const GUIDE_COPY = getGuideCopy();

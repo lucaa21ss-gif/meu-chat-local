@@ -4,6 +4,9 @@ import assert from "node:assert/strict";
 import {
   GUIDE_COPY,
   PRODUCT_COPY,
+  getGuideCopy,
+  getProductCopy,
+  UI_COPY,
 } from "../src/ui/constants/ui-copy.js";
 
 test("PRODUCT_COPY possui conteúdo minimo esperado", () => {
@@ -38,4 +41,11 @@ test("GUIDE_COPY possui passos e atalhos validos", () => {
 test("GUIDE_COPY mantém rotas canonicas de acesso", () => {
   assert.equal(GUIDE_COPY.accessAppPath, "/app");
   assert.equal(GUIDE_COPY.accessAdminPath, "/admin");
+});
+
+test("UI_COPY expõe dominios product/guide e helpers consistentes", () => {
+  assert.equal(UI_COPY.product, PRODUCT_COPY);
+  assert.equal(UI_COPY.guide, GUIDE_COPY);
+  assert.equal(getProductCopy(), PRODUCT_COPY);
+  assert.equal(getGuideCopy(), GUIDE_COPY);
 });
