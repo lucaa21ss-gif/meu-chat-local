@@ -152,6 +152,11 @@ function AdminPage({ fetchJson, onStatus }) {
   const [backupValidation, setBackupValidation] = useState(null);
   const [backupsLoading, setBackupsLoading] = useState(true);
   const [backupsError, setBackupsError] = useState("");
+  const [incident, setIncident] = useState(null);
+  const [incidentLoading, setIncidentLoading] = useState(true);
+  const [incidentError, setIncidentError] = useState("");
+  const [autoHealingStatus, setAutoHealingStatus] = useState(null);
+  const [healingLoading, setHealingLoading] = useState(false);
 
   async function loadAdminHealth() {
     setLoading(true);
@@ -257,10 +262,61 @@ function AdminPage({ fetchJson, onStatus }) {
     }
   }
 
+  async function loadIncidentStatus() {
+    setIncidentLoading(true);
+    setIncidentError("");
+    try {
+      const [incidentPayload, autoHealingPayload] = await Promise.all([
+        fetchJson("/api/incident/status", {
+          headers: {
+            "x-user-id": getActorUserId(),
+          },
+        }),
+        fetchJson("/api/auto-healing/status", {
+          headers: {
+            "x-user-id": getActorUserId(),
+          },
+        }),
+      ]);
+
+      setIncident(incidentPayload?.incident || null);
+      setAutoHealingStatus(autoHealingPayload?.autoHealing || null);
+    } catch (err) {
+      const detail = err?.message || "Falha ao carregar status de incidentes.";
+      setIncidentError(detail);
+      onStatus(detail, "error");
+    } finally {
+      setIncidentLoading(false);
+    }
+  }
+
+  async function runAutoHealing() {
+    setHealingLoading(true);
+    onStatus("Executando auto-healing manual...", "info");
+    try {
+      await fetchJson("/api/auto-healing/execute", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-user-id": getActorUserId(),
+        },
+        body: JSON.stringify({ policy: "model-offline" }),
+      });
+      onStatus("Auto-healing executado.", "success");
+      await loadIncidentStatus();
+    } catch (err) {
+      const detail = err?.message || "Falha na execucao de auto-healing.";
+      onStatus(detail, "error");
+    } finally {
+      setHealingLoading(false);
+    }
+  }
+
   useEffect(() => {
     loadAdminHealth();
     loadUsers();
     loadBackups();
+    loadIncidentStatus();
     const timer = window.setInterval(loadAdminHealth, 30000);
     return () => window.clearInterval(timer);
   }, [fetchJson]);
@@ -392,6 +448,45 @@ function AdminPage({ fetchJson, onStatus }) {
           )}
         </>
       )}
+
+      <div className="admin-users-header">
+        <h3 className="section-title">Incidentes</h3>
+        <div className="admin-actions-inline">
+          <button type="button" className="ghost" onClick={loadIncidentStatus} disabled={incidentLoading}>
+            {incidentLoading ? "Verificando..." : "Verificar incidentes"}
+          </button>
+          <button type="button" onClick={runAutoHealing} disabled={healingLoading}>
+            {healingLoading ? "Executando..." : "Auto-healing"}
+          </button>
+        </div>
+      </div>
+
+      {incidentError ? <p className="error">{incidentError}</p> : null}
+
+      <div className="admin-grid">
+        <div className="admin-tile">
+          <span className="tile-label">Status incidente</span>
+          <strong className="tile-value">{String(incident?.status || "normal")}</strong>
+          {incident?.summary ? <p className="hint">{incident.summary}</p> : null}
+        </div>
+        <div className="admin-tile">
+          <span className="tile-label">Severidade</span>
+          <span className={`check-badge ${String(incident?.severity || "info") === "info" ? "ok" : "fail"}`}>
+            {String(incident?.severity || "info")}
+          </span>
+        </div>
+      </div>
+
+      <div className="admin-grid">
+        <div className="admin-tile">
+          <span className="tile-label">Auto-healing</span>
+          <strong className="tile-value">{autoHealingStatus?.enabled ? "habilitado" : "desabilitado"}</strong>
+        </div>
+        <div className="admin-tile">
+          <span className="tile-label">Circuit</span>
+          <strong className="tile-value">{String(autoHealingStatus?.circuit?.state || "closed")}</strong>
+        </div>
+      </div>
     </section>
   );
 }
