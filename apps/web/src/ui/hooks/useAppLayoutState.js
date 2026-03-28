@@ -1,4 +1,7 @@
 import { useState } from "react";
+import { APP_LAYOUT_ACTION_KEYS } from "./layout-state-contract.js";
+
+export { APP_LAYOUT_ACTION_KEYS } from "./layout-state-contract.js";
 
 export function createAppLayoutActions(setMenuOpen) {
   return {
