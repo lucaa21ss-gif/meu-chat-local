@@ -88,3 +88,15 @@ describe("buildJsonUserHeaders()", () => {
     assert.notStrictEqual(a, b);
   });
 });
+
+describe("alinhamento de constantes de header", () => {
+  it("permite compor header Content-Type de forma declarativa", () => {
+    const headers = {
+      [API_HEADER_NAMES.CONTENT_TYPE]: API_HEADER_DEFAULTS.CONTENT_TYPE,
+    };
+
+    assert.deepStrictEqual(headers, {
+      "Content-Type": "application/json",
+    });
+  });
+});

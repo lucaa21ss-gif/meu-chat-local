@@ -3,6 +3,10 @@ import { UI_STATUS_LEVELS } from "../contracts/index.js";
 import { buildChatRequest } from "../state/chat-request-contract.js";
 import { API_ENDPOINTS } from "../state/api-endpoints-contract.js";
 import {
+  API_HEADER_DEFAULTS,
+  API_HEADER_NAMES,
+} from "../state/api-headers-contract.js";
+import {
   CHAT_STATUS_MESSAGES,
   CHAT_UI_COPY,
   resolveChatReply,
@@ -27,7 +31,9 @@ export default function ChatPage({ fetchJson, onStatus }) {
     try {
       const payload = await fetchJson(API_ENDPOINTS.CHAT, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          [API_HEADER_NAMES.CONTENT_TYPE]: API_HEADER_DEFAULTS.CONTENT_TYPE,
+        },
         body: JSON.stringify(buildChatRequest(message)),
       });
       setReply(resolveChatReply(payload));
