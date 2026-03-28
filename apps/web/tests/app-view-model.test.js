@@ -2,10 +2,45 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import {
+  APP_MAIN_CONTENT_PROP_MAPPINGS,
+  APP_SHELL_PROP_MAPPINGS,
   buildAppViewModel,
   createAppMainContentProps,
   createAppShellProps,
+  mapControllerProps,
 } from "../src/ui/view-model/app-view-model.js";
+
+test("mapControllerProps mapeia propriedades com base no contrato declarativo", () => {
+  const controller = {
+    isOpen: true,
+    close: () => {},
+  };
+
+  const mapped = mapControllerProps(controller, {
+    open: "isOpen",
+    onClose: "close",
+  });
+
+  assert.deepEqual(mapped, {
+    open: true,
+    onClose: controller.close,
+  });
+});
+
+test("mappings declarativos do view-model mantêm chaves esperadas", () => {
+  assert.deepEqual(Object.keys(APP_SHELL_PROP_MAPPINGS).sort(), [
+    "backdropClassName",
+    "menuOpen",
+    "onCloseMenu",
+    "onOpenMenu",
+  ]);
+
+  assert.deepEqual(Object.keys(APP_MAIN_CONTENT_PROP_MAPPINGS).sort(), [
+    "fetchJson",
+    "showStatus",
+    "status",
+  ]);
+});
 
 test("createAppShellProps mapeia contrato esperado para AppShellLayout", () => {
   const controller = {
