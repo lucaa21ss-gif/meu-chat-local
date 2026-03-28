@@ -2,10 +2,17 @@ import { useEffect, useMemo, useRef } from "react";
 import { createApiClient } from "../../app/shared/api.js";
 import { createReactAppWiringContract } from "../../app/shared/app-wiring-react.js";
 import { UI_STATE_ACTION_TYPES } from "../state/ui-state-contract.js";
-import { DEFAULT_UI_STATUS_LEVEL } from "../state/status-level-contract.js";
+import { buildUiStatusPayload } from "../state/status-dispatch-contract.js";
 
 export default function useReactAppWiring({ uiStatus, dispatch }) {
   const stateRef = useRef({});
+
+  function dispatchStatus(message, levelOrOptions) {
+    dispatch({
+      type: UI_STATE_ACTION_TYPES.STATUS,
+      payload: buildUiStatusPayload(message, levelOrOptions),
+    });
+  }
 
   useEffect(() => {
     stateRef.current = {
@@ -37,11 +44,7 @@ export default function useReactAppWiring({ uiStatus, dispatch }) {
           appendMessage: () => {},
           hideTyping: () => {},
           hideStatus: () => {},
-          showStatus: (message) =>
-            dispatch({
-              type: UI_STATE_ACTION_TYPES.STATUS,
-              payload: { message, level: DEFAULT_UI_STATUS_LEVEL },
-            }),
+          showStatus: dispatchStatus,
           loadRagDocuments: async () => {},
           runHistorySearch: async () => {},
           clearSearchResults: () => {},
@@ -60,6 +63,6 @@ export default function useReactAppWiring({ uiStatus, dispatch }) {
 
   return {
     fetchJson: apiClient.fetchJson,
-    showStatus: wiring.reactUi.dispatchStatus,
+    showStatus: dispatchStatus,
   };
 }

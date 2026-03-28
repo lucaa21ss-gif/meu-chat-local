@@ -40,6 +40,12 @@ export {
 } from "../state/status-level-contract.js";
 
 export {
+  SHOW_STATUS_OPTION_KEYS,
+  resolveStatusLevelInput,
+  buildUiStatusPayload,
+} from "../state/status-dispatch-contract.js";
+
+export {
   UI_STATE_ACTION_TYPES,
   UI_STATE_ACTION_TYPE_VALUES,
   UI_STATE_SHAPE,
