@@ -1,12 +1,15 @@
 import { useEffect, useMemo, useReducer, useRef, useState } from "react";
-import { Link, NavLink, Route, Routes } from "react-router-dom";
+import { Route, Routes } from "react-router-dom";
 import { createApiClient } from "../app/shared/api.js";
 import { createReactAppWiringContract } from "../app/shared/app-wiring-react.js";
 import AdminOperationsPanel from "./components/AdminOperationsPanel.jsx";
+import AppSidebar from "./components/AppSidebar.jsx";
+import AppTopbar from "./components/AppTopbar.jsx";
 import ChatPage from "./components/ChatPage.jsx";
 import GuidePage from "./components/GuidePage.jsx";
 import HealthCard from "./components/HealthCard.jsx";
 import ProductPage from "./components/ProductPage.jsx";
+import UiStatusBanner from "./components/UiStatusBanner.jsx";
 
 const INITIAL_UI_STATE = {
   status: {
@@ -90,52 +93,11 @@ export default function App() {
   return (
     <div className="app-shell">
       <div className={`backdrop ${menuOpen ? "show" : ""}`} onClick={() => setMenuOpen(false)} />
-
-      <aside className={`sidebar ${menuOpen ? "open" : ""}`}>
-        <div className="sidebar-header">
-          <h1>Meu Chat Local</h1>
-          <button className="ghost lg-hidden" onClick={() => setMenuOpen(false)}>
-            Fechar
-          </button>
-        </div>
-        <nav>
-          <NavLink to="/" onClick={() => setMenuOpen(false)} end>
-            Chat
-          </NavLink>
-          <NavLink to="/admin" onClick={() => setMenuOpen(false)}>
-            Admin
-          </NavLink>
-          <NavLink to="/produto" onClick={() => setMenuOpen(false)}>
-            Produto
-          </NavLink>
-          <NavLink to="/guia" onClick={() => setMenuOpen(false)}>
-            Guia
-          </NavLink>
-        </nav>
-        <p className="hint">Responsivo para desktop, tablet e celular.</p>
-      </aside>
+      <AppSidebar menuOpen={menuOpen} onCloseMenu={() => setMenuOpen(false)} />
 
       <main className="content">
-        <header className="topbar">
-          <button className="ghost lg-hidden" onClick={() => setMenuOpen(true)}>
-            Menu
-          </button>
-          <div>
-            <strong>Frontend Unico</strong>
-            <p>Mesmo host para usuario e admin em rede domestica.</p>
-          </div>
-          <Link to="/admin" className="pill">
-            /admin
-          </Link>
-        </header>
-
-        {uiState.status.message ? (
-          <section className="card">
-            <p className="hint">
-              Status ({uiState.status.level}): {uiState.status.message}
-            </p>
-          </section>
-        ) : null}
+        <AppTopbar onOpenMenu={() => setMenuOpen(true)} />
+        <UiStatusBanner status={uiState.status} />
 
         <HealthCard fetchJson={apiClient.fetchJson} onStatus={showStatus} />
 
