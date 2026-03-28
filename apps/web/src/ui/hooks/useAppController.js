@@ -1,17 +1,12 @@
 import { useReducer } from "react";
 import useAppLayoutState from "./useAppLayoutState.js";
 import useReactAppWiring from "./useReactAppWiring.js";
+import {
+    APP_CONTROLLER_MODEL_SELECTORS,
+} from "../contracts/app-controller-contract.js";
 import { INITIAL_UI_STATE, uiReducer } from "../state/ui-state.js";
 
-export const APP_CONTROLLER_MODEL_SELECTORS = Object.freeze({
-  menuOpen: ({ layout }) => layout.menuOpen,
-  openMenu: ({ layout }) => layout.openMenu,
-  closeMenu: ({ layout }) => layout.closeMenu,
-  backdropClassName: ({ layout }) => layout.backdropClassName,
-  status: ({ uiState }) => uiState.status,
-  fetchJson: ({ fetchJson }) => fetchJson,
-  showStatus: ({ showStatus }) => showStatus,
-});
+export { APP_CONTROLLER_MODEL_SELECTORS } from "../contracts/app-controller-contract.js";
 
 export function mapControllerModelSources(sources, selectors) {
   return Object.fromEntries(

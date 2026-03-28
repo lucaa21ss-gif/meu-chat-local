@@ -6,7 +6,12 @@ import {
   createAppControllerModel,
   mapControllerModelSources,
 } from "../src/ui/hooks/useAppController.js";
-import { buildAppViewModel } from "../src/ui/view-model/app-view-model.js";
+import { APP_CONTROLLER_MODEL_KEYS } from "../src/ui/contracts/app-controller-contract.js";
+import {
+    APP_MAIN_CONTENT_PROP_MAPPINGS,
+    APP_SHELL_PROP_MAPPINGS,
+    buildAppViewModel,
+} from "../src/ui/view-model/app-view-model.js";
 
 test("mapControllerModelSources monta model com selectors declarativos", () => {
   const openMenu = () => {};
@@ -38,7 +43,7 @@ test("mapControllerModelSources monta model com selectors declarativos", () => {
 });
 
 test("APP_CONTROLLER_MODEL_SELECTORS mantém contrato esperado", () => {
-  assert.deepEqual(Object.keys(APP_CONTROLLER_MODEL_SELECTORS).sort(), [
+    assert.deepEqual(APP_CONTROLLER_MODEL_KEYS, [
     "backdropClassName",
     "closeMenu",
     "fetchJson",
@@ -47,6 +52,16 @@ test("APP_CONTROLLER_MODEL_SELECTORS mantém contrato esperado", () => {
     "showStatus",
     "status",
   ]);
+    assert.deepEqual(Object.keys(APP_CONTROLLER_MODEL_SELECTORS).sort(), APP_CONTROLLER_MODEL_KEYS);
+});
+
+test("controller keys permanecem alinhadas aos mappings do view-model", () => {
+    const mappedControllerKeys = Object.values({
+        ...APP_SHELL_PROP_MAPPINGS,
+        ...APP_MAIN_CONTENT_PROP_MAPPINGS,
+    }).sort();
+
+    assert.deepEqual(mappedControllerKeys, APP_CONTROLLER_MODEL_KEYS);
 });
 
 test("createAppControllerModel consolida estado e handlers para o App", () => {
