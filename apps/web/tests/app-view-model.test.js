@@ -1,0 +1,64 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+
+import {
+  buildAppViewModel,
+  createAppMainContentProps,
+  createAppShellProps,
+} from "../src/ui/view-model/app-view-model.js";
+
+test("createAppShellProps mapeia contrato esperado para AppShellLayout", () => {
+  const controller = {
+    menuOpen: true,
+    backdropClassName: "backdrop show",
+    closeMenu: () => {},
+    openMenu: () => {},
+  };
+
+  const shell = createAppShellProps(controller);
+
+  assert.equal(shell.menuOpen, true);
+  assert.equal(shell.backdropClassName, "backdrop show");
+  assert.equal(shell.onCloseMenu, controller.closeMenu);
+  assert.equal(shell.onOpenMenu, controller.openMenu);
+});
+
+test("createAppMainContentProps mapeia contrato esperado para AppMainContent", () => {
+  const fetchJson = async () => ({ ok: true });
+  const showStatus = () => {};
+
+  const controller = {
+    status: { message: "ok", level: "success" },
+    fetchJson,
+    showStatus,
+  };
+
+  const content = createAppMainContentProps(controller);
+
+  assert.deepEqual(content.status, { message: "ok", level: "success" });
+  assert.equal(content.fetchJson, fetchJson);
+  assert.equal(content.showStatus, showStatus);
+});
+
+test("buildAppViewModel agrega shell e conteúdo principal", () => {
+  const fetchJson = async () => ({ ok: true });
+  const showStatus = () => {};
+
+  const controller = {
+    menuOpen: false,
+    backdropClassName: "backdrop",
+    closeMenu: () => {},
+    openMenu: () => {},
+    status: { message: "", level: "info" },
+    fetchJson,
+    showStatus,
+  };
+
+  const vm = buildAppViewModel(controller);
+
+  assert.equal(vm.shell.menuOpen, false);
+  assert.equal(vm.shell.backdropClassName, "backdrop");
+  assert.deepEqual(vm.mainContent.status, { message: "", level: "info" });
+  assert.equal(vm.mainContent.fetchJson, fetchJson);
+  assert.equal(vm.mainContent.showStatus, showStatus);
+});

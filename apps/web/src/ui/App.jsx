@@ -1,18 +1,15 @@
 import AppMainContent from "./components/AppMainContent.jsx";
 import AppShellLayout from "./components/AppShellLayout.jsx";
 import useAppController from "./hooks/useAppController.js";
+import { buildAppViewModel } from "./view-model/app-view-model.js";
 
 export default function App() {
   const controller = useAppController();
+  const viewModel = buildAppViewModel(controller);
 
   return (
-    <AppShellLayout
-      menuOpen={controller.menuOpen}
-      backdropClassName={controller.backdropClassName}
-      onCloseMenu={controller.closeMenu}
-      onOpenMenu={controller.openMenu}
-    >
-      <AppMainContent status={controller.status} fetchJson={controller.fetchJson} showStatus={controller.showStatus} />
+    <AppShellLayout {...viewModel.shell}>
+      <AppMainContent {...viewModel.mainContent} />
     </AppShellLayout>
   );
 }
