@@ -143,3 +143,12 @@ export {
   ADMIN_ACTION_LABEL_KEYS,
   buildRunbookExecutingMessage,
 } from "../state/admin-message-contract.js";
+
+export {
+  ADMIN_SECTION_TITLES,
+  ADMIN_SECTION_TITLE_KEYS,
+  ADMIN_TILE_LABELS,
+  ADMIN_TILE_LABEL_KEYS,
+  ADMIN_STATIC_COPY,
+  ADMIN_STATIC_COPY_KEYS,
+} from "../state/admin-copy-contract.js";

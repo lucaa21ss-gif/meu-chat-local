@@ -27,6 +27,11 @@ import {
   ADMIN_ACTION_LABELS,
   buildRunbookExecutingMessage,
 } from "../state/admin-message-contract.js";
+import {
+  ADMIN_SECTION_TITLES,
+  ADMIN_TILE_LABELS,
+  ADMIN_STATIC_COPY,
+} from "../state/admin-copy-contract.js";
 
 export default function AdminOperationsPanel({ fetchJson, onStatus }) {
   const [health, setHealth] = useState(null);
@@ -232,8 +237,8 @@ export default function AdminOperationsPanel({ fetchJson, onStatus }) {
     <section className="card">
       <div className="admin-header">
         <div>
-          <h2>Admin - Health</h2>
-          <p className="hint">Recorte inicial de paridade do painel administrativo.</p>
+          <h2>{ADMIN_SECTION_TITLES.ROOT}</h2>
+          <p className="hint">{ADMIN_STATIC_COPY.INTRO_HINT}</p>
         </div>
         <button type="button" className="ghost" onClick={loadAdminHealth} disabled={loading}>
           {loading ? ADMIN_ACTION_LABELS.HEALTH_REFRESH_LOADING : ADMIN_ACTION_LABELS.HEALTH_REFRESH_IDLE}
@@ -244,16 +249,16 @@ export default function AdminOperationsPanel({ fetchJson, onStatus }) {
 
       <div className="admin-grid">
         <div className="admin-tile">
-          <span className="tile-label">Status</span>
-          <strong className="tile-value">{String(health?.status || "desconhecido")}</strong>
+          <span className="tile-label">{ADMIN_TILE_LABELS.STATUS}</span>
+          <strong className="tile-value">{String(health?.status || ADMIN_STATIC_COPY.HEALTH_STATUS_FALLBACK)}</strong>
         </div>
         <div className="admin-tile">
-          <span className="tile-label">Atualizado em</span>
+          <span className="tile-label">{ADMIN_TILE_LABELS.UPDATED_AT}</span>
           <strong className="tile-value">{new Date().toLocaleTimeString("pt-BR")}</strong>
         </div>
       </div>
 
-      <h3 className="section-title">Checks</h3>
+      <h3 className="section-title">{ADMIN_SECTION_TITLES.CHECKS}</h3>
       {checks.length === 0 ? (
         <p className="hint">{ADMIN_EMPTY_STATE_MESSAGES.CHECKS}</p>
       ) : (
@@ -276,7 +281,7 @@ export default function AdminOperationsPanel({ fetchJson, onStatus }) {
       )}
 
       <div className="admin-users-header">
-        <h3 className="section-title">Usuarios</h3>
+        <h3 className="section-title">{ADMIN_SECTION_TITLES.USERS}</h3>
         <button type="button" className="ghost" onClick={loadUsers} disabled={usersLoading}>
           {usersLoading ? ADMIN_ACTION_LABELS.USERS_REFRESH_LOADING : ADMIN_ACTION_LABELS.USERS_REFRESH_IDLE}
         </button>
@@ -303,7 +308,7 @@ export default function AdminOperationsPanel({ fetchJson, onStatus }) {
       )}
 
       <div className="admin-users-header">
-        <h3 className="section-title">Backups</h3>
+        <h3 className="section-title">{ADMIN_SECTION_TITLES.BACKUPS}</h3>
         <div className="admin-actions-inline">
           <button type="button" className="ghost" onClick={loadBackups} disabled={backupsLoading}>
             {backupsLoading ? ADMIN_ACTION_LABELS.BACKUPS_VALIDATE_LOADING : ADMIN_ACTION_LABELS.BACKUPS_VALIDATE_IDLE}
@@ -322,11 +327,11 @@ export default function AdminOperationsPanel({ fetchJson, onStatus }) {
         <>
           <div className="admin-grid">
             <div className="admin-tile">
-              <span className="tile-label">Status</span>
+              <span className="tile-label">{ADMIN_TILE_LABELS.STATUS}</span>
               <strong className="tile-value">{String(backupValidation.status || ADMIN_STATUS_VALUES.BACKUP_STATUS_DEFAULT)}</strong>
             </div>
             <div className="admin-tile">
-              <span className="tile-label">Itens verificados</span>
+              <span className="tile-label">{ADMIN_TILE_LABELS.VERIFIED_ITEMS}</span>
               <strong className="tile-value">{Array.isArray(backupValidation.items) ? backupValidation.items.length : 0}</strong>
             </div>
           </div>
@@ -355,7 +360,7 @@ export default function AdminOperationsPanel({ fetchJson, onStatus }) {
       )}
 
       <div className="admin-users-header">
-        <h3 className="section-title">Incidentes</h3>
+        <h3 className="section-title">{ADMIN_SECTION_TITLES.INCIDENTS}</h3>
         <div className="admin-actions-inline">
           <button type="button" className="ghost" onClick={loadIncidentStatus} disabled={incidentLoading}>
             {incidentLoading ? ADMIN_ACTION_LABELS.INCIDENTS_REFRESH_LOADING : ADMIN_ACTION_LABELS.INCIDENTS_REFRESH_IDLE}
@@ -370,12 +375,12 @@ export default function AdminOperationsPanel({ fetchJson, onStatus }) {
 
       <div className="admin-grid">
         <div className="admin-tile">
-          <span className="tile-label">Status incidente</span>
+          <span className="tile-label">{ADMIN_TILE_LABELS.INCIDENT_STATUS}</span>
           <strong className="tile-value">{String(incident?.status || ADMIN_STATUS_VALUES.INCIDENT_STATUS_DEFAULT)}</strong>
           {incident?.summary ? <p className="hint">{incident.summary}</p> : null}
         </div>
         <div className="admin-tile">
-          <span className="tile-label">Severidade</span>
+          <span className="tile-label">{ADMIN_TILE_LABELS.SEVERITY}</span>
           <span className={`check-badge ${String(incident?.severity || ADMIN_STATUS_VALUES.INCIDENT_SEVERITY_INFO) === ADMIN_STATUS_VALUES.INCIDENT_SEVERITY_INFO ? ADMIN_BADGE_VARIANTS.OK : ADMIN_BADGE_VARIANTS.FAIL}`}>
             {String(incident?.severity || ADMIN_STATUS_VALUES.INCIDENT_SEVERITY_INFO)}
           </span>
@@ -384,22 +389,22 @@ export default function AdminOperationsPanel({ fetchJson, onStatus }) {
 
       <div className="admin-grid">
         <div className="admin-tile">
-          <span className="tile-label">Auto-healing</span>
-          <strong className="tile-value">{autoHealingStatus?.enabled ? "habilitado" : "desabilitado"}</strong>
+          <span className="tile-label">{ADMIN_TILE_LABELS.AUTO_HEALING}</span>
+          <strong className="tile-value">{autoHealingStatus?.enabled ? ADMIN_STATIC_COPY.AUTO_HEALING_ENABLED : ADMIN_STATIC_COPY.AUTO_HEALING_DISABLED}</strong>
         </div>
         <div className="admin-tile">
-          <span className="tile-label">Circuit</span>
+          <span className="tile-label">{ADMIN_TILE_LABELS.CIRCUIT}</span>
           <strong className="tile-value">{String(autoHealingStatus?.circuit?.state || ADMIN_STATUS_VALUES.CIRCUIT_STATE_DEFAULT)}</strong>
         </div>
       </div>
 
       <div className="admin-users-header">
-        <h3 className="section-title">Runbook</h3>
+        <h3 className="section-title">{ADMIN_SECTION_TITLES.RUNBOOK}</h3>
       </div>
 
       <div className="runbook-form-grid">
         <label className="runbook-field">
-          <span className="tile-label">Tipo</span>
+          <span className="tile-label">{ADMIN_TILE_LABELS.TYPE}</span>
           <select value={runbookType} onChange={(event) => setRunbookType(event.target.value)}>
             <option value={RUNBOOK_TYPES.MODEL_OFFLINE}>{RUNBOOK_TYPES.MODEL_OFFLINE}</option>
             <option value={RUNBOOK_TYPES.DB_DEGRADED}>{RUNBOOK_TYPES.DB_DEGRADED}</option>
@@ -409,7 +414,7 @@ export default function AdminOperationsPanel({ fetchJson, onStatus }) {
         </label>
 
         <label className="runbook-field">
-          <span className="tile-label">Modo</span>
+          <span className="tile-label">{ADMIN_TILE_LABELS.MODE}</span>
           <select value={runbookMode} onChange={(event) => setRunbookMode(event.target.value)}>
             <option value={RUNBOOK_MODES.DRY_RUN}>{RUNBOOK_MODES.DRY_RUN}</option>
             <option value={RUNBOOK_MODES.EXECUTE}>{RUNBOOK_MODES.EXECUTE}</option>
@@ -427,11 +432,11 @@ export default function AdminOperationsPanel({ fetchJson, onStatus }) {
       {runbookResult ? (
         <div className="admin-grid">
           <div className="admin-tile">
-            <span className="tile-label">Runbook ID</span>
+            <span className="tile-label">{ADMIN_TILE_LABELS.RUNBOOK_ID}</span>
             <strong className="tile-value">{runbookResult.id || ADMIN_DISPLAY_DEFAULTS.IDENTIFIER}</strong>
           </div>
           <div className="admin-tile">
-            <span className="tile-label">Passos executados</span>
+            <span className="tile-label">{ADMIN_TILE_LABELS.RUNBOOK_STEPS}</span>
             <strong className="tile-value">{Array.isArray(runbookResult.steps) ? runbookResult.steps.length : 0}</strong>
           </div>
         </div>
