@@ -5,6 +5,7 @@ import {
   ALL_ROUTE_PATHS,
   ROUTE_DEFINITIONS,
   ROUTE_PATHS,
+  ROUTE_VIEWS,
   SIDEBAR_NAV_ITEMS,
 } from "../src/ui/routes/navigation.js";
 
@@ -32,11 +33,14 @@ test("contrato minimo de navegacao se mantém", () => {
 });
 
 test("ROUTE_DEFINITIONS possui estrutura valida para map de Routes", () => {
+  const validViews = new Set(Object.values(ROUTE_VIEWS));
+
   for (const route of ROUTE_DEFINITIONS) {
     assert.equal(typeof route.id, "string");
     assert.equal(typeof route.path, "string");
     assert.equal(typeof route.view, "string");
     assert.equal(route.path.length > 0, true);
+    assert.equal(validViews.has(route.view), true, `View invalida em rota: ${route.view}`);
   }
 });
 
