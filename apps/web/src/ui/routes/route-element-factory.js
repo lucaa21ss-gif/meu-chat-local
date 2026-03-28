@@ -1,24 +1,5 @@
 import { createElement } from "react";
-import { ROUTE_VIEWS } from "./navigation.js";
-
-const ROUTE_DESCRIPTOR_BUILDERS = Object.freeze({
-  [ROUTE_VIEWS.chat]: ({ fetchJson, showStatus }) => ({
-    componentKey: "chat",
-    props: { fetchJson, onStatus: showStatus },
-  }),
-  [ROUTE_VIEWS.admin]: ({ fetchJson, showStatus }) => ({
-    componentKey: "admin",
-    props: { fetchJson, onStatus: showStatus },
-  }),
-  [ROUTE_VIEWS.product]: () => ({
-    componentKey: "product",
-    props: {},
-  }),
-  [ROUTE_VIEWS.guide]: () => ({
-    componentKey: "guide",
-    props: {},
-  }),
-});
+import { ROUTE_DESCRIPTOR_BUILDERS } from "./route-factory-contract.js";
 
 export function resolveRouteElementDescriptor(route, { fetchJson, showStatus }) {
   const builder = ROUTE_DESCRIPTOR_BUILDERS[route?.view];

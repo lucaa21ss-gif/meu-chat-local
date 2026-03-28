@@ -9,3 +9,8 @@ export {
   APP_SHELL_PROP_KEYS,
   APP_MAIN_CONTENT_PROP_KEYS,
 } from "./app-view-model-contract.js";
+
+export {
+  ROUTE_DESCRIPTOR_BUILDERS,
+  ROUTE_COMPONENT_KEYS,
+} from "../routes/route-factory-contract.js";

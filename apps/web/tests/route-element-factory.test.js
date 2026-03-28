@@ -6,6 +6,7 @@ import {
   resolveRouteElementDescriptor,
 } from "../src/ui/routes/route-element-factory.js";
 import { ROUTE_VIEWS } from "../src/ui/routes/navigation.js";
+import { ROUTE_COMPONENT_KEYS } from "../src/ui/contracts/index.js";
 
 function DummyComponent() {
   return null;
@@ -67,4 +68,9 @@ test("resolveRouteElementDescriptor suporta todas as views canônicas", () => {
     assert.notEqual(descriptor, null);
     assert.equal(typeof descriptor.componentKey, "string");
   }
+});
+
+test("route descriptor builders permanecem alinhados com ROUTE_VIEWS", () => {
+  const viewKeys = Object.values(ROUTE_VIEWS).sort();
+  assert.deepEqual(ROUTE_COMPONENT_KEYS, viewKeys);
 });
