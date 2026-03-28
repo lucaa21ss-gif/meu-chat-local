@@ -146,6 +146,9 @@ function AdminPage({ fetchJson, onStatus }) {
   const [health, setHealth] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [users, setUsers] = useState([]);
+  const [usersLoading, setUsersLoading] = useState(true);
+  const [usersError, setUsersError] = useState("");
 
   async function loadAdminHealth() {
     setLoading(true);
@@ -163,8 +166,29 @@ function AdminPage({ fetchJson, onStatus }) {
     }
   }
 
+  async function loadUsers() {
+    setUsersLoading(true);
+    setUsersError("");
+    try {
+      const payload = await fetchJson("/api/users", {
+        headers: {
+          "x-user-id": "user-default",
+        },
+      });
+      const list = Array.isArray(payload) ? payload : [];
+      setUsers(list);
+    } catch (err) {
+      const detail = err?.message || "Falha ao carregar /api/users.";
+      setUsersError(detail);
+      onStatus(detail, "error");
+    } finally {
+      setUsersLoading(false);
+    }
+  }
+
   useEffect(() => {
     loadAdminHealth();
+    loadUsers();
     const timer = window.setInterval(loadAdminHealth, 30000);
     return () => window.clearInterval(timer);
   }, [fetchJson]);
@@ -215,6 +239,33 @@ function AdminPage({ fetchJson, onStatus }) {
               </article>
             );
           })}
+        </div>
+      )}
+
+      <div className="admin-users-header">
+        <h3 className="section-title">Usuarios</h3>
+        <button type="button" className="ghost" onClick={loadUsers} disabled={usersLoading}>
+          {usersLoading ? "Carregando..." : "Atualizar usuarios"}
+        </button>
+      </div>
+
+      {usersError ? <p className="error">{usersError}</p> : null}
+
+      {users.length === 0 ? (
+        <p className="hint">Nenhum usuario retornado pela API.</p>
+      ) : (
+        <div className="users-list">
+          {users.map((user) => (
+            <article key={user.id || user.name} className="user-item">
+              <div>
+                <strong>{user.name || "Sem nome"}</strong>
+                <p className="hint">ID: {user.id || "n/a"}</p>
+              </div>
+              <span className={`role-badge ${String(user.role || "viewer").toLowerCase()}`}>
+                {String(user.role || "viewer")}
+              </span>
+            </article>
+          ))}
         </div>
       )}
     </section>
