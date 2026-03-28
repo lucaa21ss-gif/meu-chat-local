@@ -2,8 +2,7 @@ import { useReducer } from "react";
 import AppRoutes from "./components/AppRoutes.jsx";
 import AppSidebar from "./components/AppSidebar.jsx";
 import AppTopbar from "./components/AppTopbar.jsx";
-import HealthCard from "./components/HealthCard.jsx";
-import UiStatusBanner from "./components/UiStatusBanner.jsx";
+import MainContentHeaderSection from "./components/MainContentHeaderSection.jsx";
 import useAppLayoutState from "./hooks/useAppLayoutState.js";
 import useReactAppWiring from "./hooks/useReactAppWiring.js";
 import { INITIAL_UI_STATE, uiReducer } from "./state/ui-state.js";
@@ -23,9 +22,7 @@ export default function App() {
 
       <main className="content">
         <AppTopbar onOpenMenu={openMenu} />
-        <UiStatusBanner status={uiState.status} />
-
-        <HealthCard fetchJson={fetchJson} onStatus={showStatus} />
+        <MainContentHeaderSection status={uiState.status} fetchJson={fetchJson} showStatus={showStatus} />
         <AppRoutes fetchJson={fetchJson} showStatus={showStatus} />
       </main>
     </div>
