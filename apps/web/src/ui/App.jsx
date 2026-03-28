@@ -1,7 +1,34 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { Link, NavLink, Route, Routes } from "react-router-dom";
+import { createApiClient } from "../app/shared/api.js";
+import { createReactAppWiringContract } from "../app/shared/app-wiring-react.js";
 
-function HealthCard() {
+const INITIAL_UI_STATE = {
+  status: {
+    message: "",
+    level: "info",
+  },
+};
+
+function uiReducer(state, action) {
+  if (action?.type === "ui/status") {
+    return {
+      ...state,
+      status: {
+        message: action.payload?.message || "",
+        level: action.payload?.level || "info",
+      },
+    };
+  }
+
+  if (action?.type === "chat/setActive") {
+    return state;
+  }
+
+  return state;
+}
+
+function HealthCard({ fetchJson, onStatus }) {
   const [health, setHealth] = useState({ status: "loading" });
   const [error, setError] = useState("");
 
@@ -10,17 +37,17 @@ function HealthCard() {
 
     async function loadHealth() {
       try {
-        const response = await fetch("/api/health");
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        const payload = await response.json();
+        const payload = await fetchJson("/api/health");
         if (mounted) {
           setHealth(payload);
           setError("");
         }
       } catch {
         if (mounted) {
-          setError("Nao foi possivel consultar /api/health");
+          const message = "Nao foi possivel consultar /api/health";
+          setError(message);
           setHealth({ status: "offline" });
+          onStatus(message, "warning");
         }
       }
     }
@@ -31,7 +58,7 @@ function HealthCard() {
       mounted = false;
       window.clearInterval(timer);
     };
-  }, []);
+  }, [fetchJson, onStatus]);
 
   const statusLabel = useMemo(() => {
     const raw = String(health?.status || "unknown").toLowerCase();
@@ -53,7 +80,7 @@ function HealthCard() {
   );
 }
 
-function ChatPage() {
+function ChatPage({ fetchJson, onStatus }) {
   const [message, setMessage] = useState("");
   const [reply, setReply] = useState("");
   const [loading, setLoading] = useState(false);
@@ -66,9 +93,10 @@ function ChatPage() {
     setLoading(true);
     setError("");
     setReply("");
+    onStatus("Enviando mensagem...", "info");
 
     try {
-      const response = await fetch("/api/chat", {
+      const payload = await fetchJson("/api/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -78,11 +106,12 @@ function ChatPage() {
           userId: "user-default",
         }),
       });
-      if (!response.ok) throw new Error(`Falha HTTP ${response.status}`);
-      const payload = await response.json();
       setReply(payload?.response || payload?.message || "Sem resposta no payload.");
-    } catch {
-      setError("Falha ao enviar mensagem para /api/chat.");
+      onStatus("Mensagem enviada com sucesso.", "success");
+    } catch (err) {
+      const detail = err?.message || "Falha ao enviar mensagem para /api/chat.";
+      setError(detail);
+      onStatus(detail, "error");
     } finally {
       setLoading(false);
     }
@@ -129,6 +158,57 @@ function AdminPage() {
 
 export default function App() {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [uiState, dispatch] = useReducer(uiReducer, INITIAL_UI_STATE);
+  const stateRef = useRef({});
+
+  useEffect(() => {
+    stateRef.current = {
+      ...stateRef.current,
+      status: uiState.status,
+    };
+  }, [uiState]);
+
+  const apiClient = useMemo(() => createApiClient({ baseUrl: "" }), []);
+
+  const wiring = useMemo(
+    () =>
+      createReactAppWiringContract({
+        stateRef,
+        dispatch,
+        fetchers: {
+          fetchJson: apiClient.fetchJson,
+        },
+        elements: {
+          statusBarEl: null,
+          statusTextEl: null,
+          statusRetryBtnEl: null,
+          chatEl: null,
+          tabsEl: null,
+        },
+        callbacks: {
+          buildChatsQueryString: () => "",
+          renderTabs: () => {},
+          appendMessage: () => {},
+          hideTyping: () => {},
+          hideStatus: () => {},
+          showStatus: (message) => dispatch({ type: "ui/status", payload: { message, level: "info" } }),
+          loadRagDocuments: async () => {},
+          runHistorySearch: async () => {},
+          clearSearchResults: () => {},
+          getCurrentUser: () => null,
+          getMainModelSelect: () => null,
+          applyThemeMode: () => {},
+          openConfirmModal: async () => false,
+          openDuplicateModal: async () => null,
+          uid: () => `chat-${Date.now()}`,
+          onLoadChats: async () => {},
+          onSwitchChat: async () => {},
+        },
+      }),
+    [apiClient.fetchJson],
+  );
+
+  const showStatus = wiring.reactUi.dispatchStatus;
 
   return (
     <div className="app-shell">
@@ -168,14 +248,22 @@ export default function App() {
           </Link>
         </header>
 
-        <HealthCard />
+        {uiState.status.message ? (
+          <section className="card">
+            <p className="hint">
+              Status ({uiState.status.level}): {uiState.status.message}
+            </p>
+          </section>
+        ) : null}
+
+        <HealthCard fetchJson={apiClient.fetchJson} onStatus={showStatus} />
 
         <Routes>
-          <Route path="/" element={<ChatPage />} />
+          <Route path="/" element={<ChatPage fetchJson={apiClient.fetchJson} onStatus={showStatus} />} />
           <Route path="/admin" element={<AdminPage />} />
-          <Route path="/app" element={<ChatPage />} />
-          <Route path="/produto" element={<ChatPage />} />
-          <Route path="/guia" element={<ChatPage />} />
+          <Route path="/app" element={<ChatPage fetchJson={apiClient.fetchJson} onStatus={showStatus} />} />
+          <Route path="/produto" element={<ChatPage fetchJson={apiClient.fetchJson} onStatus={showStatus} />} />
+          <Route path="/guia" element={<ChatPage fetchJson={apiClient.fetchJson} onStatus={showStatus} />} />
         </Routes>
       </main>
     </div>
