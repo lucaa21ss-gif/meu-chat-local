@@ -19,3 +19,9 @@ export {
   APP_LAYOUT_ACTION_KEYS,
   APP_LAYOUT_STATE_KEYS,
 } from "../hooks/layout-state-contract.js";
+
+export {
+  APP_SHELL_LAYOUT_PROP_KEYS,
+  APP_STATUS_SHAPE,
+  APP_STATUS_KEYS,
+} from "../components/component-contract.js";
