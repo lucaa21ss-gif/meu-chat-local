@@ -22,6 +22,11 @@ import {
   ADMIN_DISPLAY_DEFAULTS,
   ADMIN_EMPTY_STATE_MESSAGES,
 } from "../state/admin-display-contract.js";
+import {
+  ADMIN_OPERATION_MESSAGES,
+  ADMIN_ACTION_LABELS,
+  buildRunbookExecutingMessage,
+} from "../state/admin-message-contract.js";
 
 export default function AdminOperationsPanel({ fetchJson, onStatus }) {
   const [health, setHealth] = useState(null);
@@ -49,7 +54,7 @@ export default function AdminOperationsPanel({ fetchJson, onStatus }) {
     try {
       const payload = await fetchJson(API_ENDPOINTS.HEALTH_ADMIN);
       setHealth(payload || {});
-      onStatus("Status admin atualizado.", UI_STATUS_LEVELS.SUCCESS);
+      onStatus(ADMIN_OPERATION_MESSAGES.HEALTH_UPDATED, UI_STATUS_LEVELS.SUCCESS);
     } catch (err) {
       const detail =
         err?.message || `Falha ao carregar ${API_ENDPOINTS.HEALTH_ADMIN}.`;
@@ -96,7 +101,7 @@ export default function AdminOperationsPanel({ fetchJson, onStatus }) {
       });
       setBackupValidation(payload?.validation || null);
     } catch (err) {
-      const detail = err?.message || "Falha ao validar backups.";
+      const detail = err?.message || ADMIN_OPERATION_MESSAGES.BACKUPS_VALIDATE_FAILED;
       setBackupsError(detail);
       onStatus(detail, UI_STATUS_LEVELS.ERROR);
     } finally {
@@ -105,7 +110,7 @@ export default function AdminOperationsPanel({ fetchJson, onStatus }) {
   }
 
   async function exportBackupNow() {
-    onStatus("Iniciando exportacao de backup...", UI_STATUS_LEVELS.INFO);
+    onStatus(ADMIN_OPERATION_MESSAGES.BACKUP_EXPORT_START, UI_STATUS_LEVELS.INFO);
     try {
       const response = await fetch(API_ENDPOINTS.BACKUP_EXPORT, {
         method: "GET",
@@ -113,7 +118,7 @@ export default function AdminOperationsPanel({ fetchJson, onStatus }) {
       });
 
       if (!response.ok) {
-        let detail = "Falha ao exportar backup.";
+        let detail = ADMIN_OPERATION_MESSAGES.BACKUP_EXPORT_FAILED;
         try {
           const data = await response.json();
           detail = data?.error || detail;
@@ -135,10 +140,10 @@ export default function AdminOperationsPanel({ fetchJson, onStatus }) {
       a.remove();
       window.URL.revokeObjectURL(url);
 
-      onStatus("Backup exportado com sucesso.", UI_STATUS_LEVELS.SUCCESS);
+      onStatus(ADMIN_OPERATION_MESSAGES.BACKUP_EXPORT_SUCCESS, UI_STATUS_LEVELS.SUCCESS);
       await loadBackups();
     } catch (err) {
-      const detail = err?.message || "Falha ao exportar backup.";
+      const detail = err?.message || ADMIN_OPERATION_MESSAGES.BACKUP_EXPORT_FAILED;
       onStatus(detail, UI_STATUS_LEVELS.ERROR);
     }
   }
@@ -159,7 +164,7 @@ export default function AdminOperationsPanel({ fetchJson, onStatus }) {
       setIncident(incidentPayload?.incident || null);
       setAutoHealingStatus(autoHealingPayload?.autoHealing || null);
     } catch (err) {
-      const detail = err?.message || "Falha ao carregar status de incidentes.";
+      const detail = err?.message || ADMIN_OPERATION_MESSAGES.INCIDENT_STATUS_FAILED;
       setIncidentError(detail);
       onStatus(detail, UI_STATUS_LEVELS.ERROR);
     } finally {
@@ -169,17 +174,17 @@ export default function AdminOperationsPanel({ fetchJson, onStatus }) {
 
   async function runAutoHealing() {
     setHealingLoading(true);
-    onStatus("Executando auto-healing manual...", UI_STATUS_LEVELS.INFO);
+    onStatus(ADMIN_OPERATION_MESSAGES.AUTO_HEALING_START, UI_STATUS_LEVELS.INFO);
     try {
       await fetchJson(API_ENDPOINTS.AUTO_HEALING_EXECUTE, {
         method: "POST",
         headers: buildJsonUserHeaders(getActorUserId()),
         body: JSON.stringify({ policy: DEFAULT_AUTO_HEALING_POLICY }),
       });
-      onStatus("Auto-healing executado.", UI_STATUS_LEVELS.SUCCESS);
+      onStatus(ADMIN_OPERATION_MESSAGES.AUTO_HEALING_SUCCESS, UI_STATUS_LEVELS.SUCCESS);
       await loadIncidentStatus();
     } catch (err) {
-      const detail = err?.message || "Falha na execucao de auto-healing.";
+      const detail = err?.message || ADMIN_OPERATION_MESSAGES.AUTO_HEALING_FAILED;
       onStatus(detail, UI_STATUS_LEVELS.ERROR);
     } finally {
       setHealingLoading(false);
@@ -189,7 +194,7 @@ export default function AdminOperationsPanel({ fetchJson, onStatus }) {
   async function executeIncidentRunbook() {
     setRunbookLoading(true);
     setRunbookResult(null);
-    onStatus(`Executando runbook (${runbookMode})...`, UI_STATUS_LEVELS.INFO);
+    onStatus(buildRunbookExecutingMessage(runbookMode), UI_STATUS_LEVELS.INFO);
 
     try {
       const payload = await fetchJson(API_ENDPOINTS.INCIDENT_RUNBOOK_EXECUTE, {
@@ -202,10 +207,10 @@ export default function AdminOperationsPanel({ fetchJson, onStatus }) {
       });
 
       setRunbookResult(payload?.runbook || null);
-      onStatus("Runbook executado com sucesso.", UI_STATUS_LEVELS.SUCCESS);
+      onStatus(ADMIN_OPERATION_MESSAGES.RUNBOOK_SUCCESS, UI_STATUS_LEVELS.SUCCESS);
       await loadIncidentStatus();
     } catch (err) {
-      const detail = err?.message || "Falha ao executar runbook de incidente.";
+      const detail = err?.message || ADMIN_OPERATION_MESSAGES.RUNBOOK_FAILED;
       onStatus(detail, UI_STATUS_LEVELS.ERROR);
     } finally {
       setRunbookLoading(false);
@@ -231,7 +236,7 @@ export default function AdminOperationsPanel({ fetchJson, onStatus }) {
           <p className="hint">Recorte inicial de paridade do painel administrativo.</p>
         </div>
         <button type="button" className="ghost" onClick={loadAdminHealth} disabled={loading}>
-          {loading ? "Atualizando..." : "Atualizar"}
+          {loading ? ADMIN_ACTION_LABELS.HEALTH_REFRESH_LOADING : ADMIN_ACTION_LABELS.HEALTH_REFRESH_IDLE}
         </button>
       </div>
 
@@ -259,7 +264,7 @@ export default function AdminOperationsPanel({ fetchJson, onStatus }) {
               <article key={name} className="check-item">
                 <div>
                   <strong className="check-name">{name}</strong>
-                  <p className="hint">{check?.message || "Status verificado."}</p>
+                  <p className="hint">{check?.message || ADMIN_OPERATION_MESSAGES.HEALTH_CHECK_MESSAGE_DEFAULT}</p>
                 </div>
                 <span className={`check-badge ${isHealthy ? ADMIN_BADGE_VARIANTS.OK : ADMIN_BADGE_VARIANTS.FAIL}`}>
                   {isHealthy ? HEALTH_CHECK_LABELS.OK : HEALTH_CHECK_LABELS.FAIL}
@@ -273,7 +278,7 @@ export default function AdminOperationsPanel({ fetchJson, onStatus }) {
       <div className="admin-users-header">
         <h3 className="section-title">Usuarios</h3>
         <button type="button" className="ghost" onClick={loadUsers} disabled={usersLoading}>
-          {usersLoading ? "Carregando..." : "Atualizar usuarios"}
+          {usersLoading ? ADMIN_ACTION_LABELS.USERS_REFRESH_LOADING : ADMIN_ACTION_LABELS.USERS_REFRESH_IDLE}
         </button>
       </div>
 
@@ -301,10 +306,10 @@ export default function AdminOperationsPanel({ fetchJson, onStatus }) {
         <h3 className="section-title">Backups</h3>
         <div className="admin-actions-inline">
           <button type="button" className="ghost" onClick={loadBackups} disabled={backupsLoading}>
-            {backupsLoading ? "Validando..." : "Validar backups"}
+            {backupsLoading ? ADMIN_ACTION_LABELS.BACKUPS_VALIDATE_LOADING : ADMIN_ACTION_LABELS.BACKUPS_VALIDATE_IDLE}
           </button>
           <button type="button" onClick={exportBackupNow}>
-            Exportar backup
+            {ADMIN_ACTION_LABELS.BACKUP_EXPORT_IDLE}
           </button>
         </div>
       </div>
@@ -353,10 +358,10 @@ export default function AdminOperationsPanel({ fetchJson, onStatus }) {
         <h3 className="section-title">Incidentes</h3>
         <div className="admin-actions-inline">
           <button type="button" className="ghost" onClick={loadIncidentStatus} disabled={incidentLoading}>
-            {incidentLoading ? "Verificando..." : "Verificar incidentes"}
+            {incidentLoading ? ADMIN_ACTION_LABELS.INCIDENTS_REFRESH_LOADING : ADMIN_ACTION_LABELS.INCIDENTS_REFRESH_IDLE}
           </button>
           <button type="button" onClick={runAutoHealing} disabled={healingLoading}>
-            {healingLoading ? "Executando..." : "Auto-healing"}
+            {healingLoading ? ADMIN_ACTION_LABELS.ACTION_LOADING : ADMIN_ACTION_LABELS.AUTO_HEALING_IDLE}
           </button>
         </div>
       </div>
@@ -414,7 +419,7 @@ export default function AdminOperationsPanel({ fetchJson, onStatus }) {
 
         <div className="runbook-actions">
           <button type="button" onClick={executeIncidentRunbook} disabled={runbookLoading}>
-            {runbookLoading ? "Executando..." : "Executar runbook"}
+            {runbookLoading ? ADMIN_ACTION_LABELS.ACTION_LOADING : ADMIN_ACTION_LABELS.RUNBOOK_EXECUTE_IDLE}
           </button>
         </div>
       </div>
