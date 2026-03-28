@@ -107,3 +107,8 @@ export {
   normalizeHealthStatus,
   getHealthStatusLabel,
 } from "../state/health-status-contract.js";
+
+export {
+  POLLING_INTERVALS_MS,
+  POLLING_INTERVAL_KEYS,
+} from "../state/polling-contract.js";

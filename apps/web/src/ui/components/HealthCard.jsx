@@ -5,6 +5,7 @@ import {
   HEALTH_STATUSES,
   getHealthStatusLabel,
 } from "../state/health-status-contract.js";
+import { POLLING_INTERVALS_MS } from "../state/polling-contract.js";
 
 export default function HealthCard({ fetchJson, onStatus }) {
   const [health, setHealth] = useState({ status: HEALTH_STATUSES.LOADING });
@@ -31,7 +32,7 @@ export default function HealthCard({ fetchJson, onStatus }) {
     }
 
     loadHealth();
-    const timer = window.setInterval(loadHealth, 15000);
+    const timer = window.setInterval(loadHealth, POLLING_INTERVALS_MS.HEALTH_CARD);
     return () => {
       mounted = false;
       window.clearInterval(timer);

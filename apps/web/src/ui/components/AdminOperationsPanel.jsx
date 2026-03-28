@@ -10,6 +10,7 @@ import {
 } from "../state/runbook-contract.js";
 import { buildUserIdHeader, buildJsonUserHeaders, API_HEADER_DEFAULTS } from "../state/api-headers-contract.js";
 import { HEALTH_STATUSES } from "../state/health-status-contract.js";
+import { POLLING_INTERVALS_MS } from "../state/polling-contract.js";
 
 export default function AdminOperationsPanel({ fetchJson, onStatus }) {
   const [health, setHealth] = useState(null);
@@ -208,7 +209,7 @@ export default function AdminOperationsPanel({ fetchJson, onStatus }) {
     loadUsers();
     loadBackups();
     loadIncidentStatus();
-    const timer = window.setInterval(loadAdminHealth, 30000);
+    const timer = window.setInterval(loadAdminHealth, POLLING_INTERVALS_MS.ADMIN_HEALTH);
     return () => window.clearInterval(timer);
   }, [fetchJson]);
 
