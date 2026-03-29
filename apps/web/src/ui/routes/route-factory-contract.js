@@ -9,6 +9,10 @@ export const ROUTE_DESCRIPTOR_BUILDERS = Object.freeze({
     componentKey: "admin",
     props: { fetchJson, onStatus: showStatus },
   }),
+  [ROUTE_VIEWS.adminShell]: () => ({
+    componentKey: "adminShell",
+    props: {},
+  }),
   [ROUTE_VIEWS.product]: () => ({
     componentKey: "product",
     props: {},

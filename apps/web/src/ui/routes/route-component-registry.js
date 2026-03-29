@@ -3,12 +3,14 @@ import { ROUTE_VIEWS } from "./navigation.js";
 export function createRouteComponentRegistry({
   ChatPage,
   AdminOperationsPanel,
+  AdminShell,
   ProductPage,
   GuidePage,
 }) {
   return Object.freeze({
     [ROUTE_VIEWS.chat]: ChatPage,
     [ROUTE_VIEWS.admin]: AdminOperationsPanel,
+    [ROUTE_VIEWS.adminShell]: AdminShell,
     [ROUTE_VIEWS.product]: ProductPage,
     [ROUTE_VIEWS.guide]: GuidePage,
   });

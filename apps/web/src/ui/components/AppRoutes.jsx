@@ -1,5 +1,6 @@
 import { Route, Routes } from "react-router-dom";
 import AdminOperationsPanel from "./AdminOperationsPanel.jsx";
+import AdminShell from "./AdminShell.jsx";
 import ChatPage from "./ChatPage.jsx";
 import GuidePage from "./GuidePage.jsx";
 import ProductPage from "./ProductPage.jsx";
@@ -10,6 +11,7 @@ import { ROUTE_DEFINITIONS } from "../routes/navigation.js";
 const ROUTE_COMPONENT_REGISTRY = createRouteComponentRegistry({
   ChatPage,
   AdminOperationsPanel,
+  AdminShell,
   ProductPage,
   GuidePage,
 });

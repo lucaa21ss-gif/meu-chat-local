@@ -2,6 +2,7 @@ export const ROUTE_PATHS = {
   chat: "/",
   chatAlias: "/app",
   admin: "/admin",
+  adminShell: "/admin-panel",
   product: "/produto",
   guide: "/guia",
 };
@@ -9,6 +10,7 @@ export const ROUTE_PATHS = {
 export const ROUTE_VIEWS = Object.freeze({
   chat: "chat",
   admin: "admin",
+  adminShell: "adminShell",
   product: "product",
   guide: "guide",
 });
@@ -16,6 +18,7 @@ export const ROUTE_VIEWS = Object.freeze({
 export const ROUTE_DEFINITIONS = Object.freeze([
   Object.freeze({ id: "chat", path: ROUTE_PATHS.chat, view: ROUTE_VIEWS.chat, label: "Chat", end: true, showInSidebar: true }),
   Object.freeze({ id: "admin", path: ROUTE_PATHS.admin, view: ROUTE_VIEWS.admin, label: "Admin", showInSidebar: true }),
+  Object.freeze({ id: "adminShell", path: ROUTE_PATHS.adminShell, view: ROUTE_VIEWS.adminShell, label: "Admin Panel", showInSidebar: false }),
   Object.freeze({ id: "chatAlias", path: ROUTE_PATHS.chatAlias, view: ROUTE_VIEWS.chat, label: "Chat", showInSidebar: false }),
   Object.freeze({ id: "product", path: ROUTE_PATHS.product, view: ROUTE_VIEWS.product, label: "Produto", showInSidebar: true }),
   Object.freeze({ id: "guide", path: ROUTE_PATHS.guide, view: ROUTE_VIEWS.guide, label: "Guia", showInSidebar: true }),
