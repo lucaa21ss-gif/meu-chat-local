@@ -5,8 +5,7 @@
   "type": "module",
   "workspaces": [
     "apps/api",
-    "apps/web",
-    "apps/web-admin"
+    "apps/web"
   ],
   "scripts": {
     "lint": "eslint \"apps/api/src/**/*.js\" \"modules/**/*.js\" \"platform/**/*.js\" \"shared/**/*.js\" \"apps/web/script.js\"",
@@ -18,7 +17,7 @@
     "smoke:full": "npm run smoke:test && npm run verify:health",
     "verify:health": "bash ops/scripts/local/verify-health.sh",
     "verify:routes": "bash ops/scripts/local/verify-routes.sh",
-    "release:local": "npm run admin:build && npm run smoke:full && npm run verify:routes",
+    "release:local": "npm run build && npm run smoke:full && npm run verify:routes",
     "incident:runbook": "bash ops/scripts/local/runbook-incident.sh",
     "dr:test": "bash ops/scripts/local/disaster-recovery-test.sh",
     "release:canary": "node ops/scripts/local/release-canary.mjs",
@@ -44,9 +43,11 @@
     "skill:governance:preflight:inspect": "node scripts/skill-governance-preflight.mjs --dry-run --json --strict-io --artifacts-dir artifacts",
     "skill:governance:preflight:inspect:summary": "node scripts/skill-governance-preflight.mjs --dry-run --strict-io --artifacts-dir artifacts",
     "skill:governance:preflight:inspect:ci": "node scripts/skill-governance-preflight.mjs --dry-run --json --strict-io --artifacts-dir artifacts --confidence-profile ci",
-    "admin:dev": "npm run dev --workspace apps/web-admin",
-    "admin:build": "npm run build --workspace apps/web-admin",
-    "admin:preview": "npm run preview --workspace apps/web-admin"
+    "dev": "npm run dev --workspace apps/web",
+    "dev:api": "npm run dev --workspace apps/api",
+    "dev:all": "npm run dev:api & npm run dev",
+    "build": "npm run build --workspace apps/web",
+    "preview": "npm run preview --workspace apps/web"
   },
   "devDependencies": {
     "@eslint/js": "^9.22.0",
