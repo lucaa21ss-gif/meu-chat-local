@@ -79,32 +79,92 @@ apps/web/src/
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
-    host: "0.0.0.0",
+  **Commit**: `d5fe189`
     port: 5173,
-  },
   // ... resto da config
+  ## Fase 2: Integração de Arquivos (✅ Completa)
 });
+  - [x] Copiar web-admin/src → web/src/admin-shell/ (13 arquivos)
+  - [x] Criar AdminShell.jsx (React wrapper com error boundary)
+  - [x] Integrar @tailwindcss/vite em vite.config.js
+  - [x] Adicionar rota /admin-panel via React Router
+  - [x] Estender factories e registries de roteamento
+  - [x] Build: ✅ 86 modules, 476ms
+  - [x] Tests: ✅ 312/312 passing
+
+  **Commit**: `b57dd2b`
 ```
+  ---
 
 ---
 
+  ## Fase 3: Consolidação & Cleanup (✅ Completa)
 ## Fase 4: Integração de Roteamento
+  - [x] Remover apps/web-admin pasta
+  - [x] Remover web-admin dos workspaces
+  - [x] Remover scripts admin:dev, admin:build, admin:preview
+  - [x] Adicionar scripts dev, dev:api, dev:all, build, preview
+  - [x] Atualizar release:local script
+  - [x] npm install: -1 package, 359 total
+  - [x] Build: ✅ 86 modules, 441ms
+  - [x] Tests: ✅ 312/312 passing
 
-### 4.1 React Router (apps/web)
+  **Commit**: `22f3321`
 
+  ---
+
+  ## Fase 4: Testes E2E (✅ Completa)
 ```jsx
-// apps/web/src/ui/routes.jsx
-import { lazy, Suspense } from 'react';
-import AdminShell from '../admin/AdminShell';
+  - [x] Criar phase4-route-integration.test.js
+  - [x] Validar ROUTE_PATHS.adminShell === '/admin-panel'
+  - [x] Validar separação admin vs adminShell
+  - [x] Validar ausência de web-admin refs
+  - [x] Todos 8 testes ✅ passando
+  - [x] Suite completa: 320/320 passing (+8 novos)
 
+  **Commit**: `0b68d74`
+// apps/web/src/ui/routes.jsx
+  ---
+import { lazy, Suspense } from 'react';
+  ## Fase 5: Deployment & Finalization (✅ Completa)
+import AdminShell from '../admin/AdminShell';
+  - [x] Adicionar scripts deployment: build:all, preview:all, verify:consolidation
+  - [x] Validar todos os builds funcionando
+  - [x] Atualizar esta documentação com status final
+
+  **Commits**: TBD
+
+  ---
 export function createRoutes() {
+  ## Status Final
   return [
+  ### ✅ Consolidação Completa
+  - apps/web-admin removido
+  - Admin app migrado para web/src/admin-shell
+  - Rota /admin-panel adicional integrada
+  - Vite 8.0.3 em ambas apps (antes: 6.0.0 em web-admin)
+  - Tailwind unificado via @tailwindcss/vite
+  - Build unificado: 86 modules
+  - Tests: 320/320 passing
     {
+  ### 📊 Métricas de Consolidação
       path: '/',
+  | Métrica | Antes | Depois |
+  |---------|-------|--------|
+  | Apps | 3 (api, web, web-admin) | 2 (api, web) |
+  | Vite versions | 2 (8.0.3, 6.0.0) | 1 (8.0.3) |
+  | Tailwind setups | 2 (@tailwindcss/cli, @tailwindcss/vite) | 1 (@tailwindcss/vite) |
+  | Build configs | 3 | 2 |
+  | npm install size | +1 web-admin | -1 web-admin |
+  | Tests | 312 | 320 |
       element: <MainApp />,
+  ### 🚀 Próximas Oportunidades
     },
+  1. **Route Organization**: Considerar unificar /admin (ReactAdminOps) com /admin-panel (vanilla admin) em única URL
+  2. **Migration Path**: Converter admin-shell vanilla JS para React (opcional, pode ficar assim por compatibilidade)
+  3. **Performance**: Profile bundle size pós-consolidação
+  4. **Deployment**: Teste em Vercel/Netlify/Firebase com navegação completa
     {
-      path: '/admin/*',
       element: (
         <Suspense fallback={<div>Carregando Admin...</div>}>
           <AdminShell />
