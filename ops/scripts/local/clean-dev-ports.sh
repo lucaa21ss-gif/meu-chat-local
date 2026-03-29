@@ -36,8 +36,39 @@ show_port_status() {
   return ${busy}
 }
 
+show_port_owners() {
+  echo "[clean-dev-ports] Donos das portas ocupadas:"
+
+  for p in "${PORTS[@]}"; do
+    if ! is_port_busy "${p}"; then
+      continue
+    fi
+
+    echo " - ${p}:"
+
+    if command -v ss >/dev/null 2>&1; then
+      # Exibe PID e processo quando disponivel
+      ss -ltnp "( sport = :${p} )" | tail -n +2 || true
+      continue
+    fi
+
+    if command -v lsof >/dev/null 2>&1; then
+      lsof -nP -iTCP:"${p}" -sTCP:LISTEN || true
+      continue
+    fi
+
+    echo "   (sem ferramenta para identificar dono da porta)"
+  done
+}
+
 if [[ "${MODE}" == "status" ]]; then
   show_port_status
+  exit 0
+fi
+
+if [[ "${MODE}" == "doctor" ]]; then
+  show_port_status || true
+  show_port_owners
   exit 0
 fi
 
@@ -65,5 +96,6 @@ if show_port_status; then
 fi
 
 echo "[clean-dev-ports] Erro: ainda ha portas ocupadas apos tentativa de limpeza" >&2
-echo "[clean-dev-ports] Dica: execute 'npm run dev:ports:status' para diagnosticar" >&2
+echo "[clean-dev-ports] Dica: execute 'npm run dev:ports:doctor' para diagnosticar" >&2
+show_port_owners >&2
 exit 1
