@@ -2,9 +2,23 @@
 set -euo pipefail
 
 STRICT=0
-if [[ "${1:-}" == "--strict" ]]; then
-  STRICT=1
-fi
+SKIP_ENDPOINTS=0
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --strict)
+      STRICT=1
+      ;;
+    --skip-endpoints)
+      SKIP_ENDPOINTS=1
+      ;;
+    *)
+      echo "[dev-doctor] argumento desconhecido: $1" >&2
+      exit 2
+      ;;
+  esac
+  shift
+done
 
 ISSUES=0
 WARNINGS=0
@@ -69,7 +83,9 @@ else
 fi
 
 print_section "Endpoints locais"
-if command -v curl >/dev/null 2>&1; then
+if [[ ${SKIP_ENDPOINTS} -eq 1 ]]; then
+  echo "[dev-doctor] checks de endpoint pulados (--skip-endpoints)"
+elif command -v curl >/dev/null 2>&1; then
   if curl -fsS --max-time 2 "http://localhost:4000/api/health" >/dev/null 2>&1; then
     pass "API disponivel em http://localhost:4000/api/health"
   else
