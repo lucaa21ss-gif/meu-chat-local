@@ -12,15 +12,17 @@ COPY apps/web/package.json ./apps/web/
 
 RUN npm ci --omit=dev
 
-# --- Build stage: gera os assets de frontend ---
-FROM deps AS build
+# --- Build stage: gera os assets de frontend de forma deterministica ---
+FROM base AS build
 
-# Instala devDependencies do web somente para o build CSS
+COPY package.json package-lock.json ./
 COPY apps/web/package.json ./apps/web/
-RUN cd apps/web && npm install --include=dev 2>/dev/null || true
+
+# Instala deps do workspace web (incluindo devDeps para o build Vite)
+RUN npm ci --workspace apps/web --include=dev
 
 COPY apps/web/ ./apps/web/
-RUN cd apps/web && npm run build:css 2>/dev/null || true
+RUN npm run build --workspace apps/web
 
 # --- Runtime stage ---
 FROM base AS runtime
@@ -36,7 +38,7 @@ COPY platform/ ./platform/
 COPY shared/ ./shared/
 
 # Assets de frontend gerados
-COPY --from=build /app/apps/web/ ./apps/web/
+COPY --from=build /app/apps/web/dist ./apps/web/dist
 
 # Package.json raiz (type: module, workspaces)
 COPY package.json ./

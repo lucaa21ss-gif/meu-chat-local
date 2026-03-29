@@ -3,12 +3,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
-COMPOSE_FILE="$ROOT_DIR/ops/docker/docker-compose.yml"
-
 source "$ROOT_DIR/ops/scripts/local/docker-preflight.sh"
 
-ensure_docker_environment "stop"
-
-docker compose -f "$COMPOSE_FILE" stop
-
-echo "[stop] Servicos pausados."
+ensure_docker_environment "dist:doctor"
+echo "[dist:doctor] OK: Docker CLI, Compose plugin e daemon estao disponiveis."

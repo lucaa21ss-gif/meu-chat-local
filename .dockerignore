@@ -9,6 +9,26 @@
 server/chat.db
 server/chat.db-shm
 server/chat.db-wal
+artifacts/
+
+# Builds and caches
+**/dist
+**/.vite
+**/.cache
+**/.turbo
+**/.eslintcache
+**/*.tsbuildinfo
+
+# Python caches (defensive)
+**/__pycache__
+**/*.pyc
+
+# Env and local-only files
+**/.env
+**/.env.*
+
+# Docker local volumes/temp
+ops/docker/volumes
 
 # Logs
 **/npm-debug.log*

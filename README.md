@@ -1263,14 +1263,14 @@ Estrutura de testes garante funcionamento idêntico:
 | **Unitário** | `modules/*/domain` + `modules/*/application` | ✓ Completa | `cd apps/api && npm test` |
 | **Integração** | `apps/api` + adaptadores `platform/*` | ✓ Completa | `cd apps/api && npm test` |
 | **UI** | `apps/web` | ✓ Portável | `cd apps/web && npm test` |
-| **Funcional com Docker** | stack completa | ✓ Determinístico | `docker compose -f ops/docker/docker-compose.yml up --build` |
+| **Funcional com Docker** | stack completa | ✓ Determinístico | `npm run dist:install` |
 
 **Suite de validacao multiplataforma:**
 ```bash
 npm ci                    # instalacao deterministica
 npm run lint              # Validação estática
 cd apps/api && npm ci && npm test
-cd ../web && npm ci && npm run build:css && npm test
+cd ../web && npm ci && npm run build && npm test
 cd ../..
 npm run dist:package      # Pacoteamento reproducível
 ```
@@ -1286,26 +1286,63 @@ npm run dist:package      # Pacoteamento reproducível
 
 ## Configuracao rapida (Docker)
 
-Fluxo recomendado para subir a stack completa localmente:
+### Fluxo de desenvolvimento agil (hot reload)
 
-1. Build e subida dos servicos:
+Comando unico para configurar e subir ambiente de desenvolvimento com recarga automatica (sem `docker build` constante):
 
 ```bash
-docker compose -f ops/docker/docker-compose.yml up --build
+npm run dist:dev
 ```
 
-2. Aguarde a API expor a interface e os endpoints em `http://localhost:4000`.
+Esse comando executa preflight de Docker, sobe `ollama + server-dev + web-dev` e aguarda a prontidao de API/web/proxy antes de concluir.
 
-3. Abra a UI:
+URLs do ambiente DEV:
+
+- Web (Vite dev server): [http://localhost:5173](http://localhost:5173)
+- API (Node watch): [http://localhost:4000](http://localhost:4000)
+
+Comandos auxiliares do ambiente DEV:
+
+- `npm run dist:dev:logs`
+- `npm run dist:dev:down`
+
+Fluxo recomendado para subir a stack completa localmente:
+
+1. Build, subida e validacao automatica dos servicos:
+
+```bash
+npm run dist:install
+```
+
+2. Para reiniciar sem rebuild, use:
+
+```bash
+npm run dist:start
+```
+
+Validacao rapida da stack Docker (API + web + proxy /api no web):
+
+```bash
+npm run dist:smoke
+```
+
+3. Para pausar os servicos:
+
+```bash
+npm run dist:stop
+```
+
+4. Abra a UI:
 
 - [http://localhost:4000](http://localhost:4000) para acessar a interface web
+- [http://localhost:4173](http://localhost:4173) para acessar o frontend no servico web separado
 - [http://localhost:4000/produto](http://localhost:4000/produto) para a pagina de produto
 - [http://localhost:4000/guia](http://localhost:4000/guia) para o guia rapido do usuario
 - [http://localhost:4000/healthz](http://localhost:4000/healthz) para validar liveness
 - [http://localhost:4000/api/health](http://localhost:4000/api/health) para validar health operacional
 - [http://localhost:4000/api/health/public](http://localhost:4000/api/health/public) para health sanitizado (uso em ambientes expostos)
 
-Validacao operacional automatizada:
+Validacao operacional automatizada adicional:
 
 ```bash
 npm run verify:health
@@ -1317,7 +1354,7 @@ O comando `verify:routes` valida as paginas `/, /app, /admin`.
 
 O comando `release:local` executa, em sequencia:
 
-1. build do painel admin (`admin:build`)
+1. build do frontend (`build`)
 2. smoke estrutural + health operacional (`smoke:full`)
 3. validacao das rotas web principais (`verify:routes`)
 
@@ -1358,15 +1395,44 @@ Observacoes de supply chain:
 
 Comandos operacionais do pacote:
 
-- `bash ops/scripts/local/start.sh`: inicia servicos
+- `bash ops/scripts/local/install.sh`: valida integridade, sobe stack com build e aguarda health checks
+- `bash ops/scripts/local/start.sh`: inicia servicos existentes e aguarda health checks
 - `bash ops/scripts/local/stop.sh`: pausa servicos
 - `bash ops/scripts/local/uninstall.sh`: remove containers/rede e preserva dados
 - `bash ops/scripts/local/uninstall.sh --purge`: remove containers/rede e volumes
 
+Servicos e portas no modo Docker completo:
+
+- `server`: `http://localhost:4000`
+- `web` separado (Nginx + build Vite): `http://localhost:4173`
+- `ollama`: `http://localhost:11434`
+
+Nomes Docker personalizados do projeto:
+
+- Compose project: `meu-chat-local`
+- Containers: `meu-chat-local-api`, `meu-chat-local-web`, `meu-chat-local-ollama`
+- Imagens locais: `meu-chat-local-api:local`, `meu-chat-local-web:local`
+- Volume: `meu-chat-local-ollama-data`
+- Rede: `meu-chat-local-net`
+
 Tambem disponivel via npm na raiz do projeto:
 
+- `npm run dist:doctor`
+- `npm run dist:menu`
+- `npm run dist:health`
+- `npm run dist:smoke`
+- `npm run dist:rebuild`
+- `npm run dist:status`
+- `npm run dist:url`
+- `npm run dist:open`
+- `npm run dist:logs`
+- `npm run dist:logs:follow`
+- `npm run dist:logs:server`
+- `npm run dist:logs:web`
+- `npm run dist:logs:ollama`
 - `npm run dist:install`
 - `npm run dist:start`
+- `npm run dist:restart`
 - `npm run dist:stop`
 - `npm run dist:uninstall`
 
@@ -1397,7 +1463,7 @@ npm test
 ```bash
 cd apps/web
 npm install
-npm run build:css
+npm run build
 ```
 
 Teste unitario atual da Web:
@@ -2397,11 +2463,15 @@ O envio de imagem e opcional e depende do modelo escolhido suportar imagens.
 ## Resolucao de problemas
 
 - CSS nao atualiza:
-  - execute `npm run build:css` em `apps/web`
+  - execute `npm run build` em `apps/web`
 - Erro de conexao com API:
   - verifique se o servidor esta em `http://localhost:4000`
 - UI sem estilo no Docker:
   - refaca a imagem com `docker compose -f ops/docker/docker-compose.yml up --build`
+- Docker daemon indisponivel (erro de socket):
+  - execute `npm run dist:doctor` para diagnostico rapido
+  - inicie o daemon (`sudo systemctl start docker` ou `sudo service docker start`)
+  - se necessario, adicione seu usuario ao grupo docker e reabra a sessao (`sudo usermod -aG docker $USER`)
 - Sem resposta do modelo:
   - confirme que o Ollama esta ativo e com modelo instalado
 - Voz indisponivel:
