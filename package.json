@@ -49,6 +49,7 @@
     "dev:api": "npm run dev --workspace apps/api",
     "dev:all": "concurrently -k -n API,WEB -c green,cyan \"npm run dev:api\" \"npm run dev:web\"",
     "dev:all:strict": "concurrently -k -n API,WEB -c green,cyan \"npm run dev:api\" \"npm run dev:web:strict\"",
+    "dev:ports:status": "bash ops/scripts/local/clean-dev-ports.sh status",
     "dev:ports:clean": "bash ops/scripts/local/clean-dev-ports.sh",
     "dev:all:clean": "npm run dev:ports:clean && npm run dev:all:strict",
     "build": "npm run build --workspace apps/web",
