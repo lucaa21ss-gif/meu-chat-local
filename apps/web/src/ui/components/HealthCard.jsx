@@ -11,6 +11,12 @@ import {
   buildHealthFetchErrorMessage,
 } from "../state/health-card-ui-contract.js";
 
+function resolveHealthLevel(status) {
+  if (status === HEALTH_STATUSES.HEALTHY) return "success";
+  if (status === HEALTH_STATUSES.LOADING) return "info";
+  return "error";
+}
+
 export default function HealthCard({ fetchJson, onStatus }) {
   const [health, setHealth] = useState({ status: HEALTH_STATUSES.LOADING });
   const [error, setError] = useState("");
@@ -43,18 +49,24 @@ export default function HealthCard({ fetchJson, onStatus }) {
     };
   }, [fetchJson, onStatus]);
 
-  const statusLabel = useMemo(() => {
-    return getHealthStatusLabel(health?.status);
-  }, [health]);
+  const statusLabel = useMemo(() => getHealthStatusLabel(health?.status), [health]);
 
   return (
-    <section className="card">
-      <h2>{HEALTH_CARD_COPY.TITLE}</h2>
-      <p>
-        {HEALTH_CARD_COPY.API_LABEL} <strong>{statusLabel}</strong>
-      </p>
-      {error ? <p className="error">{error}</p> : null}
-      <p className="hint">{HEALTH_CARD_COPY.LAN_HINT}</p>
+    <section className="glass-surface rounded-2xl p-4 animate-fade-slide-up">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h2 className="ai-gradient-text text-base font-semibold m-0">{HEALTH_CARD_COPY.TITLE}</h2>
+          <p className="ai-section-label mt-1">
+            {HEALTH_CARD_COPY.API_LABEL}{" "}
+            <strong className="text-[#e2e8f0]">{statusLabel}</strong>
+          </p>
+        </div>
+        <span className="ai-status-badge" data-level={resolveHealthLevel(health?.status)}>
+          {statusLabel}
+        </span>
+      </div>
+      {error ? <p className="text-[#fb7185] text-xs mt-3">{error}</p> : null}
+      <p className="ai-section-label mt-3">{HEALTH_CARD_COPY.LAN_HINT}</p>
     </section>
   );
 }

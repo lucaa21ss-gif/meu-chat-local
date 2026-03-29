@@ -20,6 +20,9 @@ export const API_ENDPOINTS = Object.freeze({
 
   /** Envio de mensagem ao modelo LLM */
   CHAT: "/api/chat",
+  
+  /** Envio de mensagem via Streaming de chucnks (SSE/TEXT) */
+  CHAT_STREAM: "/api/chat-stream",
 
   /** Listagem de usuários */
   USERS: "/api/users",

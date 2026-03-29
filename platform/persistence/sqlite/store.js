@@ -1,4 +1,4 @@
-import * as db from "../../../../platform/persistence/sqlite/db.js";
+import * as db from "./db.js";
 
 const STORE_METHOD_NAMES = [
   "initDb",

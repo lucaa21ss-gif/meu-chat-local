@@ -41,5 +41,6 @@ export function createAppLocalsDeps(appContext) {
     queueService: appContext.queueService,
     baselineService: appContext.baselineService,
     approvalService: appContext.approvalService,
+    chatClient: appContext.routeDeps?.core?.chatClient,
   };
 }

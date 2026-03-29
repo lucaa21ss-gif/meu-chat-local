@@ -7,6 +7,7 @@
 export const CHAT_STATUS_MESSAGES = Object.freeze({
   SENDING: "Enviando mensagem...",
   SUCCESS: "Mensagem enviada com sucesso.",
+  ABORTED: "Geração de IA interrompida.",
 });
 
 export const CHAT_STATUS_MESSAGE_KEYS = Object.freeze(

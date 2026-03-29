@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef } from "react";
 import { createApiClient } from "../../app/shared/api.js";
 import { createReactAppWiringContract } from "../../app/shared/app-wiring-react.js";
-import { UI_STATE_ACTION_TYPES } from "../state/ui-state-contract.js";
+import { UI_STATE_ACTION_TYPES } from "../state/ui-contracts.js";
 import { buildUiStatusPayload } from "../state/status-dispatch-contract.js";
 
 export default function useReactAppWiring({ uiStatus, dispatch }) {

@@ -1,4 +1,4 @@
-import { createRoleLimiterQueue } from "../../../../platform/queue/local-queue/rate-limiter.js";
+import { createRoleLimiterQueue } from "../../../platform/queue/local-queue/rate-limiter.js";
 
 export function createAppRoleLimiter({
   deps,

@@ -1,7 +1,7 @@
 import {
   DEFAULT_UI_STATUS_LEVEL,
   normalizeUiStatusLevel,
-} from "./status-level-contract.js";
+} from "./ui-contracts.js";
 
 export const SHOW_STATUS_OPTION_KEYS = Object.freeze([
   "type",

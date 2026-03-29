@@ -1,4 +1,4 @@
-import { createAppRoleLimiter } from "./app-role-limiter.js";
+import { createAppRoleLimiter } from "../../../../../modules/users/application/role-limiter.js";
 import { createIncidentSignalsRuntime } from "./app-incident-signals-runtime.js";
 
 export function createGovernanceRuntime({

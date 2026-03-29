@@ -164,9 +164,15 @@ export function registerChatRoutes(app, deps) {
                         messagesPayload.unshift(...systemMessages);
                     }
 
+                    const clientAbortController = new AbortController();
+                    req.on("close", () => {
+                        clientAbortController.abort();
+                    });
+
                     const payload = {
                         messages: messagesPayload,
                         stream: true,
+                        abortSignal: clientAbortController.signal,
                         options: {
                             temperature: options.temperature,
                             num_ctx: options.num_ctx,

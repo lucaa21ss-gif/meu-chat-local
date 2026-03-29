@@ -1,5 +1,5 @@
 import { createConfiguredApp } from './apps/api/src/http/app-create.js';
-import { initStoreDb } from './apps/api/src/http/app-store.js';
+import { initStoreDb } from './platform/persistence/sqlite/store.js';
 
 process.on('unhandledRejection', (err) => {
   console.error('UNHANDLED:', err.message);

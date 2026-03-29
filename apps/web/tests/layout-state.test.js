@@ -45,9 +45,9 @@ test("createAppLayoutActions alterna menu com toggleMenu", () => {
   assert.equal(menuOpen, false);
 });
 
-test("getBackdropClassName aplica classe show quando menu esta aberto", () => {
-  assert.equal(getBackdropClassName(true), "backdrop show");
-  assert.equal(getBackdropClassName(false), "backdrop");
+test("getBackdropClassName aplica classe correta quando menu esta aberto", () => {
+  assert.equal(getBackdropClassName(true), "ai-sidebar-backdrop");
+  assert.equal(getBackdropClassName(false), "");
 });
 
 test("layout state actions permanecem alinhadas com contrato", () => {

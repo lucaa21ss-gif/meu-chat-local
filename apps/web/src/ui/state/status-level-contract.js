@@ -1,29 +1,15 @@
-export const UI_STATUS_LEVELS = Object.freeze({
-  INFO: "info",
-  SUCCESS: "success",
-  WARNING: "warning",
-  ERROR: "error",
-});
-
-export const UI_STATUS_LEVEL_VALUES = Object.freeze(
-  Object.values(UI_STATUS_LEVELS).sort(),
-);
-
-export const DEFAULT_UI_STATUS_LEVEL = UI_STATUS_LEVELS.INFO;
-
-export function isValidUiStatusLevel(level) {
-  return UI_STATUS_LEVEL_VALUES.includes(level);
-}
-
-export function normalizeUiStatusLevel(level) {
-  return isValidUiStatusLevel(level)
-    ? level
-    : DEFAULT_UI_STATUS_LEVEL;
-}
-
-export function normalizeUiStatus(status) {
-  return {
-    message: status?.message || "",
-    level: normalizeUiStatusLevel(status?.level),
-  };
-}
+/**
+ * @module status-level-contract
+ * @deprecated Utilize `./ui-contracts.js` diretamente.
+ *
+ * Shim de retrocompatibilidade. Todos os símbolos são re-exportados
+ * de `ui-contracts.js`, o novo ponto único de verdade.
+ */
+export {
+  UI_STATUS_LEVELS,
+  UI_STATUS_LEVEL_VALUES,
+  DEFAULT_UI_STATUS_LEVEL,
+  isValidUiStatusLevel,
+  normalizeUiStatusLevel,
+  normalizeUiStatus,
+} from "./ui-contracts.js";

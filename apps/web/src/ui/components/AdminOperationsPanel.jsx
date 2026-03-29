@@ -241,45 +241,51 @@ export default function AdminOperationsPanel({ fetchJson, onStatus }) {
 
   const checks = Object.entries(health?.[ADMIN_PAYLOAD_KEYS.HEALTH_CHECKS] || {});
 
+  const roleLevelMap = { admin: "error", operator: "warning", viewer: "info" };
+
   return (
-    <section className="card">
-      <div className="admin-header">
+    <section className="glass-deep rounded-2xl p-5">
+
+      {/* ── Header ── */}
+      <div className="flex items-start justify-between gap-3 mb-4">
         <div>
-          <h2>{ADMIN_SECTION_TITLES.ROOT}</h2>
-          <p className="hint">{ADMIN_STATIC_COPY.INTRO_HINT}</p>
+          <h2 className="ai-gradient-text text-xl font-semibold m-0">{ADMIN_SECTION_TITLES.ROOT}</h2>
+          <p className="ai-section-label mt-1">{ADMIN_STATIC_COPY.INTRO_HINT}</p>
         </div>
-        <button type="button" className="ghost" onClick={loadAdminHealth} disabled={loading}>
+        <button type="button" className="ai-btn-secondary" onClick={loadAdminHealth} disabled={loading}>
           {loading ? ADMIN_ACTION_LABELS.HEALTH_REFRESH_LOADING : ADMIN_ACTION_LABELS.HEALTH_REFRESH_IDLE}
         </button>
       </div>
 
-      {error ? <p className="error">{error}</p> : null}
+      {error ? <p className="text-[#fb7185] text-sm mb-3">{error}</p> : null}
 
-      <div className="admin-grid">
-        <div className="admin-tile">
-          <span className="tile-label">{ADMIN_TILE_LABELS.STATUS}</span>
-          <strong className="tile-value">{String(health?.status || ADMIN_STATIC_COPY.HEALTH_STATUS_FALLBACK)}</strong>
+      {/* ── Tiles de saúde ── */}
+      <div className="grid grid-cols-2 gap-3">
+        <div className="glass-surface rounded-xl p-3 grid gap-1">
+          <span className="ai-section-label block">{ADMIN_TILE_LABELS.STATUS}</span>
+          <strong className="text-[#e2e8f0]">{String(health?.status || ADMIN_STATIC_COPY.HEALTH_STATUS_FALLBACK)}</strong>
         </div>
-        <div className="admin-tile">
-          <span className="tile-label">{ADMIN_TILE_LABELS.UPDATED_AT}</span>
-          <strong className="tile-value">{formatAdminTime(Date.now())}</strong>
+        <div className="glass-surface rounded-xl p-3 grid gap-1">
+          <span className="ai-section-label block">{ADMIN_TILE_LABELS.UPDATED_AT}</span>
+          <strong className="text-[#e2e8f0]">{formatAdminTime(Date.now())}</strong>
         </div>
       </div>
 
-      <h3 className="section-title">{ADMIN_SECTION_TITLES.CHECKS}</h3>
+      {/* ── Checks ── */}
+      <h3 className="text-[#cbd5e1] text-sm font-semibold mt-5 mb-3">{ADMIN_SECTION_TITLES.CHECKS}</h3>
       {checks.length === 0 ? (
-        <p className="hint">{ADMIN_EMPTY_STATE_MESSAGES.CHECKS}</p>
+        <p className="ai-section-label">{ADMIN_EMPTY_STATE_MESSAGES.CHECKS}</p>
       ) : (
-        <div className="check-list">
+        <div className="grid gap-2">
           {checks.map(([name, check]) => {
             const isHealthy = check?.status === HEALTH_STATUSES.HEALTHY;
             return (
-              <article key={name} className="check-item">
+              <article key={name} className="glass-surface flex justify-between items-center gap-3 rounded-xl p-3">
                 <div>
-                  <strong className="check-name">{name}</strong>
-                  <p className="hint">{check?.message || ADMIN_OPERATION_MESSAGES.HEALTH_CHECK_MESSAGE_DEFAULT}</p>
+                  <strong className="text-[#e2e8f0] capitalize">{name}</strong>
+                  <p className="ai-section-label mt-1">{check?.message || ADMIN_OPERATION_MESSAGES.HEALTH_CHECK_MESSAGE_DEFAULT}</p>
                 </div>
-                <span className={`check-badge ${isHealthy ? ADMIN_BADGE_VARIANTS.OK : ADMIN_BADGE_VARIANTS.FAIL}`}>
+                <span className="ai-status-badge" data-level={isHealthy ? "success" : "error"}>
                   {isHealthy ? HEALTH_CHECK_LABELS.OK : HEALTH_CHECK_LABELS.FAIL}
                 </span>
               </article>
@@ -288,132 +294,139 @@ export default function AdminOperationsPanel({ fetchJson, onStatus }) {
         </div>
       )}
 
-      <div className="admin-users-header">
-        <h3 className="section-title">{ADMIN_SECTION_TITLES.USERS}</h3>
-        <button type="button" className="ghost" onClick={loadUsers} disabled={usersLoading}>
+      {/* ── Usuários ── */}
+      <div className="flex items-center justify-between gap-3 mt-5 mb-3">
+        <h3 className="text-[#cbd5e1] text-sm font-semibold m-0">{ADMIN_SECTION_TITLES.USERS}</h3>
+        <button type="button" className="ai-btn-secondary" onClick={loadUsers} disabled={usersLoading}>
           {usersLoading ? ADMIN_ACTION_LABELS.USERS_REFRESH_LOADING : ADMIN_ACTION_LABELS.USERS_REFRESH_IDLE}
         </button>
       </div>
 
-      {usersError ? <p className="error">{usersError}</p> : null}
+      {usersError ? <p className="text-[#fb7185] text-sm mb-2">{usersError}</p> : null}
 
       {users.length === 0 ? (
-        <p className="hint">{ADMIN_EMPTY_STATE_MESSAGES.USERS}</p>
+        <p className="ai-section-label">{ADMIN_EMPTY_STATE_MESSAGES.USERS}</p>
       ) : (
-        <div className="users-list">
-          {users.map((user) => (
-            <article key={user[ADMIN_PAYLOAD_KEYS.USERS_ID] || user[ADMIN_PAYLOAD_KEYS.USERS_NAME]} className="user-item">
-              <div>
-                <strong>{user[ADMIN_PAYLOAD_KEYS.USERS_NAME] || ADMIN_DISPLAY_DEFAULTS.USER_NAME}</strong>
-                <p className="hint">ID: {user[ADMIN_PAYLOAD_KEYS.USERS_ID] || ADMIN_DISPLAY_DEFAULTS.IDENTIFIER}</p>
-              </div>
-              <span className={`role-badge ${String(user[ADMIN_PAYLOAD_KEYS.USERS_ROLE] || ADMIN_STATUS_VALUES.USER_ROLE_DEFAULT).toLowerCase()}`}>
-                {String(user[ADMIN_PAYLOAD_KEYS.USERS_ROLE] || ADMIN_STATUS_VALUES.USER_ROLE_DEFAULT)}
-              </span>
-            </article>
-          ))}
+        <div className="grid gap-2">
+          {users.map((user) => {
+            const role = String(user[ADMIN_PAYLOAD_KEYS.USERS_ROLE] || ADMIN_STATUS_VALUES.USER_ROLE_DEFAULT).toLowerCase();
+            return (
+              <article key={user[ADMIN_PAYLOAD_KEYS.USERS_ID] || user[ADMIN_PAYLOAD_KEYS.USERS_NAME]} className="glass-surface flex justify-between items-center gap-3 rounded-xl p-3">
+                <div>
+                  <strong className="text-[#e2e8f0]">{user[ADMIN_PAYLOAD_KEYS.USERS_NAME] || ADMIN_DISPLAY_DEFAULTS.USER_NAME}</strong>
+                  <p className="ai-section-label mt-1">ID: {user[ADMIN_PAYLOAD_KEYS.USERS_ID] || ADMIN_DISPLAY_DEFAULTS.IDENTIFIER}</p>
+                </div>
+                <span className="ai-status-badge capitalize" data-level={roleLevelMap[role] || "info"}>
+                  {String(user[ADMIN_PAYLOAD_KEYS.USERS_ROLE] || ADMIN_STATUS_VALUES.USER_ROLE_DEFAULT)}
+                </span>
+              </article>
+            );
+          })}
         </div>
       )}
 
-      <div className="admin-users-header">
-        <h3 className="section-title">{ADMIN_SECTION_TITLES.BACKUPS}</h3>
-        <div className="admin-actions-inline">
-          <button type="button" className="ghost" onClick={loadBackups} disabled={backupsLoading}>
+      {/* ── Backups ── */}
+      <div className="flex items-center justify-between gap-3 mt-5 mb-3">
+        <h3 className="text-[#cbd5e1] text-sm font-semibold m-0">{ADMIN_SECTION_TITLES.BACKUPS}</h3>
+        <div className="flex gap-2 flex-wrap">
+          <button type="button" className="ai-btn-secondary" onClick={loadBackups} disabled={backupsLoading}>
             {backupsLoading ? ADMIN_ACTION_LABELS.BACKUPS_VALIDATE_LOADING : ADMIN_ACTION_LABELS.BACKUPS_VALIDATE_IDLE}
           </button>
-          <button type="button" onClick={exportBackupNow}>
+          <button type="button" className="ai-btn-primary" onClick={exportBackupNow}>
             {ADMIN_ACTION_LABELS.BACKUP_EXPORT_IDLE}
           </button>
         </div>
       </div>
 
-      {backupsError ? <p className="error">{backupsError}</p> : null}
+      {backupsError ? <p className="text-[#fb7185] text-sm mb-2">{backupsError}</p> : null}
 
       {!backupValidation ? (
-        <p className="hint">{ADMIN_EMPTY_STATE_MESSAGES.BACKUP_VALIDATION}</p>
+        <p className="ai-section-label">{ADMIN_EMPTY_STATE_MESSAGES.BACKUP_VALIDATION}</p>
       ) : (
         <>
-          <div className="admin-grid">
-            <div className="admin-tile">
-              <span className="tile-label">{ADMIN_TILE_LABELS.STATUS}</span>
-              <strong className="tile-value">{String(backupValidation[ADMIN_PAYLOAD_KEYS.BACKUP_STATUS] || ADMIN_STATUS_VALUES.BACKUP_STATUS_DEFAULT)}</strong>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="glass-surface rounded-xl p-3 grid gap-1">
+              <span className="ai-section-label block">{ADMIN_TILE_LABELS.STATUS}</span>
+              <strong className="text-[#e2e8f0]">{String(backupValidation[ADMIN_PAYLOAD_KEYS.BACKUP_STATUS] || ADMIN_STATUS_VALUES.BACKUP_STATUS_DEFAULT)}</strong>
             </div>
-            <div className="admin-tile">
-              <span className="tile-label">{ADMIN_TILE_LABELS.VERIFIED_ITEMS}</span>
-              <strong className="tile-value">{getAdminItemCount(backupValidation[ADMIN_PAYLOAD_KEYS.BACKUP_ITEMS])}</strong>
+            <div className="glass-surface rounded-xl p-3 grid gap-1">
+              <span className="ai-section-label block">{ADMIN_TILE_LABELS.VERIFIED_ITEMS}</span>
+              <strong className="text-[#e2e8f0]">{getAdminItemCount(backupValidation[ADMIN_PAYLOAD_KEYS.BACKUP_ITEMS])}</strong>
             </div>
           </div>
 
           {Array.isArray(backupValidation[ADMIN_PAYLOAD_KEYS.BACKUP_ITEMS]) && backupValidation[ADMIN_PAYLOAD_KEYS.BACKUP_ITEMS].length > 0 ? (
-            <div className="users-list">
+            <div className="grid gap-2 mt-2">
               {backupValidation[ADMIN_PAYLOAD_KEYS.BACKUP_ITEMS].map((item) => (
-                <article key={item[ADMIN_PAYLOAD_KEYS.BACKUP_ITEM_FILE_NAME] || item[ADMIN_PAYLOAD_KEYS.BACKUP_ITEM_ID]} className="user-item">
+                <article key={item[ADMIN_PAYLOAD_KEYS.BACKUP_ITEM_FILE_NAME] || item[ADMIN_PAYLOAD_KEYS.BACKUP_ITEM_ID]} className="glass-surface flex justify-between items-center gap-3 rounded-xl p-3">
                   <div>
-                    <strong>{item[ADMIN_PAYLOAD_KEYS.BACKUP_ITEM_FILE_NAME] || ADMIN_DISPLAY_DEFAULTS.BACKUP_FILE_NAME}</strong>
-                    <p className="hint">
+                    <strong className="text-[#e2e8f0]">{item[ADMIN_PAYLOAD_KEYS.BACKUP_ITEM_FILE_NAME] || ADMIN_DISPLAY_DEFAULTS.BACKUP_FILE_NAME}</strong>
+                    <p className="ai-section-label mt-1">
                       {formatAdminFileSizeMb(item[ADMIN_PAYLOAD_KEYS.BACKUP_ITEM_SIZE_BYTES])}
                       {item[ADMIN_PAYLOAD_KEYS.BACKUP_ITEM_CREATED_AT] ? `${ADMIN_FORMATTING.DATE_PREFIX_SEPARATOR}${formatAdminDate(item[ADMIN_PAYLOAD_KEYS.BACKUP_ITEM_CREATED_AT])}` : ""}
                     </p>
                   </div>
-                  <span className={`check-badge ${item[ADMIN_PAYLOAD_KEYS.BACKUP_ITEM_VALIDATION_STATUS] === ADMIN_STATUS_VALUES.VALIDATION_STATUS_OK ? ADMIN_BADGE_VARIANTS.OK : ADMIN_BADGE_VARIANTS.FAIL}`}>
+                  <span className="ai-status-badge" data-level={item[ADMIN_PAYLOAD_KEYS.BACKUP_ITEM_VALIDATION_STATUS] === ADMIN_STATUS_VALUES.VALIDATION_STATUS_OK ? "success" : "warning"}>
                     {item[ADMIN_PAYLOAD_KEYS.BACKUP_ITEM_VALIDATION_STATUS] === ADMIN_STATUS_VALUES.VALIDATION_STATUS_OK ? BACKUP_VALIDATION_LABELS.OK : BACKUP_VALIDATION_LABELS.REVIEW}
                   </span>
                 </article>
               ))}
             </div>
           ) : (
-            <p className="hint">{ADMIN_EMPTY_STATE_MESSAGES.BACKUP_RECENT_FILES}</p>
+            <p className="ai-section-label mt-2">{ADMIN_EMPTY_STATE_MESSAGES.BACKUP_RECENT_FILES}</p>
           )}
         </>
       )}
 
-      <div className="admin-users-header">
-        <h3 className="section-title">{ADMIN_SECTION_TITLES.INCIDENTS}</h3>
-        <div className="admin-actions-inline">
-          <button type="button" className="ghost" onClick={loadIncidentStatus} disabled={incidentLoading}>
+      {/* ── Incidentes ── */}
+      <div className="flex items-center justify-between gap-3 mt-5 mb-3">
+        <h3 className="text-[#cbd5e1] text-sm font-semibold m-0">{ADMIN_SECTION_TITLES.INCIDENTS}</h3>
+        <div className="flex gap-2 flex-wrap">
+          <button type="button" className="ai-btn-secondary" onClick={loadIncidentStatus} disabled={incidentLoading}>
             {incidentLoading ? ADMIN_ACTION_LABELS.INCIDENTS_REFRESH_LOADING : ADMIN_ACTION_LABELS.INCIDENTS_REFRESH_IDLE}
           </button>
-          <button type="button" onClick={runAutoHealing} disabled={healingLoading}>
+          <button type="button" className="ai-btn-primary" onClick={runAutoHealing} disabled={healingLoading}>
             {healingLoading ? ADMIN_ACTION_LABELS.ACTION_LOADING : ADMIN_ACTION_LABELS.AUTO_HEALING_IDLE}
           </button>
         </div>
       </div>
 
-      {incidentError ? <p className="error">{incidentError}</p> : null}
+      {incidentError ? <p className="text-[#fb7185] text-sm mb-2">{incidentError}</p> : null}
 
-      <div className="admin-grid">
-        <div className="admin-tile">
-          <span className="tile-label">{ADMIN_TILE_LABELS.INCIDENT_STATUS}</span>
-          <strong className="tile-value">{String(incident?.[ADMIN_PAYLOAD_KEYS.INCIDENT_STATUS] || ADMIN_STATUS_VALUES.INCIDENT_STATUS_DEFAULT)}</strong>
-          {incident?.[ADMIN_PAYLOAD_KEYS.INCIDENT_SUMMARY] ? <p className="hint">{incident[ADMIN_PAYLOAD_KEYS.INCIDENT_SUMMARY]}</p> : null}
+      <div className="grid grid-cols-2 gap-3">
+        <div className="glass-surface rounded-xl p-3 grid gap-1">
+          <span className="ai-section-label block">{ADMIN_TILE_LABELS.INCIDENT_STATUS}</span>
+          <strong className="text-[#e2e8f0]">{String(incident?.[ADMIN_PAYLOAD_KEYS.INCIDENT_STATUS] || ADMIN_STATUS_VALUES.INCIDENT_STATUS_DEFAULT)}</strong>
+          {incident?.[ADMIN_PAYLOAD_KEYS.INCIDENT_SUMMARY] ? <p className="ai-section-label mt-1">{incident[ADMIN_PAYLOAD_KEYS.INCIDENT_SUMMARY]}</p> : null}
         </div>
-        <div className="admin-tile">
-          <span className="tile-label">{ADMIN_TILE_LABELS.SEVERITY}</span>
-          <span className={`check-badge ${String(incident?.[ADMIN_PAYLOAD_KEYS.INCIDENT_SEVERITY] || ADMIN_STATUS_VALUES.INCIDENT_SEVERITY_INFO) === ADMIN_STATUS_VALUES.INCIDENT_SEVERITY_INFO ? ADMIN_BADGE_VARIANTS.OK : ADMIN_BADGE_VARIANTS.FAIL}`}>
+        <div className="glass-surface rounded-xl p-3 grid gap-1">
+          <span className="ai-section-label block">{ADMIN_TILE_LABELS.SEVERITY}</span>
+          <span className="ai-status-badge mt-1" data-level={String(incident?.[ADMIN_PAYLOAD_KEYS.INCIDENT_SEVERITY] || ADMIN_STATUS_VALUES.INCIDENT_SEVERITY_INFO) === ADMIN_STATUS_VALUES.INCIDENT_SEVERITY_INFO ? "info" : "error"}>
             {String(incident?.[ADMIN_PAYLOAD_KEYS.INCIDENT_SEVERITY] || ADMIN_STATUS_VALUES.INCIDENT_SEVERITY_INFO)}
           </span>
         </div>
       </div>
 
-      <div className="admin-grid">
-        <div className="admin-tile">
-          <span className="tile-label">{ADMIN_TILE_LABELS.AUTO_HEALING}</span>
-          <strong className="tile-value">{autoHealingStatus?.[ADMIN_PAYLOAD_KEYS.AUTO_HEALING_ENABLED] ? ADMIN_STATIC_COPY.AUTO_HEALING_ENABLED : ADMIN_STATIC_COPY.AUTO_HEALING_DISABLED}</strong>
+      <div className="grid grid-cols-2 gap-3 mt-3">
+        <div className="glass-surface rounded-xl p-3 grid gap-1">
+          <span className="ai-section-label block">{ADMIN_TILE_LABELS.AUTO_HEALING}</span>
+          <strong className="text-[#e2e8f0]">{autoHealingStatus?.[ADMIN_PAYLOAD_KEYS.AUTO_HEALING_ENABLED] ? ADMIN_STATIC_COPY.AUTO_HEALING_ENABLED : ADMIN_STATIC_COPY.AUTO_HEALING_DISABLED}</strong>
         </div>
-        <div className="admin-tile">
-          <span className="tile-label">{ADMIN_TILE_LABELS.CIRCUIT}</span>
-          <strong className="tile-value">{String(autoHealingStatus?.[ADMIN_PAYLOAD_KEYS.AUTO_HEALING_CIRCUIT]?.[ADMIN_PAYLOAD_KEYS.AUTO_HEALING_CIRCUIT_STATE] || ADMIN_STATUS_VALUES.CIRCUIT_STATE_DEFAULT)}</strong>
+        <div className="glass-surface rounded-xl p-3 grid gap-1">
+          <span className="ai-section-label block">{ADMIN_TILE_LABELS.CIRCUIT}</span>
+          <strong className="text-[#e2e8f0]">{String(autoHealingStatus?.[ADMIN_PAYLOAD_KEYS.AUTO_HEALING_CIRCUIT]?.[ADMIN_PAYLOAD_KEYS.AUTO_HEALING_CIRCUIT_STATE] || ADMIN_STATUS_VALUES.CIRCUIT_STATE_DEFAULT)}</strong>
         </div>
       </div>
 
-      <div className="admin-users-header">
-        <h3 className="section-title">{ADMIN_SECTION_TITLES.RUNBOOK}</h3>
+      {/* ── Runbook ── */}
+      <div className="flex items-center justify-between gap-3 mt-5 mb-3">
+        <h3 className="text-[#cbd5e1] text-sm font-semibold m-0">{ADMIN_SECTION_TITLES.RUNBOOK}</h3>
       </div>
 
-      <div className="runbook-form-grid">
-        <label className="runbook-field">
-          <span className="tile-label">{ADMIN_TILE_LABELS.TYPE}</span>
-          <select value={runbookType} onChange={(event) => setRunbookType(event.target.value)}>
+      <div className="grid grid-cols-3 gap-3">
+        <label className="grid gap-1">
+          <span className="ai-section-label block">{ADMIN_TILE_LABELS.TYPE}</span>
+          <select className="ai-control-input" value={runbookType} onChange={(event) => setRunbookType(event.target.value)}>
             <option value={RUNBOOK_TYPES.MODEL_OFFLINE}>{RUNBOOK_TYPES.MODEL_OFFLINE}</option>
             <option value={RUNBOOK_TYPES.DB_DEGRADED}>{RUNBOOK_TYPES.DB_DEGRADED}</option>
             <option value={RUNBOOK_TYPES.DISK_PRESSURE}>{RUNBOOK_TYPES.DISK_PRESSURE}</option>
@@ -421,31 +434,31 @@ export default function AdminOperationsPanel({ fetchJson, onStatus }) {
           </select>
         </label>
 
-        <label className="runbook-field">
-          <span className="tile-label">{ADMIN_TILE_LABELS.MODE}</span>
-          <select value={runbookMode} onChange={(event) => setRunbookMode(event.target.value)}>
+        <label className="grid gap-1">
+          <span className="ai-section-label block">{ADMIN_TILE_LABELS.MODE}</span>
+          <select className="ai-control-input" value={runbookMode} onChange={(event) => setRunbookMode(event.target.value)}>
             <option value={RUNBOOK_MODES.DRY_RUN}>{RUNBOOK_MODES.DRY_RUN}</option>
             <option value={RUNBOOK_MODES.EXECUTE}>{RUNBOOK_MODES.EXECUTE}</option>
             <option value={RUNBOOK_MODES.ROLLBACK}>{RUNBOOK_MODES.ROLLBACK}</option>
           </select>
         </label>
 
-        <div className="runbook-actions">
-          <button type="button" onClick={executeIncidentRunbook} disabled={runbookLoading}>
+        <div className="flex items-end">
+          <button type="button" className="ai-btn-primary w-full" onClick={executeIncidentRunbook} disabled={runbookLoading}>
             {runbookLoading ? ADMIN_ACTION_LABELS.ACTION_LOADING : ADMIN_ACTION_LABELS.RUNBOOK_EXECUTE_IDLE}
           </button>
         </div>
       </div>
 
       {runbookResult ? (
-        <div className="admin-grid">
-          <div className="admin-tile">
-            <span className="tile-label">{ADMIN_TILE_LABELS.RUNBOOK_ID}</span>
-            <strong className="tile-value">{runbookResult[ADMIN_PAYLOAD_KEYS.RUNBOOK_ID] || ADMIN_DISPLAY_DEFAULTS.IDENTIFIER}</strong>
+        <div className="grid grid-cols-2 gap-3 mt-3">
+          <div className="glass-surface rounded-xl p-3 grid gap-1">
+            <span className="ai-section-label block">{ADMIN_TILE_LABELS.RUNBOOK_ID}</span>
+            <strong className="text-[#e2e8f0]">{runbookResult[ADMIN_PAYLOAD_KEYS.RUNBOOK_ID] || ADMIN_DISPLAY_DEFAULTS.IDENTIFIER}</strong>
           </div>
-          <div className="admin-tile">
-            <span className="tile-label">{ADMIN_TILE_LABELS.RUNBOOK_STEPS}</span>
-            <strong className="tile-value">{getAdminItemCount(runbookResult[ADMIN_PAYLOAD_KEYS.RUNBOOK_STEPS])}</strong>
+          <div className="glass-surface rounded-xl p-3 grid gap-1">
+            <span className="ai-section-label block">{ADMIN_TILE_LABELS.RUNBOOK_STEPS}</span>
+            <strong className="text-[#e2e8f0]">{getAdminItemCount(runbookResult[ADMIN_PAYLOAD_KEYS.RUNBOOK_STEPS])}</strong>
           </div>
         </div>
       ) : null}

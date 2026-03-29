@@ -1,7 +1,7 @@
 import logger from "../../../../platform/observability/logging/logger.js";
-import { createConfiguredApp } from "../http/app-create.js";
-import { initStoreDb } from "../http/app-store.js";
-import { scheduleBackupJobFromEnv } from "../http/app-backup-scheduler.js";
+import { createConfiguredApp } from "../http/core/app-create.js";
+import { initStoreDb } from "../../../../platform/persistence/sqlite/store.js";
+import { scheduleBackupJobFromEnv } from "../../../../modules/backup/application/backup-scheduler.js";
 import { startHttpServer } from "./app-server-listen.js";
 import {
   createScheduledBackupDeps,
@@ -57,6 +57,13 @@ export async function startConfiguredServer({
     createStartServerDeps({ app, port, host, logger: startupLogger }),
   );
   lifecycle.registerHttpServer(httpServer);
+
+  // 5.1 Otimização RAM/GPU: Derrubar requisições presas no provedor IA
+  if (app.locals.chatClient && typeof app.locals.chatClient.cancelInFlightRequests === 'function') {
+    lifecycle.registerShutdownHook("ai-provider-streams", () => {
+      app.locals.chatClient.cancelInFlightRequests();
+    });
+  }
 
   // 6. Se DESKTOP_MODE=true, inicializar o Ollama e abrir o browser automaticamente
   if (DESKTOP_MODE) {

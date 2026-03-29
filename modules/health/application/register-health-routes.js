@@ -121,6 +121,7 @@ export function registerHealthRoutes(app, deps) {
                 rateLimiter: roleLimiter.getMetrics(),
                 alerts,
                 memory: process.memoryUsage(),
+                aiProvider: req.app.locals.chatClient?.name || "Desconhecido",
                 // Compatibilidade com frontend legado.
                 ollama: model.ollama || "offline",
                 latencyMs: Number(model.latencyMs || 0),

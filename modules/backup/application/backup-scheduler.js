@@ -1,4 +1,4 @@
-import { parsePositiveInt } from "../../../../shared/config/parsers.js";
+import { parsePositiveInt } from "../../../shared/config/parsers.js";
 
 export function scheduleBackupJob({ app, intervalMinutes, logger }) {
   if (intervalMinutes <= 0 || !app?.locals?.backupService?.createBackup) {

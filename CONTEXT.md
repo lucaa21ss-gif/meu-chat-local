@@ -1,65 +1,60 @@
 # CONTEXT
 
-Este arquivo fornece contexto global do projeto para ferramentas de assistencia, incluindo Google AI Studio (Gemini).
+Este arquivo fornece as balizas arquiteturais estritas e atualizadas do projeto `@meu-chat-local` para ferramentas de assistência artificial, em especial Google AI Studio (Gemini).
 
-## Visao Geral
+## 🚀 Visão Geral e Paradigma
 
-O repositorio segue um modelo de monorepo com tres aplicacoes principais em `apps/`:
+O repositório opera em um modelo **Local-First** rigoroso através de monorepo. O uso do motor **Ollama** garante inferências independentes e seguras (offgrid).
 
-- `apps/api`: core backend em Node.js/Express, responsavel por API HTTP, roteamento, servico de arquivos estaticos e integracao com os modulos de dominio. Porta padrao: 4000.
-- `apps/web`: frontend unico em React (Vite), com UI principal e rota administrativa `/admin` no mesmo app.
-- `apps/web-admin`: app legado separado, mantido para compatibilidade durante migracao.
+A aplicação foi inteiramente consolidada para operar num ecossistema unificado onde o **Backend é o maestro nativo (ESM)** em conjunto com o aplicativo cliente **React+Vite**. 
 
-### Modo Servico de Rede Domestica
+*Nota:* O repositório **NÃO DEVE** retroceder ou tentar implementar o antigo e descontinuado `apps/web-admin`. Toda parte operacional e analítica agora pertence ao painel UI do React na rota estática `/admin`.
 
-- O servidor `apps/api` e o host central para acesso via LAN/Wi-Fi e, quando configurado, acesso remoto seguro.
-- O runtime deve escutar em `0.0.0.0` para aceitar conexoes de outros dispositivos da rede.
-- O frontend principal e o painel admin devem consumir API por mesma origem (paths relativos), evitando dependencia de `localhost` no cliente.
+### Modo de Serviço Bounding
+- Os pacotes rodam prioritariamente na rede (LAN/Wi-Fi) expostos na porta principal de backend `4000`.
+- O Frontend e o fluxo Admin consumem da mesma origem via rotas relativas.
+- Jamais crie dependências de `localhost` hardcoded do lado do cliente.
+- Exclusivamente implementado em **Domain-Driven Design (DDD)** para estabilização de regras de negócio.
 
-## Mapa de Apps
+---
 
-### 1) apps/api
+## 🗺️ Mapa Topológico e Stack
 
-- Papel: runtime central da plataforma.
-- Stack principal: Node.js + Express.
-- Porta padrao: `4000`.
-- Responsabilidades:
-  - Expor endpoints da API.
-  - Publicar frontend principal em `/` e `/app`.
-  - Publicar painel operacional em `/admin` (rota centralizada no mesmo servidor).
-  - Integrar modulos de negocio em `modules/`.
+### 1) Backend: `apps/api`
+- **Papel:** Máquina de Inteligência e Orquestrador Central.
+- **Stack:** Node.js (ECMAScript ESM) + Express + SQLite WAL.
+- **Arquitetura de Limites:**
+  - `entrypoints/` & `bootstrap/`: Único ponto de ligação de módulos e wiring (Injeção de Dependências Manual). Onde subimos o servidor.
+  - `modules/`: Camada de domínio agnóstica de hardware. Onde vivem regras do chat, permissões (`users`) e métricas (`capacity`).
+  - `platform/`: Adaptadores técnicos pesados (Rate Limiting via Memory, Client LLM e persistência relacional unificada do SQLite).
+- **Trilha de Segurança:** Todas as mutações do backend precisam respeitar o Hub de Auditoria (`recordAudit`) antes de finalizar HTTP. Casos sensíveis (deleções) acionam proteção double-lock via `requireOperationalApproval`.
 
-### 2) apps/web
+### 2) Cliente Dinâmico: `apps/web`
+- **Papel:** SPA Front-End Principal & Admin Panel unificado.
+- **Stack:** React + Vite.
+- **Identidade e AI Design System:**
+  - O visual do sistema é pautado no princípio de *Premium Glassmorphism*.
+  - Utilizamos tokens baseados no arquivo `styles.css` customizado com fundos neurais (`ai-bg-neural`), gradientes fluídos, caixas interativas (`ai-panel`) e animações dinâmicas de chat e typing. Toda e qualquer nova tela desenhada deve ser renderizada usando estas classes nativas de imersão; fuja de marcações UI primitivas ou brancas por padrão.
+- **Rotas Globais:**
+  - `/`, `/app`: Imersão do Chat.
+  - `/admin`: Onde visualizamos scorecard, memory-leaks, telemetria analítica e operamos os usuários.
+  - `/produto`, `/guia`.
 
-- Papel: interface do usuario final.
-- Distribuicao: build estatico React servido pela API (`apps/web/dist`).
-- Integracao: consome endpoints do backend para recursos de chat, dados e operacoes de usuario.
-- Rotas de runtime: `/`, `/app`, `/admin`, `/produto`, `/guia`.
+---
 
-### 3) apps/web-admin
+## ⚡ Real-Time Inferencia & Streaming
 
-- Papel: interface operacional para manutencao e observabilidade.
-- Status: legado para migracao incremental.
-- Runtime principal atual: interface admin consolidada em `apps/web` na rota `/admin`.
+A comunicação primária entre `UI` -> `API` -> `LLM` ocorre através do padrão **Transfer-Encoding Chunked (Server-Sent Events)** para prover respostas "token-by-token" como ditam os maiores chats premium com IA.
+Neste fluxo:
+1. Nenhuma nova requisição de chat deve bloquear o Node (`Async`);
+2. Requests passam por filas com regras de `Rate-Limiting` para segurança de saturação.
+3. Se Ollama cair, o Backend possui resiliência de recovery e timeout. O fallback em inferência retenta contornar as quedas de forma silenciosa para prover o melhor User Experience antes de acusar o estresse `HttpError(504)`.
 
-## Estrutura Relacionada
+---
 
-- `modules/`: modulos de dominio e aplicacao (chat, backup, audit, capacity, resilience etc.).
-- `platform/`: adaptadores e infraestrutura (persistencia sqlite, observabilidade, orquestracao, filas locais).
-- `shared/`: utilitarios e configuracoes compartilhadas.
-- `ops/`: scripts operacionais, docker/compose e pipelines locais de verificacao.
-- `artifacts/`: saidas e diagnosticos locais (nao deve armazenar logs persistentes no repositorio).
+## 🤖 Diretrizes de Manutenção (Gemini e Cia.)
 
-## Fluxo de Execucao (resumo)
-
-1. Usuario acessa frontend principal (`apps/web`) ou painel admin (`/admin`) no mesmo servidor central.
-2. API em `apps/api` recebe requisicoes e encaminha para modulos em `modules/`.
-3. Camada `platform/` provê persistencia, telemetria e integracoes locais.
-4. Respostas retornam para os frontends via HTTP.
-
-## Observacoes para Gemini
-
-- Considere este repositorio como um sistema unico com tres apps especializadas e runtime unificado no servidor principal.
-- Ao responder sobre UI principal, priorize `apps/web`.
-- Ao responder sobre operacao/administracao, priorize `apps/web` na rota `/admin`.
-- Ao responder sobre backend e integracao, priorize `apps/api` na porta 4000.
+Ao propor qualquer código, certifique-se que:
+- Você manteve o **ESM puro** resolvendo caminhos de maneira absoluta com as respectivas tags de extensão JavaScript (ex: `import { x } from "../../../platform/foo.js";`). Não ignore as extensões!
+- Ao sugerir layout para React, empreste as paletas neons `var(--ai-accent-primary)` e classes como `ai-panel` com blur de fundo. Mantenha as sombras tecnológicas pulsantes.
+- Respeite as fronteiras do DDD (Domain-Driven Design): NUNCA conecte o frontend direto contra o banco `db.js`. O caminho sempre atravessará `HTTP > Modules (Use Case) > Platform`.

@@ -1,8 +1,8 @@
 import {
   UI_STATE_ACTION_TYPES,
   UI_STATE_SHAPE,
-} from "./ui-state-contract.js";
-import { normalizeUiStatus } from "./status-level-contract.js";
+  normalizeUiStatus,
+} from "./ui-contracts.js";
 
 export const INITIAL_UI_STATE = {
   ...UI_STATE_SHAPE,

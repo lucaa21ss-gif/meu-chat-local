@@ -1,26 +1,45 @@
 import path from "node:path";
-import { createStorageService } from "../../../../platform/fs/storage/storage-service.js";
-import {
-  createAppServicePaths,
-  createBaselineQueueConfig,
-  createIntegrityServiceConfig,
-  createQueueServiceConfig,
-} from "./app-services-wiring.js";
-import { createDefaultIncidentService } from "../../../../modules/incident/application/incident-service.js";
-import { createDefaultBackupService } from "../../../../modules/backup/application/backup-service.js";
-import { createDefaultAutoHealingService } from "../../../../modules/resilience/application/auto-healing-service.js";
-import { createDefaultOperationalApprovalService } from "../../../../modules/approvals/application/approval-service.js";
+import { createStorageService } from "../../../../../platform/fs/storage/storage-service.js";
+function createAppServicePaths({ deps, serverDir }) {
+  const repoRoot = deps.repoRoot || process.env.REPO_ROOT || path.resolve(serverDir, "../../..");
+  return {
+    repoRoot,
+    dbPath: deps.dbPath || process.env.DB_PATH || path.join(repoRoot, "meu-chat.sqlite"),
+    artifactsDir: deps.artifactsDir || process.env.ARTIFACTS_DIR || path.join(repoRoot, "artifacts"),
+  };
+}
+
+function createBaselineQueueConfig() {
+  return {};
+}
+
+function createIntegrityServiceConfig(repoRoot) {
+  return {
+    manifestPath: path.join(repoRoot, "ops", "integrity", "manifest.json")
+  };
+}
+
+function createQueueServiceConfig({ parsePositiveInt }) {
+  return {
+    maxConcurrency: parsePositiveInt(process.env.QUEUE_MAX_CONCURRENCY, 4),
+    maxQueueSize: parsePositiveInt(process.env.QUEUE_MAX_SIZE, 50),
+  };
+}
+import { createDefaultIncidentService } from "../../../../../modules/incident/application/incident-service.js";
+import { createDefaultBackupService } from "../../../../../modules/backup/application/backup-service.js";
+import { createDefaultAutoHealingService } from "../../../../../modules/resilience/application/auto-healing-service.js";
+import { createDefaultOperationalApprovalService } from "../../../../../modules/approvals/application/approval-service.js";
 import {
   buildBaselineConfigSnapshot,
   createDefaultBaselineService,
-} from "../../../../modules/config-governance/application/baseline-service.js";
-import { createCapacityProfileService } from "../../../../modules/capacity/application/capacity-service.js";
-import { createConfigRollbackService } from "../../../../modules/config-governance/application/config-rollback-service.js";
-import { createDefaultDisasterRecoveryService } from "../../../../modules/resilience/application/disaster-recovery-service.js";
-import { createIntegrityRuntimeService } from "../../../../modules/resilience/application/integrity-service.js";
-import { createDefaultHealthProviders } from "../../../../modules/health/application/health-providers.js";
-import { createQueueService } from "../../../../modules/capacity/application/queue-service.js";
-import { createScorecardService } from "../../../../modules/capacity/application/scorecard-service.js";
+} from "../../../../../modules/config-governance/application/baseline-service.js";
+import { createCapacityProfileService } from "../../../../../modules/capacity/application/capacity-service.js";
+import { createConfigRollbackService } from "../../../../../modules/config-governance/application/config-rollback-service.js";
+import { createDefaultDisasterRecoveryService } from "../../../../../modules/resilience/application/disaster-recovery-service.js";
+import { createIntegrityRuntimeService } from "../../../../../modules/resilience/application/integrity-service.js";
+import { createDefaultHealthProviders } from "../../../../../modules/health/application/health-providers.js";
+import { createQueueService } from "../../../../../modules/capacity/application/queue-service.js";
+import { createScorecardService } from "../../../../../modules/capacity/application/scorecard-service.js";
 
 export function createAppServices({
   deps,

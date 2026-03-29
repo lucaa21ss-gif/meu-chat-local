@@ -39,7 +39,7 @@ test("App composition contract mantém compatibilidade entre controller e view-m
   assert.deepEqual(Object.keys(vm.mainContent).sort(), APP_MAIN_CONTENT_PROP_KEYS);
 
   assert.equal(vm.shell.menuOpen, true);
-  assert.equal(vm.shell.backdropClassName, "backdrop show");
+  assert.equal(vm.shell.backdropClassName, "ai-sidebar-backdrop");
   assert.equal(vm.shell.onOpenMenu, openMenu);
   assert.equal(vm.shell.onCloseMenu, closeMenu);
 

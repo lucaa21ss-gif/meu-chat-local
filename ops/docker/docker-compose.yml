@@ -29,17 +29,17 @@ services:
       - NODE_ENV=development
       - LOG_LEVEL=debug
       - FRONTEND_ORIGIN=http://localhost:5173,http://127.0.0.1:5173
+      - NODE_PATH=/workspace/node_modules
+      - JWT_SECRET=dev-secret-local-only-change-in-production
     command:
       [
         "sh",
         "-lc",
-        "if [ ! -d node_modules ] || [ ! -d apps/api/node_modules ]; then npm ci; fi && npm run dev --workspace apps/api",
+        "if [ ! -f node_modules/.installed ] || [ ! -f node_modules/.bin/nodemon ]; then npm install && touch node_modules/.installed; fi && node_modules/.bin/nodemon --legacy-watch --ext js,json --watch apps/api --watch platform --watch modules --watch shared apps/api/src/entrypoints/index.js",
       ]
     volumes:
       - ../..:/workspace
       - node_modules_cache:/workspace/node_modules
-      - node_modules_api_cache:/workspace/apps/api/node_modules
-      - node_modules_web_cache:/workspace/apps/web/node_modules
     ports:
       - "4000:4000"
     depends_on:
@@ -74,13 +74,11 @@ services:
       [
         "sh",
         "-lc",
-        "if [ ! -d node_modules ] || [ ! -d apps/web/node_modules ]; then npm ci; fi && npm run dev --workspace apps/web -- --host 0.0.0.0 --port 5173 --strictPort",
+        "if [ ! -f node_modules/.installed ]; then npm install && touch node_modules/.installed; fi && npm run dev --workspace apps/web -- --host 0.0.0.0 --port 5173 --strictPort",
       ]
     volumes:
       - ../..:/workspace
       - node_modules_cache:/workspace/node_modules
-      - node_modules_web_cache:/workspace/apps/web/node_modules
-      - node_modules_api_cache:/workspace/apps/api/node_modules
     ports:
       - "5173:5173"
     depends_on:
@@ -97,6 +95,7 @@ services:
     restart: unless-stopped
 
   server:
+    profiles: ["prod"]
     image: meu-chat-local-api:local
     build:
       context: ../..
@@ -129,6 +128,7 @@ services:
     restart: unless-stopped
 
   web:
+    profiles: ["prod"]
     image: meu-chat-local-web:local
     build:
       context: ../..
