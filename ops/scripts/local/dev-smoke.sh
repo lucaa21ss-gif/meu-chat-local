@@ -8,6 +8,20 @@ API_URL="${API_URL:-http://localhost:4000/api/health}"
 WEB_URL="${WEB_URL:-http://localhost:5173}"
 BOOT_WAIT_SEC="${BOOT_WAIT_SEC:-1}"
 BOOT_RETRIES="${BOOT_RETRIES:-30}"
+STRICT=0
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --strict)
+      STRICT=1
+      ;;
+    *)
+      echo "[dev-smoke] argumento desconhecido: $1" >&2
+      exit 2
+      ;;
+  esac
+  shift
+done
 
 mkdir -p "$LOG_DIR"
 
@@ -47,7 +61,11 @@ trap cleanup EXIT
 cd "$ROOT_DIR"
 
 echo "[dev-smoke] Iniciando ambiente local"
-npm run dev:start >"$LOG_FILE" 2>&1 &
+if [[ ${STRICT} -eq 1 ]]; then
+  npm run dev:start:strict >"$LOG_FILE" 2>&1 &
+else
+  npm run dev:start >"$LOG_FILE" 2>&1 &
+fi
 START_PID=$!
 
 wait_for_url "$API_URL" "API"
