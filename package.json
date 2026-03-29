@@ -44,16 +44,18 @@
     "skill:governance:preflight:inspect:summary": "node scripts/skill-governance-preflight.mjs --dry-run --strict-io --artifacts-dir artifacts",
     "skill:governance:preflight:inspect:ci": "node scripts/skill-governance-preflight.mjs --dry-run --json --strict-io --artifacts-dir artifacts --confidence-profile ci",
     "dev": "npm run dev --workspace apps/web",
+    "dev:web": "npm run dev --workspace apps/web",
     "dev:api": "npm run dev --workspace apps/api",
-    "dev:all": "npm run dev:api & npm run dev",
+    "dev:all": "concurrently -k -n API,WEB -c green,cyan \"npm run dev:api\" \"npm run dev:web\"",
     "build": "npm run build --workspace apps/web",
     "preview": "npm run preview --workspace apps/web",
     "build:all": "npm run build --workspace apps/web",
-    "preview:all": "npm run dev:api & npm run preview --workspace apps/web",
+    "preview:all": "concurrently -k -n API,PREVIEW -c green,magenta \"npm run dev:api\" \"npm run preview --workspace apps/web\"",
     "verify:consolidation": "npm run test --workspace apps/web -- tests/phase4-route-integration.test.js"
   },
   "devDependencies": {
     "@eslint/js": "^9.22.0",
+    "concurrently": "^9.2.1",
     "eslint": "^9.22.0",
     "globals": "^15.15.0",
     "prettier": "^3.5.3"
