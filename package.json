@@ -53,6 +53,8 @@
     "dev:start:strict": "npm run dev:doctor:strict -- --skip-endpoints && npm run dev:all:clean",
     "dev:smoke": "bash ops/scripts/local/dev-smoke.sh",
     "dev:smoke:strict": "bash ops/scripts/local/dev-smoke.sh --strict",
+    "dev:open": "bash ops/scripts/local/dev-open.sh",
+    "dev:url": "bash ops/scripts/local/dev-open.sh --no-open",
     "dev:status": "bash ops/scripts/local/dev-status.sh",
     "dev:logs": "bash ops/scripts/local/dev-logs.sh latest",
     "dev:logs:list": "bash ops/scripts/local/dev-logs.sh list",
