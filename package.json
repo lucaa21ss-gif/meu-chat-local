@@ -47,10 +47,10 @@
     "dev:api": "npm run dev --workspace apps/api",
     "dev:all": "npm run dev:api & npm run dev",
     "build": "npm run build --workspace apps/web",
-    "preview": "npm run preview --workspace apps/web"
-    "build:all": "npm run build --workspace apps/api && npm run build --workspace apps/web",
+    "preview": "npm run preview --workspace apps/web",
+    "build:all": "npm run build --workspace apps/web",
     "preview:all": "npm run dev:api & npm run preview --workspace apps/web",
-    "verify:consolidation": "npm test -- apps/web tests/phase4-route-integration.test.js && echo '✓ Consolidation verified'"
+    "verify:consolidation": "npm run test --workspace apps/web -- tests/phase4-route-integration.test.js"
   },
   "devDependencies": {
     "@eslint/js": "^9.22.0",
