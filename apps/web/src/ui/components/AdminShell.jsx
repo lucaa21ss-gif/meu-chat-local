@@ -25,9 +25,7 @@ export function AdminShell() {
 
       // Limpa ao desmontar
       return () => {
-        if (containerRef.current) {
-          containerRef.current.innerHTML = '';
-        }
+        app.unmount?.();
         appInstanceRef.current = null;
       };
     } catch (error) {

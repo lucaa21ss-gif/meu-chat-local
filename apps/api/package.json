@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
+    "dev": "node --watch src/entrypoints/index.js",
     "start": "node src/entrypoints/index.js",
     "start:desktop": "node start-desktop.js",
     "test": "node --test",

@@ -4,18 +4,31 @@ import { createAppearance } from './lib/appearance.js';
 export function createApp() {
   const router = createRouter();
   const appearance = createAppearance();
+  let healthIntervalId = null;
+  let refreshHandler = null;
+  let mountNode = null;
+
+  function resolveMountNode(target) {
+    if (typeof target === 'string') {
+      return document.querySelector(target);
+    }
+    return target || null;
+  }
 
   return {
-    mount(selector) {
-      const root = document.querySelector(selector);
-      const app = document.querySelector('#app-root');
+    mount(target) {
+      mountNode = resolveMountNode(target);
+
+      if (!mountNode) {
+        throw new Error('AdminShell mount target nao encontrado');
+      }
 
       // Remove loader inicial
       const loader = document.querySelector('#initial-loader');
       if (loader) loader.remove();
 
       // Renderiza a aplicação
-      app.innerHTML = `
+      mountNode.innerHTML = `
         <div class="flex h-screen overflow-hidden bg-[#030712]">
           <!-- Sidebar com navegação -->
           <nav class="w-64 bg-[#0f1216] border-r border-slate-800 flex flex-col overflow-y-auto">
@@ -70,13 +83,33 @@ export function createApp() {
       router.navigateTo('chat');
 
       // Event listeners
-      document.querySelector('#refresh-btn').addEventListener('click', () => {
+      refreshHandler = () => {
         router.getCurrentView().refresh?.();
-      });
+      };
+
+      document.querySelector('#refresh-btn')?.addEventListener('click', refreshHandler);
 
       // Atualiza status de health a cada 30s
-      setInterval(() => updateHealthStatus(), 30000);
+      healthIntervalId = setInterval(() => updateHealthStatus(), 30000);
       updateHealthStatus();
+    },
+
+    unmount() {
+      if (healthIntervalId) {
+        clearInterval(healthIntervalId);
+        healthIntervalId = null;
+      }
+
+      const refreshButton = document.querySelector('#refresh-btn');
+      if (refreshButton && refreshHandler) {
+        refreshButton.removeEventListener('click', refreshHandler);
+      }
+      refreshHandler = null;
+
+      if (mountNode) {
+        mountNode.innerHTML = '';
+        mountNode = null;
+      }
     }
   };
 }
